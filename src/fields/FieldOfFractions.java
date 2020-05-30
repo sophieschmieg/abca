@@ -1,5 +1,8 @@
 package fields;
 
+import java.math.BigInteger;
+import java.util.Iterator;
+
 import fields.FieldOfFractions.Fraction;
 
 public class FieldOfFractions<T extends Element> extends AbstractField<Fraction<T>> implements Field<Fraction<T>> {
@@ -22,7 +25,7 @@ public class FieldOfFractions<T extends Element> extends AbstractField<Fraction<
 		return this.getEmbedding(this.ring.one());
 	}
 	@Override
-	public int characteristic() {
+	public BigInteger characteristic() {
 		return this.ring.characteristic();
 	}
 	@Override
@@ -54,11 +57,11 @@ public class FieldOfFractions<T extends Element> extends AbstractField<Fraction<
 		return new Fraction<T>(this.ring, this.ring.getRandomElement(), nonzero);
 	}
 	@Override
-	public int getNumberOfElements() throws InfinityException {
+	public BigInteger getNumberOfElements() throws InfinityException {
 		return this.ring.getNumberOfElements();
 	}
 	@Override
-	public Iterable<Fraction<T>> getElements() throws InfinityException {
+	public Iterator<Fraction<T>> iterator() {
 		throw new InfinityException();
 	}
 	public Fraction<T> getEmbedding(T t) {

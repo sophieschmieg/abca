@@ -82,8 +82,12 @@ public class ProjectivePoint<T extends Element> implements Element {
 	}
 	public AffinePoint<T> getDehomogenous(int dehomogencoord) {
 		List<T> coord = new ArrayList<T>();
-		for (int i = 1; i <= this.getDim() + 1; i++)
+		for (int i = 1; i <= this.getDim() + 1; i++) {
+			if (i == dehomogencoord) {
+				continue;
+			}
 			coord.add(this.getDehomogenisedCoord(i, dehomogencoord));
+		}
 		return new AffinePoint<T>(field, coord);
 	}
 	@Override

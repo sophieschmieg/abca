@@ -6,6 +6,8 @@ import java.util.List;
 
 import fields.Element;
 import fields.Field;
+import fields.Polynomial;
+import fields.PolynomialRing;
 
 public class AffinePoint<T extends Element> implements Element {
 	private int dim;
@@ -39,6 +41,14 @@ public class AffinePoint<T extends Element> implements Element {
 	}
 	public T getCoord(int i) {
 		return this.coords.get(i - 1);
+	}
+	public PolynomialRing<T>.Ideal asIdeal(PolynomialRing<T> ring) {
+		List<Polynomial<T>> generators = new ArrayList<>();
+		for (int i = 0; i < coords.size(); i++) {
+			T t = coords.get(i);
+			generators.add(ring.subtract(ring.getVar(i+1), ring.getEmbedding(t)));
+		}
+		return ring.getIdeal(generators);
 	}
 	@Override
 	public boolean equals(Object O) {

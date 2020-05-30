@@ -1,15 +1,18 @@
-package varieties.curves;
+/*package varieties.curves;
 
+import java.math.BigInteger;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
-import varieties.curves.DivisorGroup.Divisor;
-import varieties.curves.Jacobian.DivisorClass;
 import fields.Element;
 import fields.Group;
 import fields.InfinityException;
+import varieties.ProjectivePoint;
+import varieties.Variety;
+import varieties.curves.DivisorGroup.Divisor;
 
-public class Jacobian<T extends Element> implements Group<DivisorClass<T>> {
+public class Jacobian<T extends Element> implements Group<ProjectivePoint<T>>, Variety<T> {
 	private SmoothCurve<T> curve;
 	private DivisorGroup<T> group;
 	private Map<Divisor<T>, DivisorClass<T>> classes;
@@ -31,13 +34,13 @@ public class Jacobian<T extends Element> implements Group<DivisorClass<T>> {
 	}
 
 	@Override
-	public int getNumberOfElements() throws InfinityException {
-		return 0;
+	public BigInteger getNumberOfElements() throws InfinityException {
+		throw new InfinityException();
 	}
 
 	@Override
-	public Iterable<DivisorClass<T>> getElements() throws InfinityException {
-		return null;
+	public Iterator<DivisorClass<T>> iterator() {
+		throw new InfinityException();
 	}
 
 	@Override
@@ -76,13 +79,13 @@ public class Jacobian<T extends Element> implements Group<DivisorClass<T>> {
 			this.group = new DivisorGroup<T>();
 			this.curve = curve;
 			this.divisor = divisor;
-	/*		if (this.divisor.getDegree() == 0 && this.curve instanceof EllipticCurve) {
+	/ *		if (this.divisor.getDegree() == 0 && this.curve instanceof EllipticCurve) {
 				EllipticCurve<T> ell = (EllipticCurve<T>) this.curve;
 				List<ProjectivePoint<T>> zeroes = new ArrayList<ProjectivePoint<T>>();
 				List<ProjectivePoint<T>> poles = new ArrayList<ProjectivePoint<T>>();
 				zeroes.addAll(this.divisor.getZeroes());
 				poles.addAll(this.divisor.getPoles());
-			}*/
+			}* /
 			if (this.curve.isPrincipal(this.divisor)) {
 				this.divisor = this.group.neutral();
 			}
@@ -110,4 +113,4 @@ public class Jacobian<T extends Element> implements Group<DivisorClass<T>> {
 			return 0;
 		}
 	}
-}
+}*/

@@ -1,5 +1,8 @@
 package varieties;
 
+import java.math.BigInteger;
+import java.util.Iterator;
+
 import fields.Element;
 import fields.Field;
 import fields.InfinityException;
@@ -28,12 +31,12 @@ public class ProjectiveVariety<T extends Element> implements Variety<T> {
 	}
 
 	@Override
-	public int getNumberOfElements() throws InfinityException {
+	public BigInteger getNumberOfElements() throws InfinityException {
 		throw new UnsupportedOperationException();
 	}
 
 	@Override
-	public Iterable<ProjectivePoint<T>> getElements() throws InfinityException {
+	public Iterator<ProjectivePoint<T>> iterator() {
 		throw new UnsupportedOperationException();
 	}
 

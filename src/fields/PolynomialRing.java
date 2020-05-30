@@ -1,5 +1,6 @@
 package fields;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -8,28 +9,52 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import fields.CoordinateRing.CoordinateRingElement;
 import fields.Polynomial.EliminationOrder;
 import fields.Polynomial.Monomial;
+import util.Pair;
 
-public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T>> {
+public class PolynomialRing<T extends Element> extends AbstractAlgebra<T, Polynomial<T>> {
 	private Field<T> field;
 	private int numvars;
 	private Comparator<Polynomial.Monomial> comparator;
-	
+	private Map<Polynomial<T>, List<Polynomial<T>>> squareFreeFactorizatonCache;
+	private Map<Polynomial<T>, List<Pair<Polynomial<T>, Integer>>> distinctDegreeFactorizatonCache;
+	private Map<Polynomial<T>, Integer> distinctDegreeFactorizationMaxDegree;
+	private Map<Polynomial<T>, Map<Integer, List<Polynomial<T>>>> irreducibleFactorizatonCache;
+
 	public PolynomialRing(Field<T> field, int numvars, Comparator<Polynomial.Monomial> comparator) {
 		this.field = field;
 		this.numvars = numvars;
 		this.comparator = comparator;
+		this.squareFreeFactorizatonCache = new TreeMap<>();
+		this.distinctDegreeFactorizatonCache = new TreeMap<>();
+		this.distinctDegreeFactorizationMaxDegree = new TreeMap<>();
+		this.irreducibleFactorizatonCache = new TreeMap<>();		
 	}
 	public Field<T> getField() {
 		return this.field;
 	}
 	
+	public Ring<T> getRing() {
+		return this.field;
+	}
+	
+	public List<Polynomial<T>> getGenerators() {
+		List<Polynomial<T>> result = new ArrayList<>();
+		for (int i = 1; i <= numvars; i++) {
+			result.add(getVar(i));
+		}
+		return result;
+	}
+
 	public Polynomial<T> getEmbedding(T t, int[] exponents) {
 		return this.getEmbedding(t, new Polynomial.Monomial(exponents));
 	}
@@ -89,21 +114,10 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 		}
 		return this.getPolynomial(coeffs);
 	}
-        @SafeVarargs
+	@SafeVarargs
 	public final Polynomial<T> getLinear(T... coeffs) {
 		return this.getLinear(Arrays.asList(coeffs));
 	}
-	/*public Ideal getLine(ProjectivePoint<T> p, ProjectivePoint<T> q) {
-		if (p.equals(q))
-			throw new ArithmeticException("Need two points for a line");
-		Field<T> rh = field;
-		List<T> list = new ArrayList<T>();
-		list.add(rh.subtract(rh.multiply(p.getCoord(2), q.getCoord(3)), rh.multiply(p.getCoord(3), q.getCoord(2))));
-		list.add(rh.subtract(rh.multiply(p.getCoord(3), q.getCoord(1)), rh.multiply(p.getCoord(1), q.getCoord(3))));
-		list.add(rh.subtract(rh.multiply(p.getCoord(1), q.getCoord(2)), rh.multiply(p.getCoord(2), q.getCoord(1))));
-		return Polynomial.getLine(rh, list, comparator);
-	}
-*/
 
 	public PolynomialRing<T> addVariableWithElimination(int shift) {
 		if (shift < 0)
@@ -113,14 +127,33 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 
 	@Override
 	public Polynomial<T> getRandomElement() {
-		throw new UnsupportedOperationException();
+		int degree = (int)Math.abs(new Random().nextGaussian() * 2.0);
+		return getRandomElement(degree);
+	}
+	
+	private Polynomial<T> getRandomElement(int degree, int var) {
+		if (degree < 0) {
+			return this.zero();
+		}
+		if (var > numvars) {
+			return this.getEmbedding(field.getRandomElement());
+		}
+		Polynomial<T> result = this.zero();
+		for (int i = 0; i <= degree; i++) {
+			result = this.add(result, this.multiply(this.getVar(var, i), this.getRandomElement(degree - i, var + 1)));
+		}
+		return result;
+	}
+	
+	public Polynomial<T> getRandomElement(int degree) {
+		return this.getRandomElement(degree, 1);
 	}
 	@Override
-	public int getNumberOfElements() {
-		return -1;
+	public BigInteger getNumberOfElements() {
+		return BigInteger.valueOf(-1);
 	}
 	@Override
-	public Iterable<Polynomial<T>> getElements() throws InfinityException {
+	public Iterator<Polynomial<T>> iterator() {
 		throw new InfinityException();
 	}
 	@Override
@@ -155,14 +188,29 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 	}
 	@Override
 	public Polynomial<T> multiply(Polynomial<T> t1, Polynomial<T> t2) {
-		Polynomial<T> result = this.zero();
-		for (Polynomial.Monomial m : t1.getCoefficients().keySet()) 
-			result = this.add(result, this.multiply(t1.getCoefficients().get(m), m, t2));
-		return result;
+		SortedMap<Monomial, T> result = new TreeMap<>(this.comparator);
+		for (Polynomial.Monomial m1 : t1.getCoefficients().keySet()) {
+			for (Polynomial.Monomial m2 : t2.getCoefficients().keySet()) {
+				Monomial m = this.multiply(m1, m2);
+				T newValue = this.field.multiply(t1.getCoefficient(m1), t2.getCoefficient(m2));
+				if (result.containsKey(m)) {
+					result.put(m, this.field.add(result.get(m), newValue));
+				} else {
+					result.put(m, newValue);
+				}
+			}
+		}
+		return this.getPolynomial(result);
 	}
+	
 	public Polynomial<T> multiply(T a, Polynomial<T> t2) {
 		return this.multiply(a, new Polynomial.Monomial(new int[this.numvars]), t2);
 	}
+	
+	public Polynomial<T> scalarMultiply(T a, Polynomial<T> t) {
+		return this.multiply(a, t);
+	}
+	
 	public Polynomial<T> multiply(T a, Polynomial.Monomial t1, Polynomial<T> t2) {
 		Map<Polynomial.Monomial, T> coeff = new TreeMap<Polynomial.Monomial, T>(this.comparator);
 		coeff.put(new Monomial(new int[this.numvars]), this.field.zero());
@@ -176,7 +224,7 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 		return this.getEmbedding(this.field.one());
 	}
 	@Override
-	public int characteristic() {
+	public BigInteger characteristic() {
 		return this.field.characteristic();
 	}
 	@Override
@@ -187,58 +235,290 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 	public boolean isFinite() {
 		return false;
 	}
+	
+	public boolean isFree() {
+		return true;
+	}
+	
 	public int getNumVars() {
 		return this.numvars;
+	}
+	public boolean hasRoots(Polynomial<T> t) {
+		if (this.numvars != 1) {
+			throw new RuntimeException("Not implemented.");
+		}
+		if (!this.field.isFinite()) {
+			throw new RuntimeException("Not implemented.");
+		}
+		CoordinateRing<T> cr = new CoordinateRing<T>(this, this.getIdeal(Collections.singletonList(t)));
+		CoordinateRingElement<T> x = cr.getEmbedding(this.getVar(1));
+		CoordinateRingElement<T> xq = cr.power(x, this.field.getNumberOfElements());
+		Polynomial<T> xqmx = cr.subtract(xq, x).getElement();
+		List<Polynomial<T>> egcd = this.extendedEuclidean(t, xqmx);
+		return egcd.get(0).getDegree() > 0;
+	}
+	public Polynomial<T> gcd(Polynomial<T> t1, Polynomial<T> t2) {
+		return this.extendedEuclidean(t1, t2).get(0).normalize();
+	}
+	/**
+	 * Square free factorization of an univariate polynomial over a finite field.
+	 * @param t Any normalized univariate polynomial over a finite field.
+	 * @return list of square free factors of t.
+	 */
+	// Output: List of square free factors of t.
+	public List<Polynomial<T>> squareFreeFactorization(Polynomial<T> t) {
+		if (this.squareFreeFactorizatonCache.containsKey(t)) {
+			return this.squareFreeFactorizatonCache.get(t);
+		}
+		if (this.numvars != 1) {
+			throw new RuntimeException("Not univariate.");
+		}
+		if (!this.field.isFinite()) {
+			throw new RuntimeException("Field is not finite.");
+		}
+		if (!t.getLeadingCoefficient().equals(this.field.one())) {
+			throw new RuntimeException("Not normalized.");
+		}
+		List<Polynomial<T>> result = new ArrayList<>();
+		Polynomial<T> tPrime = t.derivative(1);
+		// Over algebraic closure, this decomposes into the factors of t with one degree less.
+		Polynomial<T> degreeMinusI = this.gcd(t, tPrime);
+		// Over the algebraic closure, this decomposes into the linear factors of t.
+		Polynomial<T> linearFactors = this.quotientAndRemainder(t, degreeMinusI).get(0);
+		int i = 0;
+		// Finding all factors of degree i with gcd(i, char F) = 1.
+		while (linearFactors.getDegree() != 0) {
+			i++;
+			// Over the algebraic closure, this is all the factors with multiplicity higher than i.
+			Polynomial<T> linearFactorsHigherDegree = this.gcd(linearFactors, degreeMinusI);
+			// This are all the linear factors that have multiplicity i in t.
+			Polynomial<T> factorThisDegree = this.quotientAndRemainder(linearFactors, linearFactorsHigherDegree).get(0);
+			for (int j = 0; j < i; j++) {
+				result.add(factorThisDegree);
+			}
+			// Updating the linear factors.
+			linearFactors = linearFactorsHigherDegree;
+			// Removing multiplicity i factors.
+			degreeMinusI = this.quotientAndRemainder(degreeMinusI, linearFactorsHigherDegree).get(0);
+		}
+		// Remaining factors are multiplicity kp
+		if (!degreeMinusI.equals(this.one())) {
+			// Substituting x^1/p.
+			Polynomial<T> pthRoot = this.zero();
+			for (Monomial m : degreeMinusI.getCoefficients().keySet()) {
+				if (m.degree() % this.characteristic().intValueExact() != 0) {
+					throw new ArithmeticException("SquareFreeFactorization wrong");
+				}
+				// x^q == x => x^(q/p)^p = x^(p^(n-1))^p = x.
+				BigInteger exp = this.field.getNumberOfElements().divide(this.field.characteristic());
+				T coeff = degreeMinusI.getCoefficient(m);
+				pthRoot = this.add(pthRoot, this.multiply(this.field.power(coeff, exp), this.getVar(1, m.degree() / this.characteristic().intValueExact())));
+			}
+			List<Polynomial<T>> factors = this.squareFreeFactorization(pthRoot);
+			for (Polynomial<T> factor : factors) {
+				for (int j = 0; j < this.characteristic().intValueExact(); j++) {
+					result.add(factor);
+				}
+			}
+		}
+		this.squareFreeFactorizatonCache.put(t, result);
+		return result;
+	}
+	/**
+	 * Factorizes a square free polynomial into factors that of a distinct degree.
+	 * @param t univariate, normalized, square free polynomial over a finite field.
+	 * @param maxDegree maximum degree of results needed. Set to -1 for all factors.
+	 * @return list of pairs of polynomials and integers, such that the polynomials 
+	 * are factors of t, that each consists of irreducible factors of the the given degree.
+	 */
+	public List<Pair<Polynomial<T>, Integer>> distinctDegreeFactorization(Polynomial<T> t, int maxDegree) {		
+		if (this.distinctDegreeFactorizatonCache.containsKey(t)) {
+			int previousMaxDegree = this.distinctDegreeFactorizationMaxDegree.get(t);
+			if (previousMaxDegree == -1 || previousMaxDegree >= maxDegree) {
+				return this.distinctDegreeFactorizatonCache.get(t);
+			}
+		}
+		if (this.numvars != 1) {
+			throw new RuntimeException("Not univariate.");
+		}
+		if (!this.field.isFinite()) {
+			throw new RuntimeException("Field is not finite.");
+		}
+		if (!t.getLeadingCoefficient().equals(this.field.one())) {
+			throw new RuntimeException("Not normalized.");
+		}
+		List<Pair<Polynomial<T>, Integer>> result = new ArrayList<>();		
+		Polynomial<T> work = t;
+		CoordinateRing<T> cr = new CoordinateRing<T>(this, this.getIdeal(Collections.singletonList(work)));
+		CoordinateRingElement<T> x = cr.getEmbedding(this.getVar(1));
+		CoordinateRingElement<T> xqi = x;		
+		for (int degree = 1; work.getDegree() >= 2 * degree; degree++) {
+			if (maxDegree >= 0 && degree > maxDegree) {
+				break;
+			}
+			xqi = cr.power(xqi, this.field.getNumberOfElements());			
+			CoordinateRingElement<T> xqimx = cr.subtract(xqi, x);
+			Polynomial<T> gcd = this.gcd(work, xqimx.getElement());
+			if (!gcd.equals(this.one())) {
+				result.add(new Pair<>(gcd, degree));
+				work = this.quotientAndRemainder(work, gcd).get(0);
+				cr = new CoordinateRing<T>(this, this.getIdeal(Collections.singletonList(work)));
+				x = cr.getEmbedding(this.getVar(1));
+				xqi = x;
+				for (int j = 0; j < degree; j++) {
+					xqi = cr.power(xqi, this.field.getNumberOfElements());
+				}
+			}		
+		}
+		if (!work.equals(this.one())) {
+			result.add(new Pair<>(work, work.getDegree()));
+		}
+		this.distinctDegreeFactorizatonCache.put(t, result);
+		this.distinctDegreeFactorizationMaxDegree.put(t, maxDegree);
+		return result;
+	}
+	/**
+	 * Computes the irreducible factors of t, provided that t is univariate, normalized, square free,
+	 * and only has irreducible factors of the given degree.
+	 * @param t the polynomial to factorize.
+	 * @param degree the degree of all irreducible factors.
+	 * @return a list of irreducible factors of t.
+	 */
+	public List<Polynomial<T>> irreducibleFactorization(Polynomial<T> t, int degree) {
+		if (!this.irreducibleFactorizatonCache.containsKey(t)) {
+			this.irreducibleFactorizatonCache.put(t, new TreeMap<>());
+		}
+		Map<Integer, List<Polynomial<T>>> cache = this.irreducibleFactorizatonCache.get(t);
+		if (cache.containsKey(degree)) {
+			return cache.get(degree);
+		}
+		if (this.numvars != 1) {
+			throw new RuntimeException("Not univariate.");
+		}
+		if (!this.field.isFinite()) {
+			throw new RuntimeException("Field is not finite.");
+		}
+		if (!t.getLeadingCoefficient().equals(this.field.one())) {
+			throw new RuntimeException("Not normalized.");
+		}
+		if (t.getDegree() % degree != 0) {
+			throw new RuntimeException("Inputs impossible!");
+		}
+		int numberOfFactors = t.getDegree() / degree;
+		CoordinateRing<T> cr = new CoordinateRing<T>(this, this.getIdeal(Collections.singletonList(t)));
+		List<Polynomial<T>> factors = new ArrayList<>();
+		factors.add(t);
+		while (factors.size() < numberOfFactors) {
+			// Generate random polynomial with degree smaller than t.
+			Polynomial<T> h = this.zero();
+			for (int i = 0; i < t.getDegree(); i++) {
+				h = this.add(h, this.multiply(this.field.getRandomElement(), this.getVar(1, i)));
+			}
+			BigInteger one = BigInteger.ONE;
+			BigInteger exponent = this.field.getNumberOfElements().pow(degree).subtract(one).shiftRight(1);
+			Polynomial<T> g = cr.subtract(cr.power(cr.getEmbedding(h), exponent), cr.one()).getElement();
+			List<Polynomial<T>> newFactors = new ArrayList<Polynomial<T>>();
+			for (Polynomial<T> factor : factors) {
+				if (factor.getDegree() == degree) {
+					newFactors.add(factor);
+					continue;
+				}
+				Polynomial<T> gcd = this.gcd(factor, g);
+				if (!gcd.equals(this.one()) && !gcd.equals(factor)) {
+					newFactors.add(gcd);
+					newFactors.add(this.quotientAndRemainder(factor, gcd).get(0));
+				} else {
+					newFactors.add(factor);
+				}
+			}
+			factors = newFactors;
+		}
+		cache.put(degree, factors);
+		return factors;
+	}
+	public List<Polynomial<T>> factorization(Polynomial<T> t) {
+		if (this.numvars != 1) {
+			throw new RuntimeException("Multivariate factorization not implemented.");
+		}
+		if (!this.field.isFinite()) {
+			throw new RuntimeException("Characteristic 0 factorization not implemented.");
+		}
+		List<Polynomial<T>> result = new ArrayList<>();
+		if (!t.getLeadingCoefficient().equals(this.field.one())) {
+			result.add(this.getEmbedding(t.getLeadingCoefficient()));
+			t = t.normalize();
+		}
+		List<Polynomial<T>> squareFreeFactors = this.squareFreeFactorization(t);
+		for (Polynomial<T> sff : squareFreeFactors) {
+			List<Pair<Polynomial<T>, Integer>> distinctDegreeFactors = this.distinctDegreeFactorization(sff, -1);
+			for (Pair<Polynomial<T>, Integer> ddf : distinctDegreeFactors) {
+				result.addAll(this.irreducibleFactorization(ddf.getFirst(), ddf.getSecond()));
+			}
+		}
+		return result;
+	}
+	public List<T> roots(Polynomial<T> t) {
+		if (this.numvars != 1) {
+			throw new RuntimeException("Multivariate root finding not implemented. Use ideal logic.");
+		}
+		if (!this.field.isFinite()) {
+			throw new RuntimeException("Characteristic 0 root finding not implemented.");
+		}
+		List<T> result = new ArrayList<T>();
+		t = t.normalize();
+		List<Polynomial<T>> squareFreeFactors = this.squareFreeFactorization(t);
+		for (Polynomial<T> sff : squareFreeFactors) {
+			List<Pair<Polynomial<T>, Integer>> distinctDegreeFactors = this.distinctDegreeFactorization(sff, 1);
+			for (Pair<Polynomial<T>, Integer> ddf : distinctDegreeFactors) {
+				if (ddf.getSecond() != 1) {
+					continue;
+				}
+				List<Polynomial<T>> linear = this.irreducibleFactorization(ddf.getFirst(), ddf.getSecond());
+				for (Polynomial<T> linearFactor : linear) {
+					result.add(this.field.negative(linearFactor.getCoefficient(new Monomial(new int[] {0}))));
+				}
+			}
+		}
+		return result;
 	}
 	@Override
 	public boolean isIntegral() {
 		return true;
 	}
 	@Override
+	public boolean isZeroDivisor(Polynomial<T> t) {
+		return t.equals(zero());
+	}
+	@Override
 	public boolean isEuclidean() {
 		return this.numvars == 1;
 	}
 	@Override
-	public List<Polynomial<T>> quotientAndRemainder(Polynomial<T> dividend, Polynomial<T> divisor) {
-		return this.generalQuotientAndRemainder(dividend, Collections.singletonList(divisor));
-		/*
-		Polynomial<T> quotient, remainder;
-		List<Polynomial<T>> list;
-		if (dividend.getDegree() < divisor.getDegree()) {
-			list = new ArrayList<Polynomial<T>>();
-			list.add(this.zero());
-			list.add(dividend);
-			return list;
-		}
-		T highdividend = this.getCoefficient(dividend, dividend.getDegree()); 
-		T highdivisor = this.getCoefficient(divisor, divisor.getDegree());
-		List<T> qr = this.ring.quotientAndRemainder(highdividend, highdivisor);
-		if (!qr.get(1).equals(this.ring.zero()))
-			throw new ArithmeticException("Not divisible");
-		T factor = qr.get(0);
-		Polynomial<T> pfactor = Polynomial.getEmbedding(this.ring, factor, 1, this.comparator);
-		pfactor = this.multiply(pfactor, Polynomial.getVar(this.ring, 1, 1, dividend.getDegree() - divisor.getDegree(), this.comparator));
-		dividend = this.add(dividend, this.multiply(this.negative(pfactor), divisor));
-		list = this.quotientAndRemainder(dividend, divisor);
-		quotient = this.add(pfactor, list.get(0));
-		remainder = list.get(1);
-		list = new ArrayList<Polynomial<T>>();
-		list.add(quotient);
-		list.add(remainder);
-		return list;
-	}
-	private T getCoefficient(Polynomial<T> poly, int i) {
-		int[] exponents = new int[] {i};
-		return poly.getCoefficients().get(new Monomial(exponents));*/
+	public boolean isDivisible(Polynomial<T> dividend, Polynomial<T> divisor) {
+		return this.quotientAndRemainder(dividend, divisor).get(1).equals(zero());
 	}
 	@Override
-	public int getNumberOfUnits() {
-		return 0;
+	public List<Polynomial<T>> quotientAndRemainder(Polynomial<T> dividend, Polynomial<T> divisor) {
+		if (divisor.getDegree() > dividend.getDegree()) {
+			List<Polynomial<T>> result = new ArrayList<>();
+			result.add(this.zero());
+			result.add(dividend);
+			return result;
+		}
+		return this.generalQuotientAndRemainder(dividend, Collections.singletonList(divisor));
+	}
+	@Override
+	public BigInteger euclidMeasure(Polynomial<T> t) {
+		return BigInteger.valueOf(t.getDegree());
+	}
+	@Override
+	public BigInteger getNumberOfUnits() {
+		return this.field.getNumberOfElements().subtract(BigInteger.ONE);
 	}
 	@Override
 	public Iterable<Polynomial<T>> getUnits() {
 		return new Iterable<Polynomial<T>>() {
-			private Iterable<T> elements = field.getMultiplicativeGroup().getElements();
+			private Iterable<T> elements = field.getMultiplicativeGroup();
 			@Override
 			public Iterator<Polynomial<T>> iterator() {
 				return new Iterator<Polynomial<T>>() {
@@ -261,7 +541,7 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 					}
 				};
 			}
-			
+
 		};
 	}
 	@Override
@@ -316,37 +596,65 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 		return reduced;
 	}
 	public Polynomial<T> reduce(Polynomial<T> polynomial, Collection<Polynomial<T>> basis) {
+		if (basis.isEmpty()) {
+			return polynomial;
+		}
 		return this.generalQuotientAndRemainder(polynomial, new ArrayList<Polynomial<T>>(basis)).get(basis.size());
 	}
 	public List<Polynomial<T>> generalQuotientAndRemainder(Polynomial<T> polynomial, List<Polynomial<T>> basis) {
-		List<Polynomial<T>> quotient = new ArrayList<Polynomial<T>>();
-		Polynomial<T> remainder = this.zero();
+		List<SortedMap<Monomial, T>> quotient = new ArrayList<>();
+		SortedMap<Monomial, T> remainder = new TreeMap<>(this.comparator);
+		SortedMap<Monomial, T> p = new TreeMap<>(this.comparator);
+		p.putAll(polynomial.getCoefficients());
 		for (int i = 0; i < basis.size(); i++)
-			quotient.add(this.zero());
+			quotient.add(new TreeMap<>(this.comparator));
 		while (true) {
-			if (polynomial.equals(this.zero())) {
+			if (p.isEmpty()) {
 				List<Polynomial<T>> list = new ArrayList<Polynomial<T>>();
-				list.addAll(quotient);
-				list.add(remainder);
+				for (SortedMap<Monomial, T> q : quotient) {
+					list.add(this.getPolynomial(q));
+				}
+				list.add(this.getPolynomial(remainder));
 				return list;
 			}
-			Polynomial.Monomial leadingmonomial = polynomial.getLeadingTerm();
-			T leadingcoefficient = polynomial.getLeadingCoefficient();
+			Polynomial.Monomial leadingmonomial = p.lastKey();
+			T leadingcoefficient = p.get(leadingmonomial);
 			boolean success = false;
+			boolean totalFailure = true;
 			for (int i = 0; i < basis.size(); i++) {
-				Polynomial.Monomial div = this.divide(leadingmonomial, basis.get(i).getLeadingTerm());
+				Polynomial<T> base = basis.get(i);
+				if (this.comparator.compare(leadingmonomial, base.getLeadingTerm()) >= 0) {
+					totalFailure = false;
+				}
+				Polynomial.Monomial div = this.divide(leadingmonomial, base.getLeadingTerm());
 				if (div == null)
 					continue;
-				Polynomial<T> divpoly = this.getEmbedding(this.field.divide(leadingcoefficient, basis.get(i).getLeadingCoefficient()), div);
-				quotient.set(i, this.add(divpoly, quotient.get(i)));
-				polynomial = this.subtract(polynomial, this.multiply(divpoly, basis.get(i)));
+				T factor = this.field.divide(leadingcoefficient, base.getLeadingCoefficient());
+				quotient.get(i).put(div, factor);
+				for (Monomial m : base.getCoefficients().keySet()) {
+					T subtrahend = this.field.multiply(factor, base.getCoefficient(m));
+					Monomial multiplied = this.multiply(m, div);
+					T newValue;
+					if (p.containsKey(multiplied)) {
+						newValue = this.field.subtract(p.get(multiplied), subtrahend);
+					} else {
+						newValue = this.field.negative(subtrahend);
+					}
+					if (newValue.equals(this.field.zero())) {
+						p.remove(multiplied);
+					} else {
+						p.put(multiplied, newValue);
+					}
+				}
 				success = true;
 				break;
 			}
-			if (!success) {
-				Polynomial<T> leading = this.getEmbedding(leadingcoefficient, leadingmonomial); 
-				remainder = this.add(remainder, leading);
-				polynomial = this.subtract(polynomial, leading);
+			if (totalFailure) {
+				remainder.putAll(p);
+				p.clear();
+			} else if (!success) {
+				remainder.put(leadingmonomial, leadingcoefficient);
+				p.remove(leadingmonomial);
 			}
 		}
 	}
@@ -359,6 +667,13 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 		}
 		return new Polynomial.Monomial(dividedexponents);
 	}
+	private Polynomial.Monomial multiply(Polynomial.Monomial m1, Polynomial.Monomial m2) {
+		int[] exponents = new int[this.numvars];
+		for (int i = 0; i < this.numvars; i++) {
+			exponents[i] = m1.getExponents()[i] + m2.getExponents()[i];
+		}
+		return new Polynomial.Monomial(exponents);
+	}
 	private Polynomial.Monomial lcm(Polynomial.Monomial m1, Polynomial.Monomial m2) {
 		int[] exponents = new int[this.numvars];
 		for (int i = 0; i < this.numvars; i++) {
@@ -366,12 +681,12 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 		}
 		return new Polynomial.Monomial(exponents);
 	}
-	public class Ideal {
+	public class Ideal extends AbstractModule<Polynomial<T>, Polynomial<T>> {
 		private SortedSet<Polynomial<T>> basis;
 		private int[][] leadingMonomials;
 		private int[] set;
 		private int dimension;
-		
+
 		public Ideal(List<Polynomial<T>> generators) {
 			this.basis = PolynomialRing.this.buchberger(generators);
 			this.leadingMonomials = new int[this.basis.size()][PolynomialRing.this.numvars];
@@ -444,32 +759,20 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 		}
 		public Ideal intersect(Ideal ideal) {
 			List<Polynomial<T>> generators = new ArrayList<Polynomial<T>>();
-			PolynomialRing<T> ring = PolynomialRing.this.addVariableWithElimination(2);
+			PolynomialRing<T> ring = PolynomialRing.this.addVariableWithElimination(1);
 			Polynomial<T> t = ring.getVar(1);
-			Polynomial<T> s = ring.getVar(2);
-			Polynomial<T> sminust = ring.subtract(s, t);
-			Polynomial<T> tsquare = ring.multiply(t, t);
-			Polynomial<T> ssquare = ring.multiply(s, s);
-			Polynomial<T> st = ring.multiply(s, t);
-			generators.add(tsquare);
-			generators.add(ssquare);
-			generators.add(st);
+			Polynomial<T> omt = ring.subtract(ring.one(), t);
 			for (Polynomial<T> f : this.basis) {
-				generators.add(ring.multiply(t, ring.getEmbeddingShift(f, 2)));
+				generators.add(ring.multiply(t, ring.getEmbeddingShift(f, 1)));
 			}
 			for (Polynomial<T> g : ideal.basis) {
-				generators.add(ring.multiply(sminust, ring.getEmbeddingShift(g, 2)));
+				generators.add(ring.multiply(omt, ring.getEmbeddingShift(g, 1)));
 			}
 			Ideal intersectionIdeal = ring.getIdeal(generators);
 			List<Polynomial<T>> intersectionGenerators = new ArrayList<Polynomial<T>>();
-			List<T> values = new ArrayList<T>();
-			values.add(null);
-			values.add(field.one());
-			for (int i = 0; i < numvars; i++)
-				values.add(null);
 			for (Polynomial<T> b : intersectionIdeal.getBasis()) {
-				if (b.getLeadingTerm().getExponents()[0] == 0 && b.getLeadingTerm().getExponents()[1] == 1)
-					intersectionGenerators.add(PolynomialRing.this.getEmbeddingShift(b.evaluatePartially(values), -2));
+				if (b.getLeadingTerm().getExponents()[0] == 0)
+					intersectionGenerators.add(PolynomialRing.this.getEmbeddingShift(b, -1));
 			}
 			return new Ideal(intersectionGenerators);
 		}
@@ -489,35 +792,57 @@ public class PolynomialRing<T extends Element> extends AbstractRing<Polynomial<T
 					saturationGenerators.add(PolynomialRing.this.getEmbeddingShift(b, -1));
 			}
 			return new Ideal(saturationGenerators);
-			
+
 		}
-		/*public int degree() {
-			if (this.basis.isEmpty())
-				return PolynomialRing.this.numvars + 1;
-			int degree = 1;
-			System.out.println("set: " + Arrays.toString(this.set));
-			basisloop:
-			for (int i = 0; i < this.basis.size(); i++) {
-				int sum = 0;
-				boolean nontrivial = false;
-				for (int j = 0; j < this.leadingMonomials[i].length; j++) {
-					System.out.print(this.leadingMonomials[i][j]);
-					if (this.leadingMonomials[i][j] == 0)
-						continue;
-					if (this.set[j] != 0)
-						continue basisloop;
-					nontrivial = true;
-					sum += this.leadingMonomials[i][j];
-				}
-				System.out.println();
-				if (nontrivial)
-					degree *= sum;
-				System.out.println(sum);
-			}
-			return degree;
-		}*/
+		
 		public String toString() {
 			return this.basis.toString();
+		}
+		
+		public Ring<Polynomial<T>> getRing() {
+			return PolynomialRing.this;
+		}
+		
+		public boolean isFree() {
+			return true;
+		}
+		
+		public boolean isFinite() {
+			return false;
+		}
+		
+		public Polynomial<T> zero() {
+			return PolynomialRing.this.zero();
+		}
+		
+		public Polynomial<T> add(Polynomial<T> t1, Polynomial<T> t2) {
+			return PolynomialRing.this.add(t1, t2);
+		}
+		
+		public Polynomial<T> negative(Polynomial<T> t) {
+			return PolynomialRing.this.negative(t);
+		}
+		
+		public Polynomial<T> scalarMultiply(Polynomial<T> t1, Polynomial<T> t2) {
+			return PolynomialRing.this.multiply(t1, t2);
+		}
+		
+		@Override
+		public Polynomial<T> getRandomElement() {
+			Polynomial<T> randomElement = this.zero();
+			for (Polynomial<T> b : this.basis) {
+				randomElement = this.add(randomElement, this.scalarMultiply(PolynomialRing.this.getRandomElement(), b));
+			}
+			return randomElement;
+		}
+		
+		@Override
+		public BigInteger getNumberOfElements() {
+			return BigInteger.valueOf(-1);
+		}
+		@Override
+		public Iterator<Polynomial<T>> iterator() {
+			throw new InfinityException();
 		}
 	}
 }

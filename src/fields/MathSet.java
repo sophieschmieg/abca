@@ -1,8 +1,9 @@
 package fields;
 
-public interface MathSet<T extends Element> {
+import java.math.BigInteger;
+
+public interface MathSet<T extends Element> extends Iterable<T> {
 	public T getRandomElement();
 	public boolean isFinite();
-	public int getNumberOfElements() throws InfinityException;
-	public Iterable<T> getElements() throws InfinityException;
+	public BigInteger getNumberOfElements() throws InfinityException;
 }

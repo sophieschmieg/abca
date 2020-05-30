@@ -20,6 +20,7 @@ public class Polynomial<T extends Element> implements Element {
 	private SortedMap<Monomial, T> coeff;
 	private Comparator<Polynomial.Monomial> comparator;
 	public final static Comparator<Polynomial.Monomial> LEX = new LexographicalOrder();
+	public final static Comparator<Polynomial.Monomial> REVLEX = new ReverseLexographicalOrder();
 	public final static Comparator<Polynomial.Monomial> GRLEX = new GradedLexographicalOrder();
 	public final static Comparator<Polynomial.Monomial> GREVLEX = new GradedReversedLexographicalOrder();
 	
@@ -124,7 +125,32 @@ public class Polynomial<T extends Element> implements Element {
 		else
 			return this.field.zero();
 	}
-
+	
+	@SafeVarargs
+	public final T evaluate(T... values) {
+		return evaluate(Arrays.asList(values));
+	}
+	
+	public Polynomial<T> substitute(List<Polynomial<T>> values) {
+		Polynomial<T> result = this.ring.zero();
+		for (Monomial m : this.getCoefficients().keySet()) {
+			Polynomial<T> value = this.ring.getEmbedding(this.getCoefficient(m));
+			for (int i = 0; i < m.numvars; i++) {
+				value = this.ring.multiply(value, this.ring.power(values.get(i), m.exponents[i]));
+			}
+			result = this.ring.add(result, value);
+		}
+		return result;
+	}
+	
+	public Polynomial<T> homogenize() {
+		Map<Monomial, T> coeff = new TreeMap<>(this.comparator);
+		for (Monomial m : this.coeff.keySet()) {
+			coeff.put(m.homogenizeMonomial(degree), this.coeff.get(m));
+		}
+		return new Polynomial<T>(coeff, new PolynomialRing<T>(field, numvars + 1, comparator));
+	}
+	
 	public Polynomial<T> dehom(int coord) {
 		if (coord < 1 || coord > this.numvars || !this.isHomogeneous())
 			throw new ArithmeticException("Not possible");
@@ -230,6 +256,13 @@ public class Polynomial<T extends Element> implements Element {
 				d += e;
 			return d;
 		}
+		
+		private Monomial homogenizeMonomial(int degree) {
+			int[] exponents = Arrays.copyOf(this.exponents, this.numvars + 1);
+			exponents[this.numvars] = degree - this.degree();
+			return new Monomial(exponents);
+		}
+		
 		public static Monomial multiply(Monomial t1, Monomial t2) {
 			int numvars = t1.numvars;
 			if (numvars != t2.numvars)
@@ -275,6 +308,20 @@ public class Polynomial<T extends Element> implements Element {
 			for (int i = 0; i < a.numvars; i++) {
 				if (a.exponents[i] != b.exponents[i])
 					return a.exponents[i] - b.exponents[i];
+			}
+			return 0;
+		}
+		
+	}
+	public static class ReverseLexographicalOrder implements Comparator<Polynomial.Monomial> {
+
+		@Override
+		public int compare(Monomial a, Monomial b) {
+			if (a.numvars != b.numvars)
+				return a.numvars - b.numvars;
+			for (int i = 0; i < a.numvars; i++) {
+				if (a.exponents[a.numvars - i - 1] != b.exponents[a.numvars - i - 1])
+					return a.exponents[a.numvars - i - 1] - b.exponents[a.numvars - i - 1];
 			}
 			return 0;
 		}
