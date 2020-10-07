@@ -5,17 +5,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import fields.Element;
-import fields.Field;
-import fields.Polynomial;
-import fields.PolynomialRing;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
+import fields.interfaces.Ideal;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
 
-public class ProjectivePoint<T extends Element> implements Element {
+public class ProjectivePoint<T extends Element<T>> implements Element<ProjectivePoint<T>> {
 	private Field<T> field;
 	private int dim;
 	private List<T> coords;
 	private int nonzero;
-	private PolynomialRing<T>.Ideal ideal;
+	private Ideal<Polynomial<T>> ideal;
 
         @SafeVarargs
 	public ProjectivePoint(Field<T> field, T... coords) {
@@ -43,7 +44,7 @@ public class ProjectivePoint<T extends Element> implements Element {
 			throw new ArithmeticException("Divison of zero by zero!");
 		this.dim = this.coords.size() - 1;
 	}
-	public PolynomialRing<T>.Ideal asIdeal(PolynomialRing<T> ring) {
+	public Ideal<Polynomial<T>> asIdeal(PolynomialRing<T> ring) {
 		if (this.ideal != null)
 			return this.ideal;
 		List<Polynomial<T>> list = new ArrayList<Polynomial<T>>();
@@ -134,9 +135,7 @@ public class ProjectivePoint<T extends Element> implements Element {
 		return buf.toString();
 	}
 	@Override
-	public int compareTo(Element o) {
-		@SuppressWarnings("unchecked")
-		ProjectivePoint<T> p = (ProjectivePoint<T>)o;
+	public int compareTo(ProjectivePoint<T> p) {
 		if (p.getDim() != this.getDim())
 			return this.getDim() - p.getDim();
 		if (this.nonzero != p.nonzero)

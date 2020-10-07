@@ -7,27 +7,30 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 
-import fields.PrimeField;
-import fields.PrimeField.PrimeFieldElement;
-import fields.CoordinateRing;
-import fields.CoordinateRing.CoordinateRingElement;
-import fields.Element;
-import fields.Field;
-import fields.FunctionField;
-import fields.Group;
-import fields.Polynomial;
-import fields.PolynomialRing;
-import fields.RationalFunction;
+import fields.finitefields.PrimeField;
+import fields.finitefields.PrimeField.PrimeFieldElement;
+import fields.helper.CoordinateRing;
+import fields.helper.CoordinateRing.CoordinateRingElement;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
+import fields.interfaces.Group;
+import fields.interfaces.Ideal;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
+import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.Monomial;
+import fields.polynomials.UnivariatePolynomialRing;
 import util.MiscAlgorithms;
+import varieties.FunctionField;
 import varieties.ProjectivePoint;
 import varieties.ProjectiveSpace;
 import varieties.ProjectiveVariety;
+import varieties.RationalFunction;
 import varieties.curves.DivisorGroup.Divisor;
 
-public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
+public class EllipticCurve<T extends Element<T>> extends ProjectiveVariety<T>
 		implements SmoothCurve<T>, Group<ProjectivePoint<T>> {
 	private Field<T> field;
 	private T a;
@@ -35,7 +38,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 	private ProjectivePoint<T> pointAtInfinity;
 	private PolynomialRing<T> projectiveRing;
 	private PolynomialRing<T> affineRing;
-	private PolynomialRing<T> univariateRing;
+	private UnivariatePolynomialRing<T> univariateRing;
 	private CoordinateRing<T> coordinateRing;
 	private Polynomial<T> rhs;
 	@SuppressWarnings("rawtypes")
@@ -45,13 +48,13 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 	private BigInteger numberOfPoints = BigInteger.valueOf(-1);
 
 	@SuppressWarnings("unchecked")
-	private static <T extends Element> ProjectiveSpace<T> getSpace(Field<T> field) {
+	private static <T extends Element<T>> ProjectiveSpace<T> getSpace(Field<T> field) {
 		if (!EllipticCurve.spaces.containsKey(field))
 			EllipticCurve.spaces.put(field, new ProjectiveSpace<T>(field, 2));
 		return EllipticCurve.spaces.get(field);
 	}
 
-	private static <T extends Element> PolynomialRing<T>.Ideal getIdeal(Field<T> field, T a, T b) {
+	private static <T extends Element<T>> Ideal<Polynomial<T>> getIdeal(Field<T> field, T a, T b) {
 		PolynomialRing<T> ring = EllipticCurve.getSpace(field).getRing();
 		Polynomial<T> f = ring.getEmbedding(field.one(), new int[] { 3, 0, 0 });
 		f = ring.add(f, ring.getEmbedding(field.negative(field.one()), new int[] { 0, 2, 1 }));
@@ -72,18 +75,18 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 				.equals(this.field.zero()))
 			throw new ArithmeticException("Singular curve");
 		this.projectiveRing = this.getSpace().getRing();
-		this.affineRing = new PolynomialRing<T>(this.field, 2, Polynomial.REVLEX);
+		this.affineRing = AbstractPolynomialRing.getPolynomialRing(this.field, 2, Monomial.REVLEX);
 		PolynomialRing<T> r = this.affineRing;
 		Polynomial<T> x = r.getVar(1);
-		Polynomial<T> x3 = r.getVar(1, 3);
-		Polynomial<T> y2 = r.getVar(2, 2);
+		Polynomial<T> x3 = r.getVarPower(1, 3);
+		Polynomial<T> y2 = r.getVarPower(2, 2);
 		Polynomial<T> rb = r.getEmbedding(this.b);
 		Polynomial<T> rhs = r.add(x3, r.multiply(this.a, x), rb);
 		this.definingPolynomial = r.subtract(rhs, y2);
-		this.univariateRing = new PolynomialRing<T>(this.field, 1, Polynomial.LEX);
+		this.univariateRing = this.field.getUnivariatePolynomialRing();
 		r = this.univariateRing;
 		x = r.getVar(1);
-		x3 = r.getVar(1, 3);
+		x3 = r.getVarPower(1, 3);
 		rb = r.getEmbedding(this.b);
 		this.rhs = r.add(x3, r.multiply(this.a, x), rb);
 	}
@@ -118,7 +121,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 			return true;
 		if (p.getCoord(3).equals(this.field.zero()))
 			return false;
-		return this.definingPolynomial.evaluate(p.getDehomogenous(3).getCoords()).equals(this.field.zero());
+		return this.affineRing.evaluate(this.definingPolynomial, p.getDehomogenous(3).getCoords()).equals(this.field.zero());
 	}
 
 	public Polynomial<T> getDivisionPolynomial(int m) {
@@ -136,10 +139,10 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		PolynomialRing<T> r = this.affineRing;
 		Polynomial<T> o = r.one();
 		Polynomial<T> x = r.getVar(1);
-		Polynomial<T> x2 = r.getVar(1, 2);
-		Polynomial<T> x3 = r.getVar(1, 3);
-		Polynomial<T> x4 = r.getVar(1, 4);
-		Polynomial<T> x6 = r.getVar(1, 6);
+		Polynomial<T> x2 = r.getVarPower(1, 2);
+		Polynomial<T> x3 = r.getVarPower(1, 3);
+		Polynomial<T> x4 = r.getVarPower(1, 4);
+		Polynomial<T> x6 = r.getVarPower(1, 6);
 		Polynomial<T> a = r.getEmbedding(this.a);
 		Polynomial<T> a2 = r.multiply(a, a);
 		Polynomial<T> a3 = r.multiply(a2, a);
@@ -314,11 +317,11 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		if (common.equals(zero))
 			numerator = this.getTangentSpace(zero).get(0);
 		else
-			numerator = this.getSpace().asHyperplaneIdeal(zero, common).getBasis().first();
+			numerator = this.getSpace().asHyperplaneIdeal(zero, common).generators().get(0);
 		if (pole1.equals(pole2))
 			denominator = this.getTangentSpace(pole1).get(0);
 		else
-			denominator = this.getSpace().asHyperplaneIdeal(pole1, pole2).getBasis().first();
+			denominator = this.getSpace().asHyperplaneIdeal(pole1, pole2).generators().get(0);
 		return new RationalFunction<T>(this.field, numerator, denominator, this, this.projectiveRing);
 	}
 
@@ -330,11 +333,11 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		List<T> values = new ArrayList<T>();
 		values.add(null);
 		values.add(field.zero());
-		Polynomial<T> xPart = t.getElement().evaluatePartially(values);
+		Polynomial<T> xPart = affineRing.partiallyEvaluate(t.getElement(), values);
 		values.clear();
 		values.add(null);
 		values.add(field.one());
-		Polynomial<T> yPart = affineRing.subtract(t.getElement().evaluatePartially(values), xPart);
+		Polynomial<T> yPart = affineRing.subtract(affineRing.partiallyEvaluate(t.getElement(), values), xPart);
 		List<Polynomial<T>> result = new ArrayList<>();
 		result.add(univariateRing.getEmbedding(xPart, new int[] { 0 }));
 		result.add(univariateRing.getEmbedding(yPart, new int[] { 0 }));
@@ -415,14 +418,14 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		List<T> line = new ArrayList<T>();
 		List<Polynomial<T>> dl = getDifferentials();
 		for (Polynomial<T> poly : dl)
-			line.add(poly.evaluate(p.getCoords()));
+			line.add(projectiveRing.evaluate(poly, p.getCoords()));
 		return Collections.singletonList(this.projectiveRing.getLinear(line));
 	}
 
 	@Override
 	public List<Polynomial<T>> getCotangentSpace(ProjectivePoint<T> p) {
 		List<Polynomial<T>> list = this.getDifferentials();
-		List<Polynomial<T>> reslist = new ArrayList<Polynomial<T>>();
+		List<Polynomial<T>> reslist = new ArrayList<>();
 		;
 		if (!this.pointAtInfinity.equals(p)) {
 			reslist.add(list.get(1));
@@ -437,7 +440,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 	}
 
 	private List<Polynomial<T>> getDifferentials() {
-		List<Polynomial<T>> list = new ArrayList<Polynomial<T>>();
+		List<Polynomial<T>> list = new ArrayList<>();
 		PolynomialRing<T> r = this.projectiveRing;
 		Polynomial<T> x = r.getVar(1);
 		Polynomial<T> y = r.getVar(2);
@@ -456,7 +459,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		T y2;
 		do {
 			x = this.field.getRandomElement();
-			y2 = this.rhs.evaluate(x);
+			y2 = this.affineRing.evaluate(this.rhs, Collections.singletonList(x));
 		} while (!this.field.hasSqrt(y2));
 		T y = this.field.sqrt(y2).iterator().next();
 		return new ProjectivePoint<T>(field, x, y, field.one());
@@ -485,7 +488,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 			for (int i = 0; i < n; i += degree) {
 				x = field.add(x, field.power(xq, ch.pow(i)));
 			}
-			y2 = this.rhs.evaluate(x);
+			y2 = this.affineRing.evaluate(this.rhs, Collections.singletonList(x));
 		} while (!this.field.hasSqrt(y2));
 		T y = this.field.sqrt(y2).iterator().next();
 		return new ProjectivePoint<T>(field, x, y, field.one());
@@ -591,7 +594,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		for (BigInteger l : primes) {
 			if (l.equals(two)) {
 				// Computing whether curve has two torsion points.
-				if (univarring.hasRoots(univarring.add(univarring.getVar(1, 3),
+				if (field.hasRoots(univarring.add(univarring.getVarPower(1, 3),
 						univarring.multiply(this.a, univarring.getVar(1)), univarring.getEmbedding(b)))) {
 					t.add(zero);
 				} else {
@@ -607,7 +610,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 			Polynomial<T> psiL = this.getDivisionPolynomial(l.intValue());
 			idealGen.add(psiL);
 			idealGen.add(this.definingPolynomial);
-			PolynomialRing<T>.Ideal ideal = r.getIdeal(idealGen);
+			Ideal<Polynomial<T>> ideal = r.getIdeal(idealGen);
 			psiL = this.univariateRing.getEmbedding(psiL, new int[] { 0 });
 			CoordinateRing<T> cr = new CoordinateRing<T>(r, ideal);
 
@@ -743,7 +746,7 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 		List<ProjectivePoint<T>> torsionPoints = new ArrayList<>(l * l);
 		if (l == 2) {
 			torsionPoints.add(this.pointAtInfinity);
-			List<T> rhsRoots = this.univariateRing.roots(rhs);
+			List<T> rhsRoots = this.field.roots(rhs);
 			for (T root : rhsRoots) {
 				torsionPoints.add(new ProjectivePoint<T>(this.field, root, this.field.zero(), this.field.one()));
 			}
@@ -769,9 +772,9 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 				divPoly = this.univariateRing.getEmbedding(this.divisionPolynomials.get(l), new int[] { 0 });
 				torsionPoints.add(this.pointAtInfinity);
 			}
-			List<T> xs = this.univariateRing.roots(divPoly);
+			List<T> xs = this.field.roots(divPoly);
 			for (T x : xs) {
-				for (T y : this.field.sqrt(this.rhs.evaluate(Collections.singletonList(x)))) {
+				for (T y : this.field.sqrt(this.univariateRing.evaluate(this.rhs, Collections.singletonList(x)))) {
 					torsionPoints.add(new ProjectivePoint<T>(this.field, x, y, this.field.one()));
 				}
 			}
@@ -800,14 +803,14 @@ public class EllipticCurve<T extends Element> extends ProjectiveVariety<T>
 					return point;
 				}
 				T x;
-				Set<T> ys;
+				List<T> ys;
 				do {
 					if (!xIterator.hasNext()) {
 						nextPoint = null;
 						return point;
 					}
 					x = xIterator.next();
-					ys = field.sqrt(rhs.evaluate(Collections.singletonList(x)));
+					ys = field.sqrt(univariateRing.evaluate(rhs, x));
 				} while (ys.isEmpty());
 				Iterator<T> yIterator = ys.iterator();
 				nextPoint = new ProjectivePoint<T>(field, x, yIterator.next(), field.one());

@@ -6,13 +6,16 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import fields.Element;
-import fields.Field;
-import fields.InfinityException;
-import fields.Polynomial;
-import fields.PolynomialRing;
+import fields.exceptions.InfinityException;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
+import fields.interfaces.Ideal;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
+import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.Monomial;
 
-public class ProjectiveSpace<T extends Element> implements Variety<T> {
+public class ProjectiveSpace<T extends Element<T>> implements Variety<T> {
 	private Field<T> field;
 	private PolynomialRing<T> ring;
 	private int dimension;
@@ -20,7 +23,7 @@ public class ProjectiveSpace<T extends Element> implements Variety<T> {
 	public ProjectiveSpace(Field<T> field, int dimension) {
 		this.field = field;
 		this.dimension = dimension;
-		this.ring = new PolynomialRing<T>(field, dimension + 1, Polynomial.GREVLEX);
+		this.ring = AbstractPolynomialRing.getPolynomialRing(field, dimension + 1, Monomial.GREVLEX);
 	}
 
 	public PolynomialRing<T> getRing() {
@@ -69,25 +72,25 @@ public class ProjectiveSpace<T extends Element> implements Variety<T> {
 		return p.getDim() == this.dimension;
 	}
 
-	public PolynomialRing<T>.Ideal asIdeal(ProjectivePoint<T> p) {
+	public Ideal<Polynomial<T>> asIdeal(ProjectivePoint<T> p) {
 		return p.asIdeal(this.ring);
 	}
 
-	public PolynomialRing<T>.Ideal asHyperplaneIdeal(List<ProjectivePoint<T>> points) {
+	public Ideal<Polynomial<T>> asHyperplaneIdeal(List<ProjectivePoint<T>> points) {
 		if (points.isEmpty())
 			return this.ring.getIdeal(Collections.singletonList(this.ring.one()));
-		PolynomialRing<T>.Ideal intersection = this.asHyperplaneIdeal(points.subList(1, points.size()))
-				.intersect(this.asIdeal(points.get(0)));
+		Ideal<Polynomial<T>> intersection = ring.intersect(this.asHyperplaneIdeal(points.subList(1, points.size())),
+				this.asIdeal(points.get(0)));
 		List<Polynomial<T>> generators = new ArrayList<>();
-		for (Polynomial<T> p : intersection.getBasis()) {
-			if (p.getDegree() <= 1) {
+		for (Polynomial<T> p : intersection.generators()) {
+			if (p.degree() <= 1) {
 				generators.add(p);
 			}
 		}
 		return this.ring.getIdeal(generators);
 	}
 
-	public PolynomialRing<T>.Ideal asHyperplaneIdeal(ProjectivePoint<T> p1, ProjectivePoint<T> p2) {
+	public Ideal<Polynomial<T>> asHyperplaneIdeal(ProjectivePoint<T> p1, ProjectivePoint<T> p2) {
 		List<ProjectivePoint<T>> points = new ArrayList<ProjectivePoint<T>>();
 		points.add(p1);
 		points.add(p2);

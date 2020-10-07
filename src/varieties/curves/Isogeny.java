@@ -2,10 +2,11 @@ package varieties.curves;
 
 import java.math.BigInteger;
 
-import fields.Element;
+import fields.interfaces.Element;
+import fields.interfaces.MathMap;
 import varieties.ProjectivePoint;
 
-public interface Isogeny<T extends Element> {
+public interface Isogeny<T extends Element<T>> extends MathMap<ProjectivePoint<T>,ProjectivePoint<T>> {
 	public EllipticCurve<T> getDomain();
 	public EllipticCurve<T> getRange();
 	public ProjectivePoint<T> evaluate(ProjectivePoint<T> point);

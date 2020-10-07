@@ -7,13 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import fields.Element;
-import fields.Field;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
 import util.MiscAlgorithms;
 import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
 
-public class TestFindRelatedCurves<T extends Element> {
+public class TestFindRelatedCurves<T extends Element<T>> {
 	private EllipticCurve<T> curve;
 	private ProjectivePoint<T> generator;
 	private List<RelatedCurveAttack<T>> rcas = new ArrayList<>();
@@ -109,7 +109,7 @@ public class TestFindRelatedCurves<T extends Element> {
 		System.out.println("Guess correct: " + oracle.guessPrivateKey(guess));
 	}
 
-	private static class RelatedCurveAttack<T extends Element> {
+	private static class RelatedCurveAttack<T extends Element<T>> {
 		private T b;
 		private BigInteger prime;
 		private int power;
@@ -134,7 +134,7 @@ public class TestFindRelatedCurves<T extends Element> {
 		}
 	}
 
-	public static class Oracle<T extends Element> {
+	public static class Oracle<T extends Element<T>> {
 		private BigInteger privateKey;
 		private ProjectivePoint<T> publicKey;
 		private EllipticCurve<T> curve;

@@ -5,15 +5,15 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 
-import fields.Element;
-import fields.Field;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
 import util.MiscAlgorithms;
 import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
 import varieties.curves.Isogeny;
 import varieties.curves.KernelIsogeny;
 
-public class TestSike<T extends Element> {
+public class TestSike<T extends Element<T>> {
 	private Field<T> field;
 	private EllipticCurve<T> supersingular;
 

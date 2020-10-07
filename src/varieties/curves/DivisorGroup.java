@@ -10,13 +10,13 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import fields.Element;
-import fields.Group;
-import fields.InfinityException;
+import fields.exceptions.InfinityException;
+import fields.interfaces.Element;
+import fields.interfaces.Group;
 import varieties.ProjectivePoint;
 import varieties.curves.DivisorGroup.Divisor;
 
-public class DivisorGroup<T extends Element> implements Group<Divisor<T>> {
+public class DivisorGroup<T extends Element<T>> implements Group<Divisor<T>> {
 
 	@Override
 	public Divisor<T> getRandomElement() {
@@ -64,7 +64,7 @@ public class DivisorGroup<T extends Element> implements Group<Divisor<T>> {
 		return new Divisor<T>(map);
 	}
 
-	public static class Divisor<T extends Element> implements Element {
+	public static class Divisor<T extends Element<T>> implements Element<Divisor<T>> {
 		private Map<ProjectivePoint<T>, Integer> points;
 		private int degree;
 
@@ -177,9 +177,7 @@ public class DivisorGroup<T extends Element> implements Group<Divisor<T>> {
 		}
 
 		@Override
-		public int compareTo(Element o) {
-			@SuppressWarnings("unchecked")
-			Divisor<T> div = (Divisor<T>) o;
+		public int compareTo(Divisor<T> div) {
 			Set<ProjectivePoint<T>> points = new TreeSet<ProjectivePoint<T>>();
 			points.addAll(this.points.keySet());
 			points.addAll(div.points.keySet());

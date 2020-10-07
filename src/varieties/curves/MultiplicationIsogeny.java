@@ -2,10 +2,10 @@ package varieties.curves;
 
 import java.math.BigInteger;
 
-import fields.Element;
+import fields.interfaces.Element;
 import varieties.ProjectivePoint;
 
-public class MultiplicationIsogeny<T extends Element> implements Isogeny<T> {
+public class MultiplicationIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private BigInteger n;
 	private EllipticCurve<T> curve;
 	

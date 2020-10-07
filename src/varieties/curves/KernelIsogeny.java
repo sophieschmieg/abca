@@ -9,10 +9,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import fields.Element;
+import fields.interfaces.Element;
 import varieties.ProjectivePoint;
 
-public class KernelIsogeny<T extends Element> implements Isogeny<T> {
+public class KernelIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private Deque<Isogeny<T>> isogenies;
 	private BigInteger degree;
 
@@ -24,7 +24,7 @@ public class KernelIsogeny<T extends Element> implements Isogeny<T> {
 		this(domain, Collections.singletonMap(kernel, order));
 	}
 
-	private static <T extends Element> Map<ProjectivePoint<T>, BigInteger> fillMap(BigInteger order,
+	private static <T extends Element<T>> Map<ProjectivePoint<T>, BigInteger> fillMap(BigInteger order,
 			Set<ProjectivePoint<T>> kernel) {
 		Map<ProjectivePoint<T>, BigInteger> map = new TreeMap<>();
 		for (ProjectivePoint<T> p : kernel) {

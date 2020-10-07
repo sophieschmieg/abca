@@ -2,11 +2,11 @@ package varieties.curves;
 
 import java.math.BigInteger;
 
-import fields.Element;
-import fields.Field;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
 import varieties.ProjectivePoint;
 
-public class KernelPointIsogeny<T extends Element> implements Isogeny<T> {
+public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private Field<T> field;
 	private EllipticCurve<T> domain;
 	private EllipticCurve<T> range;

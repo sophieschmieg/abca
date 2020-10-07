@@ -22,8 +22,8 @@ import java.util.TreeMap;
 
 import javax.crypto.KeyAgreement;
 
-import fields.PrimeField;
-import fields.PrimeField.PrimeFieldElement;
+import fields.finitefields.PrimeField;
+import fields.finitefields.PrimeField.PrimeFieldElement;
 import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
 

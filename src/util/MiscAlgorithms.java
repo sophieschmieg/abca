@@ -6,6 +6,12 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 
+import fields.interfaces.Element;
+import fields.interfaces.MathMap;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
+import fields.polynomials.Monomial;
+
 public class MiscAlgorithms {
 	/**
 	 * Finds the solutions to a set of modular equations.
@@ -94,5 +100,13 @@ public class MiscAlgorithms {
 			}
 		}
 		return result;
+	}
+	
+	public static <T extends Element<T>, S extends Element<S>> Polynomial<S> mapPolynomial(Polynomial<T>t, MathMap<T, S> map, PolynomialRing<S> codomainRing) {
+		Map<Monomial, S> coeff = new TreeMap<>();
+		for (Monomial m : t.monomials()) {
+			coeff.put(m, map.evaluate(t.coefficient(m)));
+		}
+		return codomainRing.getPolynomial(coeff);
 	}
 }

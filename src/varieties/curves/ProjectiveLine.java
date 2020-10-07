@@ -6,30 +6,32 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import fields.CoordinateRing;
-import fields.Element;
-import fields.Field;
-import fields.FunctionField;
-import fields.InfinityException;
-import fields.Polynomial;
-import fields.PolynomialRing;
-import fields.RationalFunction;
-import fields.CoordinateRing.CoordinateRingElement;
+import fields.exceptions.InfinityException;
+import fields.helper.CoordinateRing;
+import fields.helper.CoordinateRing.CoordinateRingElement;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
+import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.Monomial;
+import varieties.FunctionField;
 import varieties.ProjectivePoint;
+import varieties.RationalFunction;
 import varieties.curves.DivisorGroup.Divisor;
 
-public class ProjectiveLine<T extends Element> implements SmoothCurve<T> {
+public class ProjectiveLine<T extends Element<T>> implements SmoothCurve<T> {
 	private Field<T> field;
 	private ProjectivePoint<T> pointAtInfinity;
 	private ProjectivePoint<T> pointAtZero;
-	private PolynomialRing<T> ring;
+	private AbstractPolynomialRing<T> ring;
 	private CoordinateRing<T> coordRing;
 
 	public ProjectiveLine(Field<T> field) {
 		this.field = field;
-		this.ring = new PolynomialRing<T>(field, 2, Polynomial.GREVLEX);
-		PolynomialRing<T> r = new PolynomialRing<T>(field, 1, Polynomial.GREVLEX);
-		this.coordRing = new CoordinateRing<T>(r, r.getIdeal(Collections.emptyList()));
+		this.ring = AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX);
+		PolynomialRing<T> r = field.getUnivariatePolynomialRing();
+		this.coordRing = new CoordinateRing<>(r, r.getIdeal(Collections.emptyList()));
 		this.pointAtInfinity = new ProjectivePoint<T>(this.field, this.field.one(), this.field.zero());
 		this.pointAtZero = new ProjectivePoint<T>(this.field, this.field.zero(), this.field.one());
 	}
@@ -128,7 +130,7 @@ public class ProjectiveLine<T extends Element> implements SmoothCurve<T> {
 
 	@Override
 	public List<Polynomial<T>> getCotangentSpace(ProjectivePoint<T> p) {
-		PolynomialRing<T> ring = new PolynomialRing<T>(field, 2, Polynomial.LEX);
+		PolynomialRing<T> ring = AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.LEX);
 		List<Polynomial<T>> coords = new ArrayList<Polynomial<T>>();
 		for (int i = 1; i <= 2; i++)
 			if (p.getNonZero() == i)

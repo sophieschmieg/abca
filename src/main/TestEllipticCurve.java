@@ -3,24 +3,25 @@ package main;
 import java.util.ArrayList;
 import java.util.List;
 
-import fields.Element;
-import fields.Field;
-import fields.Polynomial;
-import fields.PolynomialRing;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
+import fields.polynomials.UnivariatePolynomialRing;
 import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
 
-public class TestEllipticCurve<T extends Element> {
+public class TestEllipticCurve<T extends Element<T>> {
 	public TestEllipticCurve(Field<T> field, T a, T b) {
 		EllipticCurve<T> curve = new EllipticCurve<T>(field, a, a);
+		PolynomialRing<T> univar = new UnivariatePolynomialRing<>(field);
 		System.out.println("Curve: " + curve);
 		for (int i = 1; i < 10; i++) {
 			Polynomial<T> div = curve.getDivisionPolynomial(i);
 			System.out.println(i + " Division Polynomial: " + div);
 			if (i % 2 == 1) {
-				PolynomialRing<T> univar = new PolynomialRing<T>(field, 1, Polynomial.LEX);
-				List<T> roots = univar.roots(univar.getEmbedding(div, new int[] {0}));
-				List<Polynomial<T>> factors = univar.factorization(univar.getEmbedding(div, new int[] {0}));
+				List<T> roots = field.roots(univar.getEmbedding(div, new int[] {0}));
+				List<Polynomial<T>> factors = field.factorization(univar.getEmbedding(div, new int[] {0}));
 				System.out.println("Roots: " + roots);
 				System.out.println("Factors: " + factors);
 				Polynomial<T> product = univar.one();
@@ -57,7 +58,7 @@ public class TestEllipticCurve<T extends Element> {
 			}
 			if (i > 2 && i < 40) {
 				Polynomial<T> divPoly = curve.getDivisionPolynomial(i);
-				System.out.println(i + " division polynomial evaluated at " + p + ": " + divPoly.evaluate(p.getDehomogenous(3).getCoords()));
+				System.out.println(i + " division polynomial evaluated at " + p + ": " + divPoly.getPolynomialRing().evaluate(divPoly, p.getDehomogenous(3).getCoords()));
 			}
 			//			T t = tau(p);
 			System.out.println(counter + " Point: " + p + " Order: " + i); //+ " Tau: " + t/ + " Root: " + this.field.hasRoot(t, i));

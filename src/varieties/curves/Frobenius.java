@@ -3,13 +3,12 @@ package varieties.curves;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
-import fields.Element;
-import fields.Field;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
 import varieties.ProjectivePoint;
 
-public class Frobenius<T extends Element> implements Isogeny<T> {
+public class Frobenius<T extends Element<T>> implements Isogeny<T> {
 	private EllipticCurve<T> domain;
 	private EllipticCurve<T> range;
 	private Field<T> field;
@@ -64,7 +63,7 @@ public class Frobenius<T extends Element> implements Isogeny<T> {
 			public ProjectivePoint<T> evaluate(ProjectivePoint<T> point) {
 				List<T> coords = new ArrayList<>();
 				for (T coord : point.getCoords()) {
-					Set<T> roots = field.roots(coord, p.intValueExact());
+					List<T> roots = field.roots(coord, p.intValueExact());
 					if (roots.size() != 1) {
 						throw new ArithmeticException("pth root not unique");
 					}

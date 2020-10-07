@@ -2,10 +2,10 @@ package varieties.curves;
 
 import java.math.BigInteger;
 
-import fields.Element;
+import fields.interfaces.Element;
 import varieties.ProjectivePoint;
 
-public class CompositionIsogeny<T extends Element> implements Isogeny<T> {
+public class CompositionIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private Isogeny<T> firstIsogeny;
 	private Isogeny<T> secondIsogeny;
 

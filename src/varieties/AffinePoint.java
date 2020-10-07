@@ -4,12 +4,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import fields.Element;
-import fields.Field;
-import fields.Polynomial;
-import fields.PolynomialRing;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
+import fields.interfaces.Ideal;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
 
-public class AffinePoint<T extends Element> implements Element {
+public class AffinePoint<T extends Element<T>> implements Element<AffinePoint<T>> {
 	private int dim;
 	private List<T> coords;
 	public AffinePoint(Field<T> field, T coord1, T coord2) {
@@ -42,7 +43,7 @@ public class AffinePoint<T extends Element> implements Element {
 	public T getCoord(int i) {
 		return this.coords.get(i - 1);
 	}
-	public PolynomialRing<T>.Ideal asIdeal(PolynomialRing<T> ring) {
+	public Ideal<Polynomial<T>> asIdeal(PolynomialRing<T> ring) {
 		List<Polynomial<T>> generators = new ArrayList<>();
 		for (int i = 0; i < coords.size(); i++) {
 			T t = coords.get(i);
@@ -80,9 +81,7 @@ public class AffinePoint<T extends Element> implements Element {
 		return buf.toString();
 	}
 	@Override
-	public int compareTo(Element o) {
-		@SuppressWarnings("unchecked")
-		AffinePoint<T> p = (AffinePoint<T>)o;
+	public int compareTo(AffinePoint<T> p) {
 		for (int i = 1; i <= this.getDim(); i++) {
 			int cmp = this.getCoord(i).compareTo(p.getCoord(i));
 			if (cmp != 0)
