@@ -327,7 +327,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 
 	@Override
 	public boolean hasRoots(Polynomial<T> t) {
-		FactorizationResult<Polynomial<T>> factors = factorization(ring.toUnivariate(t));
+		FactorizationResult<Polynomial<T>, T> factors = factorization(ring.toUnivariate(t));
 		for (Polynomial<T> factor : factors.primeFactors()) {
 			if (factor.degree() == 1) {
 				return true;
@@ -341,7 +341,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		Map<T, Integer> result = new TreeMap<>();
 		Monomial constant = ring.getMonomial(new int[] { 0 });
 		Monomial linear = ring.getMonomial(new int[] { 1 });
-		FactorizationResult<Polynomial<T>> factors = factorization(ring.toUnivariate(t));
+		FactorizationResult<Polynomial<T>, T> factors = factorization(ring.toUnivariate(t));
 		for (Polynomial<T> factor : factors.primeFactors()) {
 			if (factor.degree() == 1) {
 				result.put(divide(negative(factor.coefficient(constant)), factor.coefficient(linear)),
@@ -515,7 +515,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t) {
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -553,7 +553,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public FactorizationResult<T> uniqueFactorization(T t) {
+	public FactorizationResult<T, T> uniqueFactorization(T t) {
 		return new FactorizationResult<>(t, Collections.emptySortedMap());
 	}
 
@@ -593,7 +593,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public FactorizationResult<Ideal<T>> idealFactorization(Ideal<T> t) {
+	public FactorizationResult<Ideal<T>, Ideal<T>> idealFactorization(Ideal<T> t) {
 		throw new ArithmeticException("Ideal not proper and non zero (it's a field!)");
 	}
 	

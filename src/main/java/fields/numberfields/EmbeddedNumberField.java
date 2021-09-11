@@ -114,7 +114,7 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	}
 	
 	@Override
-	public FactorizationResult<Polynomial<NFE>> factorization(UnivariatePolynomial<NFE> t) {
+	public FactorizationResult<Polynomial<NFE>, NFE> factorization(UnivariatePolynomial<NFE> t) {
 		return field.factorization(t);
 	}
 

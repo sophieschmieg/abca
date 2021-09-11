@@ -20,6 +20,7 @@ import fields.interfaces.PolynomialRing;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.interfaces.UnivariatePolynomialRing.ExtendedResultantResult;
 import fields.local.Value;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.GenericUnivariatePolynomialRing;
@@ -48,7 +49,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	private Matrix<Polynomial<T>> genericMatrix;
 	private FreeModule<Polynomial<T>> genericFreeModule;
 	private MathMap<T, S> embedding;
-	private FactorizationResult<Polynomial<T>> factorizedMinimalPolynomial;
+	private FactorizationResult<Polynomial<T>, T> factorizedMinimalPolynomial;
 	private List<Ext> asIrreducibleProduct;
 	private List<S> irreducibleProductInverses;
 
@@ -380,8 +381,8 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	@Override
 	public S inverse(S t) {
-		GenericUnivariatePolynomialRing.ExtendedResultantResult<T> eres = polynomials.extendedResultant(minimalPolynomial,
-				t.asPolynomial());
+		GenericUnivariatePolynomialRing.ExtendedResultantResult<T> eres = polynomials
+				.extendedResultant(minimalPolynomial, t.asPolynomial());
 		if (eres.getResultant().equals(baseRing.zero())) {
 			throw new ArithmeticException("Division by zero: " + t.asPolynomial());
 		}
@@ -429,7 +430,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	protected abstract Ext asExtensionType();
 
-	private FactorizationResult<Polynomial<T>> factorizedMinimalPolynomial() {
+	private FactorizationResult<Polynomial<T>, T> factorizedMinimalPolynomial() {
 		if (factorizedMinimalPolynomial == null) {
 			factorizedMinimalPolynomial = baseRing.factorization(minimalPolynomial);
 		}
@@ -439,7 +440,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	@Override
 	public List<Ext> asIrreducibleProduct() {
 		if (asIrreducibleProduct == null) {
-			FactorizationResult<Polynomial<T>> factorizedMipo = factorizedMinimalPolynomial();
+			FactorizationResult<Polynomial<T>, T> factorizedMipo = factorizedMinimalPolynomial();
 			if (factorizedMipo.primeFactors().size() == 1) {
 				asIrreducibleProduct = Collections.singletonList(this.asExtensionType());
 				return asIrreducibleProduct;
@@ -493,18 +494,19 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	@Override
 	public boolean isUnit(S t) {
-		List<Ext> exts = asIrreducibleProduct();
-		List<S> asProduct = asIrreducibleProductElement(t);
-		for (int i = 0; i < exts.size(); i++) {
-			Ext ext = exts.get(i);
-			UnivariatePolynomial<T> reduced = asProduct.get(i).asPolynomial();
-			Map<Polynomial<T>, Integer> squareFree = polynomials.squareFreeFactorization(ext.minimalPolynomial());
-			UnivariatePolynomial<T> reducedMipo = polynomials.toUnivariate(squareFree.keySet().iterator().next());
-			if (baseRing.isUnit(polynomials.resultant(reduced, reducedMipo))) {
-				return false;
-			}
-		}
-		return true;
+		return baseRing.isUnit(polynomials.resultant(t.asPolynomial(), minimalPolynomial));
+//		List<Ext> exts = asIrreducibleProduct();
+//		List<S> asProduct = asIrreducibleProductElement(t);
+//		for (int i = 0; i < exts.size(); i++) {
+//			Ext ext = exts.get(i);
+//			UnivariatePolynomial<T> reduced = asProduct.get(i).asPolynomial();
+//			Map<Polynomial<T>, Integer> squareFree = polynomials.squareFreeFactorization(ext.minimalPolynomial());
+//			UnivariatePolynomial<T> reducedMipo = polynomials.toUnivariate(squareFree.keySet().iterator().next());
+//			if (baseRing.isUnit(polynomials.resultant(reduced, reducedMipo))) {
+//				return false;
+//			}
+//		}
+//		return true;
 	}
 
 	@Override
@@ -519,18 +521,19 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	@Override
 	public boolean isZeroDivisor(S t) {
-		List<Ext> exts = asIrreducibleProduct();
-		List<S> asProduct = asIrreducibleProductElement(t);
-		for (int i = 0; i < exts.size(); i++) {
-			Ext ext = exts.get(i);
-			UnivariatePolynomial<T> reduced = asProduct.get(i).asPolynomial();
-			Map<Polynomial<T>, Integer> squareFree = polynomials.squareFreeFactorization(ext.minimalPolynomial());
-			UnivariatePolynomial<T> reducedMipo = polynomials.toUnivariate(squareFree.keySet().iterator().next());
-			if (baseRing.isZeroDivisor(polynomials.resultant(reduced, reducedMipo))) {
-				return true;
-			}
-		}
-		return true;
+		return baseRing.isZeroDivisor(polynomials.resultant(t.asPolynomial(), minimalPolynomial));
+//		List<Ext> exts = asIrreducibleProduct();
+//		List<S> asProduct = asIrreducibleProductElement(t);
+//		for (int i = 0; i < exts.size(); i++) {
+//			Ext ext = exts.get(i);
+//			UnivariatePolynomial<T> reduced = asProduct.get(i).asPolynomial();
+//			Map<Polynomial<T>, Integer> squareFree = polynomials.squareFreeFactorization(ext.minimalPolynomial());
+//			UnivariatePolynomial<T> reducedMipo = polynomials.toUnivariate(squareFree.keySet().iterator().next());
+//			if (baseRing.isZeroDivisor(polynomials.resultant(reduced, reducedMipo))) {
+//				return true;
+//			}
+//		}
+//		return true;
 	}
 
 	@Override
@@ -544,7 +547,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	}
 
 	@Override
-	public FactorizationResult<S> uniqueFactorization(S t) {
+	public FactorizationResult<S, S> uniqueFactorization(S t) {
 		throw new ArithmeticException("Not a UFD!");
 	}
 
@@ -565,31 +568,40 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	@Override
 	public QuotientAndRemainderResult<S> quotientAndRemainder(S dividend, S divisor) {
-		List<Ext> exts = asIrreducibleProduct();
-		List<S> dividendAsProduct = asIrreducibleProductElement(dividend);
-		List<S> divisorAsProduct = asIrreducibleProductElement(divisor);
-		List<S> resultAsProduct = new ArrayList<>();
-		for (int i = 0; i < exts.size(); i++) {
-			Ext ext = exts.get(i);
-			UnivariatePolynomial<T> reducedDividend = dividendAsProduct.get(i).asPolynomial();
-			UnivariatePolynomial<T> reducedDivisor = divisorAsProduct.get(i).asPolynomial();
-			if (reducedDividend.equals(polynomials.zero()) && reducedDivisor.equals(polynomials.zero())) {
-				resultAsProduct.add(ext.zero());
-				continue;
-			}
-			UnivariatePolynomial<T> mipo = ext.minimalPolynomial();
-			UnivariatePolynomial<T> divisorMipoFactor = polynomials.gcd(mipo, reducedDivisor);
-			QuotientAndRemainderResult<Polynomial<T>> qr = polynomials.quotientAndRemainder(reducedDividend,
-					divisorMipoFactor);
-			if (!qr.getRemainder().equals(polynomials.zero())) {
-				return new QuotientAndRemainderResult<>(zero(), dividend);
-			}
-			reducedDividend = polynomials.toUnivariate(qr.getQuotient());
-			reducedDivisor = polynomials.toUnivariate(polynomials.divideChecked(reducedDivisor, divisorMipoFactor));
-			S reducedDivisorInverse = ext.inverse(ext.fromPolynomial(reducedDivisor));
-			resultAsProduct.add(ext.multiply(ext.fromPolynomial(reducedDividend), reducedDivisorInverse));
+		Polynomial<T> gcd = polynomials.gcd(dividend.asPolynomial(), divisor.asPolynomial());
+		Polynomial<T> polynomialDividend = polynomials.divideChecked(dividend.asPolynomial(), gcd);
+		Polynomial<T> polynomialDivisor = polynomials.divideChecked(divisor.asPolynomial(), gcd);
+		ExtendedResultantResult<T> resultant = polynomials.extendedResultant(polynomialDivisor, minimalPolynomial);
+		if (baseRing.isZeroDivisor(resultant.getResultant())) {
+			return new QuotientAndRemainderResult<>(zero(), dividend);
 		}
-		return new QuotientAndRemainderResult<>(fromIrreducibleProductElement(resultAsProduct), zero());
+		Polynomial<T> inverse = polynomials.divideChecked(resultant.getCoeff1(), resultant.getGcd());
+		return new QuotientAndRemainderResult<>(fromPolynomial(polynomials.multiply(polynomialDividend, inverse)), zero());
+//		List<Ext> exts = asIrreducibleProduct();
+//		List<S> dividendAsProduct = asIrreducibleProductElement(dividend);
+//		List<S> divisorAsProduct = asIrreducibleProductElement(divisor);
+//		List<S> resultAsProduct = new ArrayList<>();
+//		for (int i = 0; i < exts.size(); i++) {
+//			Ext ext = exts.get(i);
+//			UnivariatePolynomial<T> reducedDividend = dividendAsProduct.get(i).asPolynomial();
+//			UnivariatePolynomial<T> reducedDivisor = divisorAsProduct.get(i).asPolynomial();
+//			if (reducedDividend.equals(polynomials.zero()) && reducedDivisor.equals(polynomials.zero())) {
+//				resultAsProduct.add(ext.zero());
+//				continue;
+//			}
+//			UnivariatePolynomial<T> mipo = ext.minimalPolynomial();
+//			UnivariatePolynomial<T> divisorMipoFactor = polynomials.gcd(mipo, reducedDivisor);
+//			QuotientAndRemainderResult<Polynomial<T>> qr = polynomials.quotientAndRemainder(reducedDividend,
+//					divisorMipoFactor);
+//			if (!qr.getRemainder().equals(polynomials.zero())) {
+//				return new QuotientAndRemainderResult<>(zero(), dividend);
+//			}
+//			reducedDividend = polynomials.toUnivariate(qr.getQuotient());
+//			reducedDivisor = polynomials.toUnivariate(polynomials.divideChecked(reducedDivisor, divisorMipoFactor));
+//			S reducedDivisorInverse = ext.inverse(ext.fromPolynomial(reducedDivisor));
+//			resultAsProduct.add(ext.multiply(ext.fromPolynomial(reducedDividend), reducedDivisorInverse));
+//		}
+//		return new QuotientAndRemainderResult<>(fromIrreducibleProductElement(resultAsProduct), zero());
 	}
 
 	@Override
@@ -619,8 +631,9 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		for (S s : generators) {
 			asPolynomials.add(s.asPolynomial());
 		}
-		IdealResult<Polynomial<T>, PolynomialIdeal<T>> polynomialIdealResult = polynomials.getIdealWithTransforms(asPolynomials);
-		RingExtensionIdeal ideal = new  RingExtensionIdeal(polynomialIdealResult.getIdeal());
+		IdealResult<Polynomial<T>, PolynomialIdeal<T>> polynomialIdealResult = polynomials
+				.getIdealWithTransforms(asPolynomials);
+		RingExtensionIdeal ideal = new RingExtensionIdeal(polynomialIdealResult.getIdeal());
 		List<List<S>> expressions = new ArrayList<>();
 		for (List<Polynomial<T>> expression : polynomialIdealResult.getGeneratorExpressions()) {
 			List<S> fromPolynomial = new ArrayList<>();
@@ -703,7 +716,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		public boolean contains(S t) {
 			return polynomialIdeal.contains(t.asPolynomial());
 		}
-		
+
 		@Override
 		public Value maximumPowerContains(S t) {
 			return polynomialIdeal.maximumPowerContains(t.asPolynomial());

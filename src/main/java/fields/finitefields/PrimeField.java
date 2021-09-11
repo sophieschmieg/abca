@@ -116,7 +116,7 @@ public class PrimeField extends AbstractField<PFE> {
 			return primitiveRoot;
 		}
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factors = z.uniqueFactorization(new IntE(getNumberOfUnits()));
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(new IntE(getNumberOfUnits()));
 		List<BigInteger> tests = new ArrayList<>();
 		for (IntE prime : factors.primeFactors()) {
 			tests.add(getNumberOfUnits().divide(prime.getValue()));
@@ -422,18 +422,17 @@ public class PrimeField extends AbstractField<PFE> {
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<PFE>> factorization(UnivariatePolynomial<PFE> t) {
+	public FactorizationResult<Polynomial<PFE>, PFE> factorization(UnivariatePolynomial<PFE> t) {
 		FiniteField base = FiniteField.getFiniteField(this);
 		UnivariatePolynomialRing<FFE> baseRing = base.getUnivariatePolynomialRing();
-		FactorizationResult<Polynomial<FFE>> factors = base
+		FactorizationResult<Polynomial<FFE>, FFE> factors = base
 				.factorization(baseRing.getEmbedding(t, base.getEmbeddingMap()));
 		SortedMap<Polynomial<PFE>, Integer> result = new TreeMap<>();
 		for (Polynomial<FFE> factor : factors.primeFactors()) {
 			result.put(this.getUnivariatePolynomialRing().getEmbedding(factor, base.asBaseFieldElementMap()),
 					factors.multiplicity(factor));
 		}
-		return new FactorizationResult<>(getUnivariatePolynomialRing()
-				.getEmbedding(base.asBaseFieldElement(factors.getUnit().leadingCoefficient())), result);
+		return new FactorizationResult<>(base.asBaseFieldElement(factors.getUnit()), result);
 	}
 
 	@Override

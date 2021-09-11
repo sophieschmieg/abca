@@ -68,7 +68,7 @@ public interface DivisionRing<T extends Element<T>> extends MathSet<T>, Ring<T> 
 
 	public boolean isIrreducible(UnivariatePolynomial<T> t);
 	
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t);
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t);
 
 	public boolean hasRoots(Polynomial<T> t);
 

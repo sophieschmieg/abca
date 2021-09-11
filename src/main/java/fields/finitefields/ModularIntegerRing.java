@@ -139,13 +139,7 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	@Override
 	public BigInteger getNumberOfUnits() {
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factors = z.uniqueFactorization(z.getInteger(n));
-		BigInteger result = BigInteger.ONE;
-		for (IntE p : factors.primeFactors()) {
-			result = result.multiply(p.getValue().pow(factors.multiplicity(p) - 1));
-			result = result.multiply(p.getValue().subtract(BigInteger.ONE));
-		}
-		return result;
+		return z.eulerToitent(new IntE(n)).getValue();
 	}
 
 	@Override
@@ -226,9 +220,9 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public FactorizationResult<ModularIntegerRingElement> uniqueFactorization(ModularIntegerRingElement t) {
+	public FactorizationResult<ModularIntegerRingElement,ModularIntegerRingElement> uniqueFactorization(ModularIntegerRingElement t) {
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factors = z.uniqueFactorization(z.getInteger(n));
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(z.getInteger(n));
 		IntE e = z.getInteger(t.value);
 		SortedMap<ModularIntegerRingElement, Integer> result = new TreeMap<>();
 		for (IntE prime : factors.primeFactors()) {
@@ -293,7 +287,7 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	public Ideal<ModularIntegerRingElement> radical(Ideal<ModularIntegerRingElement> t) {
 		Integers z = Integers.z();
 		IntE m = z.lift(t.generators().get(0));
-		FactorizationResult<IntE> factors = z.uniqueFactorization(m);
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(m);
 		ModularIntegerRingElement radical = one();
 		for (IntE prime : factors.primeFactors()) {
 			radical = multiply(radical, reduce(prime));
@@ -393,7 +387,7 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 			if (m.equals(zero())) {
 				return Value.ZERO;
 			}
-			FactorizationResult<Ideal<ModularIntegerRingElement>> factors = idealFactorization(this);
+			FactorizationResult<Ideal<ModularIntegerRingElement>, Ideal<ModularIntegerRingElement>> factors = idealFactorization(this);
 			Value value = Value.INFINITY;
 			Integers z = Integers.z();
 			for (Ideal<ModularIntegerRingElement> factor : factors.primeFactors()) {

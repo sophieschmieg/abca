@@ -359,7 +359,7 @@ class EllipticCurveTest {
 		Integers z = Integers.z();
 		IntE order = z.getInteger(curve.getNumberOfElements());
 		order = z.archimedeanValue(z.sqrt(order).keySet().iterator().next());
-		FactorizationResult<IntE> factors = z.uniqueFactorization(order);
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(order);
 		IntE basisOrder = z.power(z.getInteger(prime), factors.multiplicity(z.getInteger(prime)));
 		IntE complementOrder = z.divideChecked(order, basisOrder);
 		IntE lessThanOrder = z.divideChecked(basisOrder, z.getInteger(prime));

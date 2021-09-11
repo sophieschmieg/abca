@@ -69,6 +69,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	}
 	public GroebnerBasis<T> buchberger(List<Polynomial<T>> generators);
 	public GroebnerBasis<T> reduceBasis(GroebnerBasis<T> basis);
+	
 	public List<AffinePoint<T>> solve(List<Polynomial<T>> polynomials);
 	
 	public IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransforms(List<Polynomial<T>> generators);
@@ -91,7 +92,8 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Polynomial<T> normalize(Polynomial<T> t);
 	public T content(Polynomial<T> t);
 	public Polynomial<T> contentFree(Polynomial<T> t);
-	
+	public FactorizationResult<Polynomial<T>, T> squareFreeFactorization(Polynomial<T> t);
+
 	public Polynomial<T> derivative(Polynomial<T> t, int variable);
 	
 	public Polynomial<T> resultant(Polynomial<T> t1, Polynomial<T> t2, int variable);

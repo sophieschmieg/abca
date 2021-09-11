@@ -129,7 +129,7 @@ public class Rationals extends AbstractField<Fraction> {
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<Fraction>> factorization(UnivariatePolynomial<Fraction> t) {
+	public FactorizationResult<Polynomial<Fraction>, Fraction> factorization(UnivariatePolynomial<Fraction> t) {
 		UnivariatePolynomialRing<Fraction> ring = this.getUnivariatePolynomialRing();
 		SortedMap<Polynomial<Fraction>, Integer> result = new TreeMap<>();
 		Fraction unit = t.leadingCoefficient();
@@ -146,7 +146,7 @@ public class Rationals extends AbstractField<Fraction> {
 				return t.getNumerator();
 			}
 		});
-		FactorizationResult<Polynomial<IntE>> factors = z.factorization(asIntegerPolynomial);
+		FactorizationResult<Polynomial<IntE>, IntE> factors = z.factorization(asIntegerPolynomial);
 		for (Polynomial<IntE> factor : factors.primeFactors()) {
 			if (factor.degree() <= 0) {
 				continue;
@@ -158,7 +158,7 @@ public class Rationals extends AbstractField<Fraction> {
 				}
 			})), factors.multiplicity(factor));
 		}
-		return new FactorizationResult<>(ring.getEmbedding(unit), result);
+		return new FactorizationResult<>(unit, result);
 	}
 
 	@Override

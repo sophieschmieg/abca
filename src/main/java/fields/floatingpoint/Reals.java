@@ -633,7 +633,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<Real>> factorization(UnivariatePolynomial<Real> t) {
+	public FactorizationResult<Polynomial<Real>, Real> factorization(UnivariatePolynomial<Real> t) {
 		Complex c = Complex.c(precision);
 		Map<ComplexNumber, Integer> complexRoots = c
 				.roots(c.getUnivariatePolynomialRing().getEmbedding(t, c.getEmbeddingMap()));
@@ -649,6 +649,6 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 						ring.getEmbedding(c.norm(root))), mult);
 			}
 		}
-		return new FactorizationResult<>(ring.getEmbedding(t.leadingCoefficient()), factors);
+		return new FactorizationResult<>(t.leadingCoefficient(), factors);
 	}
 }

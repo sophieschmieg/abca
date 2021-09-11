@@ -35,8 +35,8 @@ public class FractionalIdeal extends AbstractElement<FractionalIdeal> {
 			this.denominator = order.getUnitIdeal();
 			return;
 		}
-		FactorizationResult<Ideal<NFE>> numeratorFactors = order.idealFactorization(numerator);
-		FactorizationResult<Ideal<NFE>> denominatorFactors = order.idealFactorization(denominator);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> numeratorFactors = order.idealFactorization(numerator);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> denominatorFactors = order.idealFactorization(denominator);
 		Set<Ideal<NFE>> primeIdeals = new TreeSet<>();
 		primeIdeals.addAll(numeratorFactors.primeFactors());
 		primeIdeals.addAll(denominatorFactors.primeFactors());
@@ -79,7 +79,7 @@ public class FractionalIdeal extends AbstractElement<FractionalIdeal> {
 
 	public Pair<NumberFieldIdeal, IntE> clearDenominator() {
 		Integers z = Integers.z();
-		FactorizationResult<Ideal<NFE>> denominatorFactors = order.idealFactorization(denominator);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> denominatorFactors = order.idealFactorization(denominator);
 		Map<IntE, Integer> primes = new TreeMap<>();
 		for (Ideal<NFE> primeFactor : denominatorFactors.primeFactors()) {
 			NumberFieldIdeal ideal = (NumberFieldIdeal) primeFactor;

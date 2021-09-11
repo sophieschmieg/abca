@@ -405,7 +405,7 @@ public class MiscAlgorithms {
 				throw new ArithmeticException("Modulus was wrong");
 			}
 		}
-		FactorizationResult<IntE> factors = z.uniqueFactorization(n);
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(n);
 		Vector<IntE> result = new Vector<>(z.one(), z.zero());
 		for (IntE prime : factors.primeFactors()) {
 			int multiplicity = factors.multiplicity(prime);
@@ -435,7 +435,7 @@ public class MiscAlgorithms {
 	 */
 	public static Optional<Vector<IntE>> sumOfThreeSquares(IntE n) {
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factors = z.uniqueFactorization(n);
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(n);
 		IntE two = z.getInteger(2);
 		if (factors.multiplicity(two) % 2 == 0) {
 			IntE reduced = z.divideChecked(n, z.power(two, factors.multiplicity(two)));
@@ -463,7 +463,7 @@ public class MiscAlgorithms {
 	 */
 	public static List<Vector<IntE>> pellsEquation(IntE d, IntE n, boolean anySign) {
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factorsN = z.uniqueFactorization(n);
+		FactorizationResult<IntE, IntE> factorsN = z.uniqueFactorization(n);
 		List<List<IntE>> possibleN = new ArrayList<>();
 		for (IntE prime : factorsN.primeFactors()) {
 			List<IntE> possible = new ArrayList<>();
@@ -504,14 +504,14 @@ public class MiscAlgorithms {
 		if (z.hasSqrt(d)) {
 			return null;
 		}
-		FactorizationResult<IntE> factors = z.uniqueFactorization(d);
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(d);
 		for (IntE prime : factors.primeFactors()) {
 			PrimeField fp = PrimeField.getPrimeField(prime);
 			if (!fp.hasSqrt(fp.getInteger(n)) && !(anySign && fp.hasSqrt(fp.getInteger(z.negative(n))))) {
 				return Collections.emptyList();
 			}
 		}
-		FactorizationResult<IntE> factorsN = z.uniqueFactorization(n);
+		FactorizationResult<IntE, IntE> factorsN = z.uniqueFactorization(n);
 		List<List<BigInteger>> modSqrts = new ArrayList<>();
 		List<BigInteger> mods = new ArrayList<>();
 		for (IntE prime : factorsN.primeFactors()) {

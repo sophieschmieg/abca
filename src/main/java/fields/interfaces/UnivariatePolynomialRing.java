@@ -30,7 +30,7 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	boolean isIntegral();
 
-	FactorizationResult<Polynomial<T>> uniqueFactorization(Polynomial<T> t);
+	FactorizationResult<Polynomial<T>, Polynomial<T>> uniqueFactorization(Polynomial<T> t);
 
 	boolean isFree();
 
@@ -109,7 +109,7 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	Iterable<Polynomial<T>> getUnits();
 
-	Map<Polynomial<T>, Integer> squareFreeFactorization(Polynomial<T> t);
+	FactorizationResult<Polynomial<T>, T> squareFreeFactorization(Polynomial<T> t);
 
 	List<Polynomial<T>> getAlgebraGenerators();
 

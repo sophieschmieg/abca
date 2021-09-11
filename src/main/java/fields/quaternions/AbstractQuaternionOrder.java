@@ -42,7 +42,8 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 		this.basis.add(t2);
 		this.basis.add(t3);
 		for (Quaternion<T> basisVector : basis) {
-			if (!ring.isInteger(quaternions.reducedTrace(basisVector)) || !ring.isInteger(quaternions.reducedNorm(basisVector))) {
+			if (!ring.isInteger(quaternions.reducedTrace(basisVector))
+					|| !ring.isInteger(quaternions.reducedNorm(basisVector))) {
 				throw new ArithmeticException("Not an integral basis!");
 			}
 		}
@@ -234,7 +235,7 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 	}
 
 	@Override
-	public FactorizationResult<Quaternion<T>> uniqueFactorization(Quaternion<T> t) {
+	public FactorizationResult<Quaternion<T>, Quaternion<T>> uniqueFactorization(Quaternion<T> t) {
 		throw new ArithmeticException("Not a UFD!");
 	}
 
@@ -324,7 +325,7 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 		Quaternion<T> m = quaternions.multiply(quaternions.subtract(b12, b21), quaternions.conjugate(basis.get(3)));
 		return ring.asInteger(quaternions.reducedTrace(m));
 	}
-	
+
 	@Override
 	public boolean isMaximal() {
 		return quaternions.discriminant().equals(ring.embedding().evaluate(reducedDiscriminant()));

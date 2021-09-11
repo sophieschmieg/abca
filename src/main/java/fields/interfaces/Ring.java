@@ -40,19 +40,23 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public boolean isUniqueFactorizationDomain();
 
-	public static class FactorizationResult<T extends Element<T>> implements Comparable<FactorizationResult<T>> {
-		private T unit;
+	public static class FactorizationResult<T extends Element<? super T>, U extends Element<? super U>> implements Comparable<FactorizationResult<T, U>> {
+		private U unit;
 		private SortedMap<T, Integer> factors;
 
-		public FactorizationResult(T unit, SortedMap<T, Integer> factors) {
+		public FactorizationResult(U unit, SortedMap<T, Integer> factors) {
 			this.unit = unit;
 			this.factors = factors;
 		}
 
-		public T getUnit() {
+		public U getUnit() {
 			return unit;
 		}
 
+		public SortedMap<T, Integer> factorMap() {
+			return factors;
+		}
+		
 		public Set<T> primeFactors() {
 			return factors.keySet();
 		}
@@ -100,7 +104,7 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		}
 
 		@Override
-		public int compareTo(FactorizationResult<T> o) {
+		public int compareTo(FactorizationResult<T, U> o) {
 			SortedSet<T> combinedPrimes = new TreeSet<>();
 			combinedPrimes.addAll(primeFactors());
 			combinedPrimes.addAll(o.primeFactors());
@@ -111,21 +115,21 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 					return multiplicityHere - multiplicityThere;
 				}
 			}
-			return 0;
+			return unit.compareTo(o.unit);
 		}
 
 		@SuppressWarnings("unchecked")
 		@Override
 		public boolean equals(Object obj) {
-			if (!(obj instanceof FactorizationResult<?>)) {
+			if (!(obj instanceof FactorizationResult<?, ?>)) {
 				return false;
 			}
-			return compareTo((FactorizationResult<T>) obj) == 0;
+			return compareTo((FactorizationResult<T, U>) obj) == 0;
 		}
 
 	}
 
-	public FactorizationResult<T> uniqueFactorization(T t);
+	public FactorizationResult<T, T> uniqueFactorization(T t);
 
 	public boolean isIrreducible(T t);
 
@@ -139,7 +143,7 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public boolean isDedekindDomain();
 
-	public FactorizationResult<Ideal<T>> idealFactorization(Ideal<T> t);
+	public FactorizationResult<Ideal<T>, Ideal<T>> idealFactorization(Ideal<T> t);
 
 	public boolean isDivisible(T dividend, T divisor);
 
@@ -338,7 +342,7 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public UnivariatePolynomialRing<T> getUnivariatePolynomialRing();
 
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t);
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t);
 
 	public boolean hasRoots(Polynomial<T> t);
 

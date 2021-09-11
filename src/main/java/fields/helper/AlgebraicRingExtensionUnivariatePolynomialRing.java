@@ -450,11 +450,11 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 	}
 
 	@Override
-	public Map<Polynomial<S>, Integer> squareFreeFactorization(Polynomial<S> t) {
+	public FactorizationResult<Polynomial<S>, S> squareFreeFactorization(Polynomial<S> t) {
 		// TODO Auto-generated method stub
 		return null;
 	}
-
+	
 	@Override
 	public List<Polynomial<S>> getAlgebraGenerators() {
 		// TODO Auto-generated method stub

@@ -326,7 +326,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		}
 		UnivariatePolynomialRing<IntE> integerPolynomials = z.getUnivariatePolynomialRing();
 		UnivariatePolynomial<IntE> polynomial = integerPolynomials.getPolynomial(coefficients);
-		FactorizationResult<Polynomial<IntE>> factors = z.factorization(polynomial);
+		FactorizationResult<Polynomial<IntE>, IntE> factors = z.factorization(polynomial);
 		UnivariatePolynomialRing<ComplexNumber> polynomials = getUnivariatePolynomialRing();
 		UnivariatePolynomial<IntE> result = null;
 		Real minValue = null;
@@ -352,15 +352,15 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<ComplexNumber>> factorization(UnivariatePolynomial<ComplexNumber> t) {
-		Map<Polynomial<ComplexNumber>, Integer> squareFree = getUnivariatePolynomialRing().squareFreeFactorization(t);
+	public FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> factorization(UnivariatePolynomial<ComplexNumber> t) {
+		FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> squareFree = getUnivariatePolynomialRing().squareFreeFactorization(t);
 		SortedMap<Polynomial<ComplexNumber>, Integer> result = new TreeMap<>();
-		for (Polynomial<ComplexNumber> squareFreeFactor : squareFree.keySet()) {
+		for (Polynomial<ComplexNumber> squareFreeFactor : squareFree.primeFactors()) {
 			for (Polynomial<ComplexNumber> factor : squareFreeFactorization(squareFreeFactor)) {
-				result.put(factor, squareFree.get(squareFreeFactor));
+				result.put(factor, squareFree.multiplicity(squareFreeFactor));
 			}
 		}
-		return new FactorizationResult<>(getUnivariatePolynomialRing().getEmbedding(t.leadingCoefficient()), result);
+		return new FactorizationResult<>(t.leadingCoefficient(), result);
 	}
 
 	public List<Polynomial<ComplexNumber>> squareFreeFactorization(Polynomial<ComplexNumber> t) {

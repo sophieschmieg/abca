@@ -386,7 +386,7 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 	}
 
 	@Override
-	public FactorizationResult<Matrix<T>> uniqueFactorization(Matrix<T> t) {
+	public FactorizationResult<Matrix<T>, Matrix<T>> uniqueFactorization(Matrix<T> t) {
 		throw new ArithmeticException("Not a UFD");
 	}
 

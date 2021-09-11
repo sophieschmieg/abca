@@ -7,7 +7,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
-import fields.helper.AbstractField.FieldIdeal;
 import fields.helper.GenericAlgebraicRingExtension.GenericAlgebraicExtensionElement;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
@@ -426,7 +425,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
-	public FactorizationResult<S> uniqueFactorization(S t) {
+	public FactorizationResult<S, S> uniqueFactorization(S t) {
 		return new FactorizationResult<>(t, Collections.emptySortedMap());
 	}
 
@@ -461,7 +460,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
-	public FactorizationResult<Ideal<S>> idealFactorization(Ideal<S> t) {
+	public FactorizationResult<Ideal<S>, Ideal<S>> idealFactorization(Ideal<S> t) {
 		throw new ArithmeticException("Ideal not proper and non zero (it's a field!)");
 	}
 

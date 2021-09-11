@@ -35,7 +35,7 @@ public class ProduceSivOutput {
 		FiniteField f2to128 = FiniteField.getFiniteField(f2to128poly, f2);
 		System.out.println(f2to128.minimalPolynomial());
 		UnivariatePolynomialRing<FFE> f256ring = f256.getUnivariatePolynomialRing();
-		FactorizationResult<Polynomial<FFE>> fact = f256.factorization(f256ring.getEmbedding(f2to128poly, new MathMap<>() {
+		FactorizationResult<Polynomial<FFE>, FFE> fact = f256.factorization(f256ring.getEmbedding(f2to128poly, new MathMap<>() {
 			@Override
 			public FFE evaluate(PFE t) {
 				return f256.getEmbedding(t);

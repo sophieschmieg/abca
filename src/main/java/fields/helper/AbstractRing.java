@@ -386,12 +386,12 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public FactorizationResult<Ideal<T>> idealFactorization(Ideal<T> t) {
+	public FactorizationResult<Ideal<T>, Ideal<T>> idealFactorization(Ideal<T> t) {
 		if (!isUniqueFactorizationDomain() || !isPrincipalIdealDomain()) {
 			throw new UnsupportedOperationException("Default implementation only works for UFDs!");
 		}
 		T generator = t.generators().get(0);
-		FactorizationResult<T> generatorFactorization = uniqueFactorization(generator);
+		FactorizationResult<T, T> generatorFactorization = uniqueFactorization(generator);
 		SortedMap<Ideal<T>, Integer> result = new TreeMap<>();
 		for (T prime : generatorFactorization.primeFactors()) {
 			result.put(getIdeal(Collections.singletonList(prime)), generatorFactorization.multiplicity(prime));
@@ -404,8 +404,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	public IdealResult<T, ?> getIdealWithTransforms(T... generators) {
 		return getIdealWithTransforms(Arrays.asList(generators));
 	}
-	
-	
+
 	@Override
 	public Ideal<T> getIdeal(List<T> generators) {
 		return getIdealWithTransforms(generators).getIdeal();
@@ -429,7 +428,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 
 	@Override
 	public List<T> factors(T t) {
-		FactorizationResult<T> factorization = uniqueFactorization(t);
+		FactorizationResult<T, T> factorization = uniqueFactorization(t);
 		List<T> result = new ArrayList<>();
 		Map<T, Integer> powers = new TreeMap<>();
 		for (T prime : factorization.primeFactors()) {
@@ -501,7 +500,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t) {
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -531,7 +530,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 
 	@Override
 	public boolean hasRoots(Polynomial<T> t) {
-		FactorizationResult<Polynomial<T>> factors = factorization(getUnivariatePolynomialRing().toUnivariate(t));
+		FactorizationResult<Polynomial<T>, T> factors = factorization(getUnivariatePolynomialRing().toUnivariate(t));
 		for (Polynomial<T> factor : factors.primeFactors()) {
 			if (factor.degree() == 1) {
 				return true;
@@ -545,7 +544,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 		Map<T, Integer> result = new TreeMap<>();
 		Monomial constant = getUnivariatePolynomialRing().getMonomial(new int[] { 0 });
 		Monomial linear = getUnivariatePolynomialRing().getMonomial(new int[] { 1 });
-		FactorizationResult<Polynomial<T>> factors = factorization(getUnivariatePolynomialRing().toUnivariate(t));
+		FactorizationResult<Polynomial<T>, T> factors = factorization(getUnivariatePolynomialRing().toUnivariate(t));
 		for (Polynomial<T> factor : factors.primeFactors()) {
 			if (factor.degree() == 1) {
 				result.put(divide(negative(factor.coefficient(constant)), factor.coefficient(linear)),
@@ -592,12 +591,12 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	public Map<T, Integer> sqrt(T t) {
 		return roots(t, 2);
 	}
-	
+
 	@Override
 	public final boolean hasCharacteristicRoot(T t) {
 		return hasCharacteristicRoot(t, 1);
 	}
-	
+
 	@Override
 	public boolean hasCharacteristicRoot(T t, int power) {
 		if (characteristic().equals(BigInteger.ZERO)) {

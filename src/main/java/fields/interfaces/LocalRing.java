@@ -153,6 +153,11 @@ public interface LocalRing<T extends Element<T>, S extends Element<S>> extends V
 		public UnivariatePolynomial<T> getPolynomial() {
 			return f;
 		}
+		
+		@Override
+		public String toString() {
+			return types.toString();
+		}
 	}
 
 	public <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> TheMontesResult<T, S, R, RE, RFE> theMontesAlgorithm(
@@ -220,7 +225,7 @@ public interface LocalRing<T extends Element<T>, S extends Element<S>> extends V
 
 	public T henselLiftWithInitialLift(UnivariatePolynomial<T> f, T initialLift, int accuracy);
 
-	public FactorizationResult<Polynomial<T>> henselLiftFactorization(UnivariatePolynomial<T> f, int accuracy);
+	public FactorizationResult<Polynomial<T>, T> henselLiftFactorization(UnivariatePolynomial<T> f, int accuracy);
 
 	public T round(T t, int accuracy);
 
@@ -244,9 +249,9 @@ public interface LocalRing<T extends Element<T>, S extends Element<S>> extends V
 
 	public boolean isIrreducible(UnivariatePolynomial<T> t);
 
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t, boolean forField, int accuracy);
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t, boolean forField, int accuracy);
 
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t, int accuracy);
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t, int accuracy);
 
 	Module<T, T> fieldOfFractionsAsModule();
 

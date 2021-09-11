@@ -86,7 +86,7 @@ class LocalRingImplementationTest {
 					continue;
 				}
 				Map<Polynomial<T>, Integer> factors = new TreeMap<>();
-				FactorizationResult<Polynomial<T>> fs = field.factorization(polynomials.get(i));
+				FactorizationResult<Polynomial<T>, T> fs = field.factorization(polynomials.get(i));
 				for (Polynomial<T> f : fs.primeFactors()) {
 					if (factors.containsKey(f)) {
 						factors.put(f, factors.get(f) + fs.multiplicity(f));
@@ -103,7 +103,7 @@ class LocalRingImplementationTest {
 					}
 				}
 				UnivariatePolynomial<T> product = ring.multiply(polynomials.get(i), polynomials.get(j));
-				FactorizationResult<Polynomial<T>> factorization = field.factorization(product);
+				FactorizationResult<Polynomial<T>, T> factorization = field.factorization(product);
 				UnivariatePolynomial<T> test = ring.one();
 				for (Polynomial<T> factor : factorization.primeFactors()) {
 					Value maxValue = new Value(-10);
@@ -151,7 +151,7 @@ class LocalRingImplementationTest {
 						test = ring.multiply(test, factor);
 					}
 				}
-				test = ring.multiply(test, factorization.getUnit());
+				test = ring.multiply(test, ring.getEmbedding(factorization.getUnit()));
 				if (!test.equals(product)) {
 					System.err.println("i: " + i + " j = " + j);
 					System.err.println("Multiplied: " + test);
@@ -208,7 +208,7 @@ class LocalRingImplementationTest {
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		UnivariatePolynomial<Fraction> minimalPolynomial = polynomials.getPolynomial(q.getInteger(93), q.getInteger(63),
 				q.getInteger(58), q.getInteger(39), q.getInteger(14), q.getInteger(3), q.one());
-		FactorizationResult<IntE> primes = z
+		FactorizationResult<IntE, IntE> primes = z
 				.uniqueFactorization(polynomials.discriminant(minimalPolynomial).getNumerator());
 		for (IntE prime : primes.primeFactors()) {
 			LocalRing<Fraction, PFE> zp = z.localize(prime);
@@ -351,7 +351,7 @@ class LocalRingImplementationTest {
 				.primeFactors().size());
 		assertEquals(2,
 				z2.factorization(ring.getPolynomial(z2.getInteger(4), z2.one(), z2.one())).primeFactors().size());
-		FactorizationResult<Polynomial<PAdicNumber>> factors = z2.factorization(ring.getPolynomial(z2.getInteger(4),
+		FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> factors = z2.factorization(ring.getPolynomial(z2.getInteger(4),
 				z2.getInteger(2), z2.getInteger(5), z2.getInteger(2), z2.getInteger(1)));
 		assertNotEquals(0, factors.multiplicity(ring.getPolynomial(z2.one(), z2.zero(), z2.one())));
 		assertNotEquals(0, factors.multiplicity(ring.getPolynomial(z2.getInteger(4), z2.getInteger(2), z2.one())));

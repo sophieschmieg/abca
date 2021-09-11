@@ -2,6 +2,7 @@ package fields.helper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -16,8 +17,11 @@ import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.LocalField;
 import fields.interfaces.LocalRing;
+import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.local.FormalPowerSeries;
+import fields.local.FormalPowerSeries.PowerSeries;
 import fields.local.LocalRingImplementation;
 import fields.local.Value;
 import fields.local.ValueGroup;
@@ -243,6 +247,10 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		return new LocalizedElement<>(this, fraction, ring, fieldOfFractions);
 	}
 
+	public LocalizedElement<T> getEmbedding(T t) {
+		return getEmbedding(polynomialRing.getEmbedding(t));
+	}
+
 	public LocalizedElement<T> getEmbedding(CoordinateRingElement<T> t) {
 		return getEmbedding(t.getElement());
 	}
@@ -291,6 +299,11 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	@Override
 	public LocalizedElement<T> multiply(LocalizedElement<T> t1, LocalizedElement<T> t2) {
 		return getElement(fieldOfFractions.multiply(t1.asPolynomialFraction, t2.asPolynomialFraction));
+	}
+
+	public LocalizedElement<T> multiply(T t1, LocalizedElement<T> t2) {
+		return getEmbedding(polynomialRing.multiply(t1, t2.asPolynomialFraction.getNumerator()),
+				t2.asPolynomialFraction.getDenominator());
 	}
 
 	@Override
@@ -389,8 +402,24 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 
 	@Override
 	public LocalizedElement<T> round(LocalizedElement<T> t, int accuracy) {
-		// TODO Auto-generated method stub
-		return null;
+		if (t.equals(zero())) {
+			return zero();
+		}
+		int minPower = valuation(t).value();
+		LocalizedElement<T> uniformizerPower = power(uniformizer(), minPower);
+		t = divide(t, uniformizerPower);
+		LocalizedElement<T> result = zero();
+		for (int i = minPower; i < accuracy; i++) {
+			if (t.equals(zero())) {
+				break;
+			}
+			T digit = reduce(t);
+			LocalizedElement<T> adjustedDigit = multiply(digit, uniformizerPower);
+			result = add(result, adjustedDigit);
+			uniformizerPower = multiply(uniformizerPower, uniformizer);
+			t = divide(subtract(t, getEmbedding(digit)), uniformizer);
+		}
+		return result;
 	}
 
 	@Override
@@ -409,13 +438,51 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	}
 
 	@Override
-	public OtherVersion<LocalizedElement<T>, ?, T, ?> complete(int accuracy) {
-		throw new UnsupportedOperationException();
+	public OtherVersion<LocalizedElement<T>, PowerSeries<T>, T, FormalPowerSeries<T>> complete(int accuracy) {
+		FormalPowerSeries<T> powerSeries = new FormalPowerSeries<>(field, accuracy);
+		MathMap<LocalizedElement<T>, PowerSeries<T>> embedding = new MathMap<>() {
+
+			@Override
+			public PowerSeries<T> evaluate(LocalizedElement<T> t) {
+				if (t.equals(zero())) {
+					return powerSeries.zero();
+				}
+				List<T> coefficients = new ArrayList<>();
+				int minPower = valuation(t).value();
+				t = multiply(t, power(uniformizer(), -minPower));
+				for (int i = minPower; i < accuracy; i++) {
+					T c = reduce(t);
+					coefficients.add(c);
+					t = divide(subtract(t,getEmbedding(c)), uniformizer());
+					if (t.equals(zero())) {
+						break;
+					}
+				}
+				return powerSeries.getElement(field.getUnivariatePolynomialRing().getPolynomial(coefficients),
+						minPower);
+			}
+		};
+		MathMap<PowerSeries<T>, LocalizedElement<T>> rounded = new MathMap<>() {
+			@Override
+			public LocalizedElement<T> evaluate(PowerSeries<T> t) {
+				Value value = powerSeries.valuation(t);
+				if (value.isInfinite()) {
+					return zero();
+				}
+				int power = Math.min(0, -value.value());
+				Polynomial<T> denominator = polynomialRing.power(uniformizerAsPolynomial, power);
+				t = powerSeries.multiply(t, powerSeries.power(powerSeries.uniformizer(), power));
+				Polynomial<T> numerator = polynomialRing.substitute(powerSeries.roundToPolynomial(t, accuracy),
+						Collections.singletonList(uniformizerAsPolynomial));
+				return getEmbedding(numerator, denominator);
+			}
+		};
+		return new OtherVersion<>(powerSeries, embedding, rounded);
 	}
 
 	@Override
 	public LocalizedElement<T> getRandomInteger() {
-		throw new UnsupportedOperationException();
+		return getEmbedding(ring.getRandomElement());
 	}
 
 	@Override
