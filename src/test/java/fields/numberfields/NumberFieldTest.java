@@ -448,7 +448,7 @@ class NumberFieldTest {
 			if (ideal == null) {
 				continue;
 			}
-			FactorizationResult<Ideal<NFE>> factorization = order.idealFactorization(ideal);
+			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(ideal);
 			List<Fraction> powers = new ArrayList<>();
 			for (Ideal<NFE> primeIdeal : ideals) {
 				powers.add(q.getInteger(factorization.multiplicity(primeIdeal)));
@@ -474,7 +474,7 @@ class NumberFieldTest {
 				if (ideal == null) {
 					continue;
 				}
-				FactorizationResult<Ideal<NFE>> factorization = order.idealFactorization(ideal);
+				FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(ideal);
 				exponent = q.getInteger(rng);
 				for (int i = 0; i < ideals.size(); i++) {
 					Ideal<NFE> primeIdeal = ideals.get(i);

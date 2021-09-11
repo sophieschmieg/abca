@@ -30,7 +30,7 @@ public interface Group<T extends Element<T>> extends Monoid<T> {
 			throw new ArithmeticException("Element order wrong");
 		}
 		
-		FactorizationResult<IntE> primeDecomp = Integers.z().uniqueFactorization(new IntE(order));
+		FactorizationResult<IntE, IntE> primeDecomp = Integers.z().uniqueFactorization(new IntE(order));
 		for (IntE prime : primeDecomp.primeFactors()) {
 			int power = primeDecomp.multiplicity(prime);
 			while (power > 0 && power(order.divide(prime.getValue()), t).equals(neutral())) {

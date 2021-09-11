@@ -50,7 +50,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	private Matrix<Fraction> toIntegralBasis;
 	private Matrix<Fraction> fromIntegralBasis;
 	private Map<IntE, List<NumberFieldIdeal>> idealsOverPrime;
-	private Map<FactorizationResult<Ideal<NFE>>, NumberFieldIdeal> idealsByFactorization;
+	private Map<FactorizationResult<Ideal<NFE>, Ideal<NFE>>, NumberFieldIdeal> idealsByFactorization;
 	private NumberFieldIdeal unitIdeal;
 	private NumberFieldIdeal zeroIdeal;
 	private FreeModule<IntE> asFreeModule;
@@ -163,7 +163,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	@Override
-	public FactorizationResult<NFE> uniqueFactorization(NFE t) {
+	public FactorizationResult<NFE, NFE> uniqueFactorization(NFE t) {
 		throw new ArithmeticException("Not a UFD!");
 	}
 
@@ -315,7 +315,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			}
 			return getZeroIdeal();
 		}
-		FactorizationResult<IntE> factorization = z.uniqueFactorization(normGcd);
+		FactorizationResult<IntE, IntE> factorization = z.uniqueFactorization(normGcd);
 		return getIdealWithFactorization(generators, factorization);
 	}
 
@@ -346,12 +346,12 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	private NumberFieldIdeal getIdealWithFactorization(List<NFE> generators,
-			FactorizationResult<IntE> normFactorization) {
+			FactorizationResult<IntE, IntE> normFactorization) {
 		if (normFactorization.primeFactors().isEmpty()) {
 			return getUnitIdeal();
 		}
 		Integers z = Integers.z();
-		SortedMap<IntE, FactorizationResult<Ideal<NFE>>> factorizations = new TreeMap<>();
+		SortedMap<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> factorizations = new TreeMap<>();
 		SortedMap<Ideal<NFE>, Integer> allIdealFactors = new TreeMap<>();
 		for (IntE prime : normFactorization.primeFactors()) {
 			SortedMap<Ideal<NFE>, Integer> idealFactors = new TreeMap<>();
@@ -375,7 +375,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			}
 			factorizations.put(prime, new FactorizationResult<>(getUnitIdeal(), idealFactors));
 		}
-		FactorizationResult<Ideal<NFE>> factorization = new FactorizationResult<>(getUnitIdeal(), allIdealFactors);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = new FactorizationResult<>(getUnitIdeal(), allIdealFactors);
 		if (!idealsByFactorization.containsKey(factorization)) {
 			idealsByFactorization.put(factorization, new NumberFieldIdeal(factorizations));
 		}
@@ -434,7 +434,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	@Override
 	public NumberFieldIdeal power(Ideal<NFE> t, int power) {
 		Map<NumberFieldIdeal, Integer> factors = new TreeMap<>();
-		FactorizationResult<Ideal<NFE>> originalFactors = idealFactorization(t);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> originalFactors = idealFactorization(t);
 		for (Ideal<NFE> prime : originalFactors.primeFactors()) {
 			factors.put((NumberFieldIdeal) prime, power * originalFactors.multiplicity(prime));
 		}
@@ -459,9 +459,9 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			perPrimeFactorization.get(prime).put(ideal, factors.get(ideal));
 			cast.put(ideal, factors.get(ideal));
 		}
-		FactorizationResult<Ideal<NFE>> asFactorizationResult = new FactorizationResult<>(getUnitIdeal(), cast);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> asFactorizationResult = new FactorizationResult<>(getUnitIdeal(), cast);
 		if (!idealsByFactorization.containsKey(asFactorizationResult)) {
-			Map<IntE, FactorizationResult<Ideal<NFE>>> perPrime = new TreeMap<>();
+			Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> perPrime = new TreeMap<>();
 			for (IntE prime : perPrimeFactorization.keySet()) {
 				perPrime.put(prime, new FactorizationResult<>(getUnitIdeal(), perPrimeFactorization.get(prime)));
 			}
@@ -471,7 +471,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	@Override
-	public FactorizationResult<Ideal<NFE>> idealFactorization(Ideal<NFE> t) {
+	public FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactorization(Ideal<NFE> t) {
 		NumberFieldIdeal ideal = (NumberFieldIdeal) t;
 		return ideal.idealFactorization;
 	}
@@ -494,7 +494,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 
 	public List<NumberFieldIdeal> idealsOver(Ideal<IntE> integerIdeal) {
 		IntE generator = integerIdeal.generators().get(0);
-		FactorizationResult<IntE> primes = Integers.z().uniqueFactorization(generator);
+		FactorizationResult<IntE, IntE> primes = Integers.z().uniqueFactorization(generator);
 		if (!primes.isIrreducible()) {
 			throw new ArithmeticException("Expected prime ideal");
 		}
@@ -841,9 +841,9 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		private LocalRing<Fraction, PFE> localized;
 		private OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type;
 		private boolean maximal;
-		private Map<IntE, FactorizationResult<Ideal<NFE>>> idealFactorsPerPrime;
+		private Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> idealFactorsPerPrime;
 		private Map<Ideal<NFE>, NFE> chineseRemainderMultipliers;
-		private FactorizationResult<Ideal<NFE>> idealFactorization;
+		private FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactorization;
 		private boolean zeroIdeal;
 		private boolean unitIdeal;
 
@@ -857,7 +857,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			this.unitIdeal = true;
 			this.uniformizer = one();
 			this.generators = Collections.singletonList(uniformizer);
-			this.idealFactorization = new FactorizationResult<Ideal<NFE>>(this, Collections.emptySortedMap());
+			this.idealFactorization = new FactorizationResult<>(this, Collections.emptySortedMap());
 		}
 
 		private NumberFieldIdeal(LocalRing<Fraction, PFE> localized,
@@ -917,14 +917,14 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			init();
 		}
 
-		private NumberFieldIdeal(Map<IntE, FactorizationResult<Ideal<NFE>>> factorization) {
+		private NumberFieldIdeal(Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> factorization) {
 			super(NumberFieldIntegers.this);
 			this.idealFactorsPerPrime = factorization;
 			SortedMap<Ideal<NFE>, Integer> factors = new TreeMap<>();
 			Map<IntE, Integer> hMap = new TreeMap<>();
 			Map<IntE, NFE> alphaMap = new TreeMap<>();
 			for (IntE prime : factorization.keySet()) {
-				FactorizationResult<Ideal<NFE>> primeFactorization = factorization.get(prime);
+				FactorizationResult<Ideal<NFE>, Ideal<NFE>> primeFactorization = factorization.get(prime);
 				NFE alpha = one();
 				int h = 0;
 				for (Ideal<NFE> primeIdeal : primeFactorization.primeFactors()) {
@@ -1177,7 +1177,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 				IntE allPrimes = z.one();
 				Map<IntE, IntE> powerMap = new TreeMap<>();
 				for (IntE prime : idealFactorsPerPrime.keySet()) {
-					FactorizationResult<Ideal<NFE>> idealFactors = idealFactorsPerPrime.get(prime);
+					FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactors = idealFactorsPerPrime.get(prime);
 					int h = 0;
 					for (Ideal<NFE> primeIdeal : idealFactors.primeFactors()) {
 						NumberFieldIdeal ideal = (NumberFieldIdeal) primeIdeal;
@@ -1192,7 +1192,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 					IntE primePower = powerMap.get(prime);
 					IntE allOther = z.divideChecked(allPrimes, primePower);
 					IntE primeMultiplier = z.multiply(allOther.getValue().modInverse(primePower.getValue()), allOther);
-					FactorizationResult<Ideal<NFE>> idealFactors = idealFactorsPerPrime.get(prime);
+					FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactors = idealFactorsPerPrime.get(prime);
 					for (Ideal<NFE> ideal : idealFactors.primeFactors()) {
 						NumberFieldIdeal primeIdeal = (NumberFieldIdeal) ideal;
 						int multiplicity = idealFactors.multiplicity(ideal);

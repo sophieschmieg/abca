@@ -336,7 +336,7 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<PAdicNumber>> factorization(UnivariatePolynomial<PAdicNumber> t) {
+	public FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> factorization(UnivariatePolynomial<PAdicNumber> t) {
 		return ringOfIntegers().factorization(t, true, getAccuracy());
 	}
 

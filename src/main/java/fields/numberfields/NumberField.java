@@ -215,15 +215,15 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 //	}
 
 	@Override
-	public FactorizationResult<Polynomial<NFE>> factorization(UnivariatePolynomial<NFE> t) {
+	public FactorizationResult<Polynomial<NFE>, NFE> factorization(UnivariatePolynomial<NFE> t) {
 		UnivariatePolynomialRing<NFE> ring = getUnivariatePolynomialRing();
 		SortedMap<Polynomial<NFE>, Integer> result = new TreeMap<>();
-		Polynomial<NFE> unit = ring.getEmbedding(t.leadingCoefficient());
+		NFE unit = t.leadingCoefficient();
 		t = removeDenominators(t);
-		Map<Polynomial<NFE>, Integer> squareFree = ring.squareFreeFactorization(t);
-		for (Polynomial<NFE> squareFreeFactor : squareFree.keySet()) {
+		FactorizationResult<Polynomial<NFE>, NFE> squareFree = ring.squareFreeFactorization(t);
+		for (Polynomial<NFE> squareFreeFactor : squareFree.primeFactors()) {
 			for (Polynomial<NFE> factor : factorizeSquareFree(removeDenominators(squareFreeFactor))) {
-				result.put(factor, squareFree.get(squareFreeFactor));
+				result.put(factor, squareFree.multiplicity(squareFreeFactor));
 			}
 		}
 		return new FactorizationResult<>(unit, result);
@@ -283,7 +283,7 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 					.getPolynomial(algebra.solve(m, lastPower).asList());
 			minimalPolynomial = rationalRing.toUnivariate(
 					rationalRing.subtract(rationalRing.getVarPower(t.degree() * degree()), minimalPolynomial));
-			FactorizationResult<Polynomial<Fraction>> rationalFactors = q.factorization(minimalPolynomial);
+			FactorizationResult<Polynomial<Fraction>, Fraction> rationalFactors = q.factorization(minimalPolynomial);
 			if (rationalFactors.primeFactors().size() == 1) {
 				return Collections.singletonList(ring.normalize(t));
 			}

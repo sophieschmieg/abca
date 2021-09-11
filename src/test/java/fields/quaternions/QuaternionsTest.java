@@ -158,7 +158,7 @@ class QuaternionsTest {
 		Integers z = Integers.z();
 		for (int i = 1; i < 100; i++) {
 			IntE iInteger = z.getInteger(i);
-			FactorizationResult<IntE> factors = z.uniqueFactorization(iInteger);
+			FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(iInteger);
 			boolean squareFree = true;
 			for (IntE prime : factors.primeFactors()) {
 				if (factors.multiplicity(prime) > 1) {

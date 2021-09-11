@@ -193,7 +193,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
-	public FactorizationResult<T> uniqueFactorization(T t) {
+	public FactorizationResult<T, T> uniqueFactorization(T t) {
 		int valuation = valuation(t).value();
 		t = divideChecked(t, power(uniformizer(), valuation));
 		return new FactorizationResult<>(t, SingletonSortedMap.map(uniformizer(), valuation));
@@ -405,14 +405,9 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		if (!isIntegral(t)) {
 			return false;
 		}
-		Map<Polynomial<S>, Integer> reducedSquareFreeFactors = reduction().getUnivariatePolynomialRing()
+		FactorizationResult<Polynomial<S>, S> reducedSquareFreeFactors = reduction().getUnivariatePolynomialRing()
 				.squareFreeFactorization(reduceUnivariatePolynomial(t));
-		for (int mult : reducedSquareFreeFactors.values()) {
-			if (mult != 1) {
-				return false;
-			}
-		}
-		return true;
+		return reducedSquareFreeFactors.squareFree();
 	}
 
 	public boolean hasIrreducibleGoodReduction(UnivariatePolynomial<T> t) {
@@ -477,7 +472,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			return Collections.singletonList(alpha);
 		}
 		UnivariatePolynomial<S> reducedPolynomial = reduceUnivariatePolynomial(minimalPolynomial);
-		FactorizationResult<Polynomial<S>> reducedFactors = reduction().factorization(reducedPolynomial);
+		FactorizationResult<Polynomial<S>, S> reducedFactors = reduction().factorization(reducedPolynomial);
 		List<UnivariatePolynomial<T>> result = new ArrayList<>();
 		for (Polynomial<S> factor : reducedFactors.primeFactors()) {
 			int ramification = reducedFactors.multiplicity(factor);
@@ -679,17 +674,17 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<T>> henselLiftFactorization(UnivariatePolynomial<T> f, int accuracy) {
+	public FactorizationResult<Polynomial<T>, T> henselLiftFactorization(UnivariatePolynomial<T> f, int accuracy) {
 		UnivariatePolynomial<S> fReduced = reduceUnivariatePolynomial(f);
 		if (fReduced.degree() != f.degree()) {
 			throw new ArithmeticException("Leading coefficient divisible by p!");
 		}
 		UnivariatePolynomialRing<T> polynomialRing = getUnivariatePolynomialRing();
 		UnivariatePolynomialRing<S> reducedPolynomialRing = reduction().getUnivariatePolynomialRing();
-		FactorizationResult<Polynomial<S>> reducedFactorization = reduction().factorization(fReduced);
+		FactorizationResult<Polynomial<S>, S> reducedFactorization = reduction().factorization(fReduced);
 		List<Polynomial<T>> factors = new ArrayList<>();
-		Polynomial<T> unit = liftPolynomial(reducedFactorization.getUnit());
-		Polynomial<T> product = unit;
+		T unit = lift(reducedFactorization.getUnit());
+		Polynomial<T> product = polynomialRing.getEmbedding(unit);
 		List<Polynomial<S>> cofactors = new ArrayList<>();
 		for (Polynomial<S> factor : reducedFactorization.primeFactors()) {
 			if (reducedFactorization.multiplicity(factor) != 1) {
@@ -709,7 +704,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		}
 		for (int k = 1; k < accuracy; k++) {
 			Polynomial<T> error = roundPolynomial(polynomialRing.subtract(f, product), k + 1);
-			product = unit;
+			product = polynomialRing.getEmbedding(unit);
 			for (int i = 0; i < factors.size(); i++) {
 				Polynomial<T> factor = factors.get(i);
 				Polynomial<T> adjustment = roundPolynomial(
@@ -1554,7 +1549,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		for (Fraction slope : polygon.slopes) {
 			Fraction lambda = q.negative(slope);
 			UnivariatePolynomial<RE> reduced = prevLevel.reduceNextLevel(t, lambda, polygon);
-			FactorizationResult<Polynomial<RE>> factorization = field.factorization(reduced);
+			FactorizationResult<Polynomial<RE>, RE> factorization = field.factorization(reduced);
 			for (Polynomial<RE> factor : factorization.primeFactors()) {
 				UnivariatePolynomial<RE> nextReduced = field.getUnivariatePolynomialRing().toUnivariate(factor);
 				UnivariatePolynomial<T> nextRepresentative = prevLevel.representativeNextLevel(nextReduced, lambda);
@@ -1587,7 +1582,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		}
 		List<OkutsuType<T, S, R, RE, RFE>> types = new ArrayList<>();
 		UnivariatePolynomial<S> reduced = reduceUnivariatePolynomial(t);
-		FactorizationResult<Polynomial<S>> reducedFactorization = reduction().factorization(reduced);
+		FactorizationResult<Polynomial<S>, S> reducedFactorization = reduction().factorization(reduced);
 		for (Polynomial<S> factor : reducedFactorization.primeFactors()) {
 			types.addAll(theMontesAlgorithm(t, new Type<>(t, liftUnivariatePolynomial(factor),
 					reducedFactorization.multiplicity(factor), reductionAsExtension)));
@@ -1796,13 +1791,13 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t) {
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t) {
 		if (isComplete()) {
 			return factorization(t, false, field.getAccuracy());
 		}
 		UnivariatePolynomialRing<T> polynomials = getUnivariatePolynomialRing();
 		T content = polynomials.content(t);
-		FactorizationResult<Polynomial<T>> factorization = field.factorization(polynomials.contentFree(t));
+		FactorizationResult<Polynomial<T>, T> factorization = field.factorization(polynomials.contentFree(t));
 		SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
 		for (Polynomial<T> factor : factorization.primeFactors()) {
 			Value val = Value.INFINITY;
@@ -1822,16 +1817,17 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			result.put(polynomials.getEmbedding(uniformizer()), val.value());
 			content = divide(content, power(uniformizer(), val.value()));
 		}
-		return new FactorizationResult<>(polynomials.getEmbedding(content), result);
+		return new FactorizationResult<>(content, result);
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t, int accuracy) {
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t, int accuracy) {
 		return factorization(t, false, accuracy);
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<T>> factorization(UnivariatePolynomial<T> t, boolean forField, int accuracy) {
+	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t, boolean forField,
+			int accuracy) {
 		if (!isComplete()) {
 			throw new ArithmeticException("Factorization only works for complete local rings!");
 		}
@@ -1840,9 +1836,9 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			throw new ArithmeticException("Cannot factor zero!");
 		}
 		SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
-		Polynomial<T> unit;
+		T unit;
 		if (forField) {
-			unit = polynomials.getEmbedding(t.leadingCoefficient());
+			unit = t.leadingCoefficient();
 			Value lcValue = field.valuation(t.leadingCoefficient());
 			Value minValue = Value.ZERO;
 			ValueGroup g = ValueGroup.g();
@@ -1858,44 +1854,47 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			}
 			t = polynomials.normalize(polynomials.substitute(t,
 					Collections.singletonList(polynomials.getEmbedding(field.power(field.uniformizer(), -power), 1))));
-			Map<Polynomial<T>, Integer> factors = factorization(t, field.exact(), accuracy);
-			for (Polynomial<T> factor : factors.keySet()) {
+			FactorizationResult<Polynomial<T>, T> factors = factorization(t, field.exact(), accuracy);
+			unit = multiply(factors.getUnit(), unit);
+			for (Polynomial<T> factor : factors.primeFactors()) {
 				result.put(
 						polynomials.normalize(polynomials.substitute(factor,
 								Collections.singletonList(
 										polynomials.getEmbedding(field.power(field.uniformizer(), power), 1)))),
-						factors.get(factor));
+						factors.multiplicity(factor));
 			}
 
 		} else {
-			FactorizationResult<T> content = uniqueFactorization(getUnivariatePolynomialRing().content(t));
-			unit = polynomials.getEmbedding(content.getUnit());
+			FactorizationResult<T, T> content = uniqueFactorization(getUnivariatePolynomialRing().content(t));
+			unit = content.getUnit();
 			for (T contentFactor : content.primeFactors()) {
 				result.put(polynomials.getEmbedding(contentFactor), content.multiplicity(contentFactor));
 			}
-			result.putAll(factorization(t, field.exact(), accuracy));
+			FactorizationResult<Polynomial<T>, T> factors = factorization(t, field.exact(), accuracy);
+			unit = multiply(factors.getUnit(), unit);
+			result.putAll(factors.factorMap());
 		}
-		return new FactorizationResult<Polynomial<T>>(unit, result);
+		return new FactorizationResult<>(unit, result);
 	}
 
-	private <E extends Element<E>, LE extends LocalField<E, S>> Map<Polynomial<T>, Integer> factorization(
+	private <E extends Element<E>, LE extends LocalField<E, S>> FactorizationResult<Polynomial<T>, T> factorization(
 			UnivariatePolynomial<T> t, OtherVersion<T, E, S, LE> exact, int accuracy) {
 		LE exactField = exact.getField();
 		LocalRing<E, S> exactRing = exactField.ringOfIntegers();
 		UnivariatePolynomialRing<E> exactPolynomials = exactField.getUnivariatePolynomialRing();
 		UnivariatePolynomialRing<T> polynomials = field.getUnivariatePolynomialRing();
-		Map<Polynomial<E>, Integer> exactSquareFreeFactors = exactPolynomials
+		FactorizationResult<Polynomial<E>, E> exactSquareFreeFactors = exactPolynomials
 				.squareFreeFactorization(exactPolynomials.getEmbedding(t, exact.getRetraction()));
-		Map<Polynomial<T>, Integer> result = new TreeMap<>();
-		for (Polynomial<E> squareFree : exactSquareFreeFactors.keySet()) {
+		SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
+		for (Polynomial<E> squareFree : exactSquareFreeFactors.primeFactors()) {
 			List<Polynomial<E>> factors = factorSquareFreePolynomial(squareFree,
 					exactRing.theMontesAlgorithm(exactPolynomials.toUnivariate(squareFree)), exactRing, accuracy);
 			for (Polynomial<E> factor : factors) {
 				result.put(polynomials.getEmbedding(factor, exact.getEmbedding()),
-						exactSquareFreeFactors.get(squareFree));
+						exactSquareFreeFactors.multiplicity(squareFree));
 			}
 		}
-		return result;
+		return new FactorizationResult<>(exact.getEmbedding().evaluate(exactSquareFreeFactors.getUnit()), result);
 	}
 
 	private <E extends Element<E>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> List<Polynomial<E>> factorSquareFreePolynomial(

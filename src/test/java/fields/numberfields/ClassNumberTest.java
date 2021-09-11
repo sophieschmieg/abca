@@ -226,7 +226,7 @@ class ClassNumberTest {
 		Integers z = Integers.z();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		testCaseLoop: for (int i = 1; i < 20; i++) {
-			FactorizationResult<IntE> f = z.uniqueFactorization(z.getInteger(i));
+			FactorizationResult<IntE, IntE> f = z.uniqueFactorization(z.getInteger(i));
 			for (IntE prime : f.primeFactors()) {
 				if (f.multiplicity(prime) > 1) {
 					continue testCaseLoop;

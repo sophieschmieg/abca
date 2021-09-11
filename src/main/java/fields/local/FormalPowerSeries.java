@@ -73,16 +73,21 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 
 		public String toString() {
 			StringBuilder buf = new StringBuilder().append("...");
-			if (value.equals(powerSeries.ring.zero()))
+			if (value.equals(powerSeries.ring.zero())) {
 				return "0";
+			}
 			boolean first = true;
 			for (int i = powerSeries.getAccuracy() - 1; i >= lowestPower; i--) {
+				T digit = digit(i);
+				if (digit.equals(powerSeries.field.zero())) {
+					continue;
+				}
 				if (first) {
 					first = false;
 				} else {
 					buf.append(" + ");
 				}
-				String coefficient = digit(i).toString();
+				String coefficient = digit.toString();
 				if (coefficient.contains(" ")) {
 					coefficient = "(" + coefficient + ")";
 				}
@@ -573,7 +578,7 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<PowerSeries<T>>> factorization(UnivariatePolynomial<PowerSeries<T>> t) {
+	public FactorizationResult<Polynomial<PowerSeries<T>>, PowerSeries<T>> factorization(UnivariatePolynomial<PowerSeries<T>> t) {
 		return ringOfIntegers().factorization(t, true, getAccuracy());
 	}
 }

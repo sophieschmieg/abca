@@ -315,7 +315,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
-	public FactorizationResult<CoordinateRingElement<T>> uniqueFactorization(CoordinateRingElement<T> t) {
+	public FactorizationResult<CoordinateRingElement<T>, CoordinateRingElement<T>> uniqueFactorization(CoordinateRingElement<T> t) {
 		throw new UnsupportedOperationException();
 	}
 

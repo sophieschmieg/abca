@@ -43,8 +43,8 @@ import util.SingletonSortedMap;
 
 public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, Fraction, PFE> {
 	private static Integers z = new Integers();
-	private Map<IntE, FactorizationResult<IntE>> factorizatonCache;
-	private Map<Polynomial<IntE>, List<Polynomial<IntE>>> polynomialFactorizationCache;
+	private Map<IntE, FactorizationResult<IntE, IntE>> factorizatonCache;
+	private Map<Polynomial<IntE>, SquareFreeFactorizationResult> polynomialFactorizationCache;
 	private IntE zero;
 	private IntE one;
 	private List<IntE> smallPrimes;
@@ -516,7 +516,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return result;
 	}
 
-	public Optional<FactorizationResult<IntE>> uniqueFactorizationIfSmooth(IntE n, SortedSet<IntE> primes) {
+	public Optional<FactorizationResult<IntE, IntE>> uniqueFactorizationIfSmooth(IntE n, SortedSet<IntE> primes) {
 		if (n.equals(zero())) {
 			return Optional.empty();
 		}
@@ -544,7 +544,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	@Override
-	public FactorizationResult<IntE> uniqueFactorization(IntE n) {
+	public FactorizationResult<IntE, IntE> uniqueFactorization(IntE n) {
 		if (factorizatonCache.containsKey(n)) {
 			return factorizatonCache.get(n);
 		}
@@ -554,7 +554,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			unit = negative(unit);
 			n = negative(n);
 		}
-		FactorizationResult<IntE> result = new FactorizationResult<>(unit, uniqueFactorization(n, false));
+		FactorizationResult<IntE, IntE> result = new FactorizationResult<>(unit, uniqueFactorization(n, false));
 		factorizatonCache.put(t, result);
 		return result;
 	}
@@ -654,7 +654,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	public IntE eulerToitent(IntE t) {
-		FactorizationResult<IntE> factorization = uniqueFactorization(t);
+		FactorizationResult<IntE, IntE> factorization = uniqueFactorization(t);
 		IntE result = one();
 		for (IntE prime : factorization.primeFactors()) {
 			result = multiply(power(prime, factorization.multiplicity(prime) - 1), subtract(prime, one()), result);
@@ -758,23 +758,26 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<IntE>> factorization(UnivariatePolynomial<IntE> t) {
+	public FactorizationResult<Polynomial<IntE>, IntE> factorization(UnivariatePolynomial<IntE> t) {
 		UnivariatePolynomialRing<IntE> ring = this.getUnivariatePolynomialRing();
 		SortedMap<Polynomial<IntE>, Integer> result = new TreeMap<>();
-		IntE content = upToUnit(ring.content(t));
-		FactorizationResult<IntE> contentFactorization = uniqueFactorization(content);
+		IntE content = ring.content(t);
+		FactorizationResult<IntE, IntE> contentFactorization = uniqueFactorization(content);
 		for (IntE contentFactor : contentFactorization.primeFactors()) {
 			result.put(ring.getEmbedding(contentFactor), contentFactorization.multiplicity(contentFactor));
 		}
 		t = ring.contentFree(t);
-		Map<Polynomial<IntE>, Integer> squareFreeFactors = ring.squareFreeFactorization(t);
-		for (Polynomial<IntE> sff : squareFreeFactors.keySet()) {
-			int power = squareFreeFactors.get(sff);
-			for (Polynomial<IntE> factor : factorizeSquareFree(ring.toUnivariate(sff))) {
+		FactorizationResult<Polynomial<IntE>, IntE> squareFreeFactors = ring.squareFreeFactorization(t);
+		IntE unit = multiply(contentFactorization.getUnit(), squareFreeFactors.getUnit());
+		for (Polynomial<IntE> sff : squareFreeFactors.primeFactors()) {
+			int power = squareFreeFactors.multiplicity(sff);
+			SquareFreeFactorizationResult factors = factorizeSquareFree(ring.toUnivariate(sff));
+			unit = multiply(unit, factors.unit);
+			for (Polynomial<IntE> factor : factors.factors) {
 				result.put(factor, power);
 			}
 		}
-		return new FactorizationResult<>(ring.getEmbedding(contentFactorization.getUnit()), result);
+		return new FactorizationResult<>(unit, result);
 	}
 
 	private class CombinedFactors {
@@ -791,9 +794,19 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		LINEAR, QUADRATIC, OKUTSU;
 	}
 
-	private List<Polynomial<IntE>> factorizeSquareFree(UnivariatePolynomial<IntE> t) {
+	private class SquareFreeFactorizationResult {
+		private List<Polynomial<IntE>> factors;
+		private IntE unit;
+
+		private SquareFreeFactorizationResult(List<Polynomial<IntE>> factors, IntE unit) {
+			this.factors = factors;
+			this.unit = unit;
+		}
+	}
+
+	private SquareFreeFactorizationResult factorizeSquareFree(UnivariatePolynomial<IntE> t) {
 		if (t.degree() == 0) {
-			return Collections.singletonList(t);
+			return new SquareFreeFactorizationResult(Collections.singletonList(t), one());
 		}
 		if (t.degree() < 0) {
 			throw new ArithmeticException("Cannot factor 0");
@@ -836,7 +849,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			Method method = Method.OKUTSU;
 			switch (method) {
 			case LINEAR:
-				FactorizationResult<Polynomial<PAdicNumber>> padicFactorization = zp
+				FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> padicFactorization = zp
 						.henselLiftFactorization(zpr.normalize(fp), requiredAccuracy);
 				for (Polynomial<PAdicNumber> factor : padicFactorization.primeFactors()) {
 					if (factor.degree() > 0) {
@@ -845,7 +858,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				}
 				break;
 			case OKUTSU:
-				FactorizationResult<Polynomial<PAdicNumber>> padicFactorizationOkutsu = zp
+				FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> padicFactorizationOkutsu = zp
 						.factorization(zpr.normalize(fp));
 				for (Polynomial<PAdicNumber> factor : padicFactorizationOkutsu.primeFactors()) {
 					if (factor.degree() > 0) {
@@ -854,7 +867,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				}
 				break;
 			case QUADRATIC:
-				FactorizationResult<Polynomial<PFE>> factors = zp.reduction().factorization(reduced);
+				FactorizationResult<Polynomial<PFE>, PFE> factors = zp.reduction().factorization(reduced);
 				System.err.println("Finite Field factorization successful");
 				for (Polynomial<PFE> factor : factors.primeFactors()) {
 					if (factor.degree() > 0) {
@@ -881,8 +894,13 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				}
 				padicCombinedFactors = result.combined;
 			}
-			polynomialFactorizationCache.put(f, intFactors);
-			return intFactors;
+			if (t.degree() != 0) {
+				throw new ArithmeticException("Factorization recombination failed!");
+			}
+			SquareFreeFactorizationResult result = new SquareFreeFactorizationResult(intFactors,
+					t.leadingCoefficient());
+			polynomialFactorizationCache.put(f, result);
+			return result;
 //			System.err.println("Fast check not successful");
 //
 //			liftedFactors.clear();
@@ -989,7 +1007,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	@Override
 	public Ideal<IntE> radical(Ideal<IntE> t) {
 		IntE m = t.generators().get(0);
-		FactorizationResult<IntE> factors = uniqueFactorization(m);
+		FactorizationResult<IntE, IntE> factors = uniqueFactorization(m);
 		IntE radical = one();
 		for (IntE prime : factors.primeFactors()) {
 			radical = multiply(radical, prime);
@@ -1204,7 +1222,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			if (m.equals(zero())) {
 				return Value.ZERO;
 			}
-			FactorizationResult<Ideal<IntE>> factors = z.idealFactorization(this);
+			FactorizationResult<Ideal<IntE>,Ideal<IntE>> factors = z.idealFactorization(this);
 			Value value = Value.INFINITY;
 			for (Ideal<IntE> factor : factors.primeFactors()) {
 				value = value.min(new Value(z.valuation(t, factor).value() / z.valuation(m, factor).value()));

@@ -44,7 +44,7 @@ public class TestFindRelatedCurves<T extends Element<T>> {
 			BigInteger numPoints = curve.getNumberOfElements();
 			System.out.println("Number of points: " + numPoints);
 
-			FactorizationResult<IntE> decomp = Integers.z().uniqueFactorization(new IntE(numPoints));
+			FactorizationResult<IntE, IntE> decomp = Integers.z().uniqueFactorization(new IntE(numPoints));
 			for (IntE prime : decomp.primeFactors()) {
 				BigInteger primePower = prime.getValue();
 				int power = 1;

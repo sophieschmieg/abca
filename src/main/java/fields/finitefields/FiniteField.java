@@ -85,7 +85,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		if (finiteFields.containsKey(q)) {
 			return finiteFields.get(q);
 		}
-		FactorizationResult<IntE> factorization = Integers.z().uniqueFactorization(new IntE(q));
+		FactorizationResult<IntE, IntE> factorization = Integers.z().uniqueFactorization(new IntE(q));
 		if (factorization.primeFactors().size() != 1) {
 			throw new ArithmeticException("FiniteField does not exist");
 		}
@@ -178,14 +178,24 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		}
 		BigInteger q1 = getNumberOfElements().subtract(BigInteger.ONE);
 		BigInteger p1 = base.getEmbeddedField().getNumberOfElements().subtract(BigInteger.ONE);
-		return power(t, q1.divide(p1));
+		FFE normEmbedded = power(t, q1.divide(p1));
+		UnivariatePolynomial<FFE> normPolynomial = base.asPolynomial(normEmbedded);
+		if (normPolynomial.degree() > 0) {
+			throw new ArithmeticException("norm not computed correctly");
+		}
+		return normPolynomial.univariateCoefficient(0);
 	}
 
 	@Override
 	public PFE norm(FFE t) {
 		BigInteger q1 = getNumberOfElements().subtract(BigInteger.ONE);
 		BigInteger p1 = characteristic().subtract(BigInteger.ONE);
-		return asBaseFieldElement(power(t, q1.divide(p1)));
+		FFE normEmbedded = power(t, q1.divide(p1));
+		UnivariatePolynomial<PFE> normPolynomial = asPolynomial(normEmbedded);
+		if (normPolynomial.degree() > 0) {
+			throw new ArithmeticException("norm not computed correctly");
+		}
+		return normPolynomial.univariateCoefficient(0);
 	}
 
 	@Override
@@ -217,13 +227,15 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<FFE>> factorization(UnivariatePolynomial<FFE> t) {
+	public FactorizationResult<Polynomial<FFE>, FFE> factorization(UnivariatePolynomial<FFE> t) {
 		UnivariatePolynomialRing<FFE> ring = this.getUnivariatePolynomialRing();
 		SortedMap<Polynomial<FFE>, Integer> result = new TreeMap<>();
-		Polynomial<FFE> unit = ring.getEmbedding(t.leadingCoefficient());
-		Map<Polynomial<FFE>, Integer> squareFreeFactors = ring.squareFreeFactorization(t);
-		for (Polynomial<FFE> sff : squareFreeFactors.keySet()) {
-			int power = squareFreeFactors.get(sff);
+		FFE unit = t.leadingCoefficient();
+		t = ring.normalize(t);
+		FactorizationResult<Polynomial<FFE>, FFE> squareFreeFactors = ring.squareFreeFactorization(t);
+		for (Polynomial<FFE> sff : squareFreeFactors.primeFactors()) {
+			int power = squareFreeFactors.multiplicity(sff);
+			sff = ring.normalize(sff);
 			for (Polynomial<FFE> factor : factorizeSquareFree(sff)) {
 				result.put(factor, power);
 			}
@@ -387,8 +399,8 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		UnivariatePolynomialRing<FFE> ring = getUnivariatePolynomialRing();
 		Map<FFE, Integer> result = new TreeMap<>();
 		t = ring.normalize(t);
-		Map<Polynomial<FFE>, Integer> squareFreeFactors = ring.squareFreeFactorization(t);
-		for (Polynomial<FFE> sff : squareFreeFactors.keySet()) {
+		FactorizationResult<Polynomial<FFE>, FFE> squareFreeFactors = ring.squareFreeFactorization(t);
+		for (Polynomial<FFE> sff : squareFreeFactors.primeFactors()) {
 			List<Pair<Polynomial<FFE>, Integer>> distinctDegreeFactors = this.distinctDegreeFactorization(sff, 1);
 			for (Pair<Polynomial<FFE>, Integer> ddf : distinctDegreeFactors) {
 				if (ddf.getSecond() != 1) {
@@ -397,7 +409,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 				List<Polynomial<FFE>> linear = this.irreducibleFactorization(ddf.getFirst(), ddf.getSecond());
 				for (Polynomial<FFE> linearFactor : linear) {
 					result.put(this.negative(linearFactor.coefficient(ring.getMonomial(new int[] { 0 }))),
-							squareFreeFactors.get(sff));
+							squareFreeFactors.multiplicity(sff));
 				}
 			}
 		}
@@ -410,7 +422,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 			return primitiveRoot;
 		}
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factors = z.uniqueFactorization(new IntE(getNumberOfUnits()));
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(new IntE(getNumberOfUnits()));
 		List<BigInteger> tests = new ArrayList<>();
 		for (IntE prime : factors.primeFactors()) {
 			tests.add(getNumberOfUnits().divide(prime.getValue()));

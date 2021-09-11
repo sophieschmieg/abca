@@ -488,7 +488,7 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	}
 
 	@Override
-	public FactorizationResult<Quaternion<T>> uniqueFactorization(Quaternion<T> t) {
+	public FactorizationResult<Quaternion<T>, Quaternion<T>> uniqueFactorization(Quaternion<T> t) {
 		// TODO Auto-generated method stub
 		return null;
 	}

@@ -62,7 +62,7 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 
 	public static RationalQuaternions quaternions(IntE discriminant) {
 		Integers z = Integers.z();
-		FactorizationResult<IntE> discFactors = z.uniqueFactorization(discriminant);
+		FactorizationResult<IntE, IntE> discFactors = z.uniqueFactorization(discriminant);
 		if (!discFactors.getUnit().equals(z.one())) {
 			throw new ArithmeticException("Discriminant negative!");
 		}
@@ -118,8 +118,8 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 
 	private static IntE modSquares(Fraction t) {
 		Integers z = Integers.z();
-		FactorizationResult<IntE> factorsNum = z.uniqueFactorization(t.getNumerator());
-		FactorizationResult<IntE> factorsDenom = z.uniqueFactorization(t.getDenominator());
+		FactorizationResult<IntE, IntE> factorsNum = z.uniqueFactorization(t.getNumerator());
+		FactorizationResult<IntE, IntE> factorsDenom = z.uniqueFactorization(t.getDenominator());
 		IntE result = z.multiply(factorsNum.getUnit(), factorsDenom.getUnit());
 		Set<IntE> primes = new TreeSet<>();
 		primes.addAll(factorsNum.primeFactors());
@@ -186,7 +186,7 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 		NumberField nf = new NumberField(q.getUnivariatePolynomialRing()
 				.getPolynomial(q.negative(q.getInteger(aUpToSquares)), q.zero(), q.one()));
 		NumberFieldIntegers maximalOrder = nf.maximalOrder();
-		FactorizationResult<IntE> bFactors = z.uniqueFactorization(bUpToSquares);
+		FactorizationResult<IntE, IntE> bFactors = z.uniqueFactorization(bUpToSquares);
 		NumberFieldIdeal ideal = maximalOrder.getUnitIdeal();
 		for (IntE prime : bFactors.primeFactors()) {
 			ideal = maximalOrder.multiply(ideal, maximalOrder.idealsOver(z.getIdeal(prime)).get(0));
@@ -228,7 +228,7 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 			NFE idealElement = ideal.fromVector(new Vector<>(fromVector));
 			IntE norm = nf.norm(idealElement).asInteger();
 			norm = z.divideChecked(norm, bUpToSquares);
-			Optional<FactorizationResult<IntE>> factorizationIfSmooth = z.uniqueFactorizationIfSmooth(norm, primes);
+			Optional<FactorizationResult<IntE, IntE>> factorizationIfSmooth = z.uniqueFactorizationIfSmooth(norm, primes);
 			if (factorizationIfSmooth.isEmpty()) {
 				continue;
 			}

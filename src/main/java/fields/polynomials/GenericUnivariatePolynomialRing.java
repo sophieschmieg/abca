@@ -8,8 +8,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
+import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -25,18 +25,13 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
-import util.Cache;
-import util.Pair;
 
 public class GenericUnivariatePolynomialRing<T extends Element<T>> extends AbstractPolynomialRing<T> implements
 		PolynomialRing<T>/* , DedekindRing<Polynomial<T>, RationalFunction<T>, T> */, UnivariatePolynomialRing<T> {
 	private Ring<T> ring;
 	private SortedSet<Monomial> monomials;
 	private GenericUnivariatePolynomial<T> zero;
-	private Map<GenericUnivariatePolynomial<T>, Map<Polynomial<T>, Integer>> squareFreeFactorizatonCache;
-	private Cache<Pair<Polynomial<T>, Polynomial<T>>, GenericUnivariatePolynomial<T>> additionCache;
-	private Cache<Pair<Polynomial<T>, Polynomial<T>>, GenericUnivariatePolynomial<T>> multiplicationCache;
-	private Cache<Pair<Polynomial<T>, Polynomial<T>>, ExtendedResultantResult<T>> extendedResultantCache;
+	private Map<GenericUnivariatePolynomial<T>, FactorizationResult<Polynomial<T>, T>> squareFreeFactorizatonCache;
 	private PolynomialRing<T> asUnivariateBaseRing;
 
 	public GenericUnivariatePolynomialRing(Ring<T> ring) {
@@ -46,9 +41,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		this.monomials.add(getMonomial(new int[] { 0 }));
 		this.zero = new GenericUnivariatePolynomial<>(this, Collections.emptyList());
 		this.squareFreeFactorizatonCache = new TreeMap<>();
-		this.additionCache = new Cache<>(1000);
-		this.multiplicationCache = new Cache<>(1000);
-		this.extendedResultantCache = new Cache<>(1000);
 	}
 
 	@Override
@@ -69,11 +61,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	@Override
 	public Comparator<Monomial> getComparator() {
 		return Monomial.LEX;
-	}
-
-	@Override
-	public FactorizationResult<Polynomial<T>> uniqueFactorization(Polynomial<T> t) {
-		return ring.factorization(toUnivariate(t));
 	}
 
 	@Override
@@ -243,11 +230,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public GenericUnivariatePolynomial<T> add(Polynomial<T> s1, Polynomial<T> s2) {
-		Pair<Polynomial<T>, Polynomial<T>> lookupKey = new Pair<>(s1, s2);
-		Optional<GenericUnivariatePolynomial<T>> cached = additionCache.lookup(lookupKey);
-		if (cached.isPresent()) {
-			return cached.get();
-		}
 		UnivariatePolynomial<T> p1 = toUnivariate(s1);
 		UnivariatePolynomial<T> p2 = toUnivariate(s2);
 		int degree = Math.max(s1.degree(), s2.degree());
@@ -256,7 +238,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			c.add(ring.add(p1.univariateCoefficient(i), p2.univariateCoefficient(i)));
 		}
 		GenericUnivariatePolynomial<T> result = getPolynomial(c);
-		additionCache.insert(lookupKey, result);
 		return result;
 	}
 
@@ -273,11 +254,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public GenericUnivariatePolynomial<T> multiply(Polynomial<T> t1, Polynomial<T> t2) {
-		Pair<Polynomial<T>, Polynomial<T>> lookupKey = new Pair<>(t1, t2);
-		Optional<GenericUnivariatePolynomial<T>> cached = multiplicationCache.lookup(lookupKey);
-		if (cached.isPresent()) {
-			return cached.get();
-		}
 		GenericUnivariatePolynomial<T> p1 = toUnivariate(t1);
 		GenericUnivariatePolynomial<T> p2 = toUnivariate(t2);
 		if (p1.degree() < p2.degree()) {
@@ -288,7 +264,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		if (p1.degree() <= 0) {
 			GenericUnivariatePolynomial<T> result = getPolynomial(
 					Collections.singletonList(ring.multiply(p1.univariateCoefficient(0), p2.univariateCoefficient(0))));
-			multiplicationCache.insert(lookupKey, result);
 			return result;
 		}
 		int split = p1.degree() / 2 + 1;
@@ -298,7 +273,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			GenericUnivariatePolynomial<T> lsb = multiply(p1Lsb, p2);
 			GenericUnivariatePolynomial<T> msb = multiply(p1Msb, p2);
 			GenericUnivariatePolynomial<T> result = add(multiplyPower(split, msb), lsb);
-			multiplicationCache.insert(lookupKey, result);
 			return result;
 		}
 		GenericUnivariatePolynomial<T> p2Lsb = getPolynomial(p2.coefficients().subList(0, split));
@@ -310,18 +284,7 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		UnivariatePolynomial<T> mixed = toUnivariate(subtract(multiply(p1mixed, p2mixed), add(lsb, msb)));
 		GenericUnivariatePolynomial<T> result = toUnivariate(
 				add(lsb, multiplyPower(split, mixed), multiplyPower(2 * split, msb)));
-		multiplicationCache.insert(lookupKey, result);
 		return result;
-//		int degree = p1.degree() + p2.degree();
-//		List<T> c = new ArrayList<>();
-//		for (int i = 0; i <= degree; i++) {
-//			T sum = ring.zero();
-//			for (int j = 0; j <= i; j++) {
-//				sum = ring.add(sum, ring.multiply(p1.univariateCoefficient(j), p2.univariateCoefficient(i - j)));
-//			}
-//			c.add(sum);
-//		}
-//		return getPolynomial(c);
 	}
 
 	@Override
@@ -460,12 +423,12 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
-	public Map<Polynomial<T>, Integer> squareFreeFactorization(Polynomial<T> t) {
+	public FactorizationResult<Polynomial<T>, T> squareFreeFactorization(Polynomial<T> t) {
 		GenericUnivariatePolynomial<T> f = (GenericUnivariatePolynomial<T>) t;
 		if (this.squareFreeFactorizatonCache.containsKey(f)) {
 			return this.squareFreeFactorizatonCache.get(f);
 		}
-		Map<Polynomial<T>, Integer> result = new TreeMap<>();
+		SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
 		GenericUnivariatePolynomial<T> tPrime = derivative(t);
 		// Over algebraic closure, this decomposes into the factors of t with one degree
 		// less.
@@ -474,6 +437,7 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		GenericUnivariatePolynomial<T> linearFactors = toUnivariate(this.divideChecked(t, degreeMinusI));
 		int i = 0;
 		// Finding all factors of degree i with gcd(i, char F) = 1.
+		T unit = ring.one();
 		while (linearFactors.degree() != 0) {
 			i++;
 			// Over the algebraic closure, this is all the factors with multiplicity higher
@@ -483,7 +447,9 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			GenericUnivariatePolynomial<T> factorThisDegree = toUnivariate(
 					this.divideChecked(linearFactors, linearFactorsHigherDegree));
 			if (factorThisDegree.degree() > 0) {
-				result.put(upToUnit(factorThisDegree), i);
+				result.put(factorThisDegree, i);
+			} else {
+				unit = ring.multiply(factorThisDegree.leadingCoefficient(), unit);
 			}
 			// Updating the linear factors.
 			linearFactors = linearFactorsHigherDegree;
@@ -494,11 +460,11 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		if (degreeMinusI.degree() != 0) {
 			if (hasCharacteristicRoot(degreeMinusI)) {
 				Polynomial<T> pthRoot = characteristicRoot(degreeMinusI);
-				Map<Polynomial<T>, Integer> factors = this.squareFreeFactorization(pthRoot);
-				for (Polynomial<T> factor : factors.keySet()) {
-					int power = this.characteristic().intValueExact() * factors.get(factor);
+				FactorizationResult<Polynomial<T>, T> factors = this.squareFreeFactorization(pthRoot);
+				for (Polynomial<T> factor : factors.primeFactors()) {
+					int power = this.characteristic().intValueExact() * factors.multiplicity(factor);
 					degreeMinusI = toUnivariate(divideChecked(degreeMinusI, power(factor, power)));
-					result.put(upToUnit(factor), power);
+					result.put(factor, power);
 				}
 			} else {
 				throw new ArithmeticException("Characteristic zero should not have any remaining factors");
@@ -507,8 +473,9 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		if (!isUnit(degreeMinusI)) {
 			throw new ArithmeticException("Polynomial was not content free!");
 		}
-		this.squareFreeFactorizatonCache.put(f, result);
-		return result;
+		FactorizationResult<Polynomial<T>, T> factors = new FactorizationResult<>(ring.multiply(unit, degreeMinusI.leadingCoefficient(), linearFactors.leadingCoefficient()), result);
+		this.squareFreeFactorizatonCache.put(f, factors);
+		return factors;
 	}
 
 	@Override
@@ -932,9 +899,7 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			return super.extendedEuclidean(t1, t2);
 		}
 		ExtendedResultantResult<T> er = extendedResultant(t1, t2);
-		T lci = ring.inverse(er.getGcd().leadingCoefficient());
-		return new ExtendedEuclideanResult<>(multiply(lci, er.getGcd()), multiply(lci, er.getCoeff1()),
-				multiply(lci, er.getCoeff2()));
+		return new ExtendedEuclideanResult<>(er.getGcd(), er.getCoeff1(), er.getCoeff2());
 	}
 
 	@Override
@@ -944,15 +909,10 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public ExtendedResultantResult<T> extendedResultant(Polynomial<T> t1, Polynomial<T> t2) {
-		Optional<ExtendedResultantResult<T>> cached = extendedResultantCache.lookup(new Pair<>(t1, t2));
-		if (cached.isPresent()) {
-			return cached.get();
-		}
 		if (t1.degree() < t2.degree()) {
 			ExtendedResultantResult<T> swapped = extendedResultant(t2, t1);
 			ExtendedResultantResult<T> result = new ExtendedResultantResult<>(swapped.getResultant(), swapped.getGcd(),
 					swapped.getCoeff2(), swapped.getCoeff1());
-			extendedResultantCache.insert(new Pair<>(t1, t2), result);
 			return result;
 		}
 		if (t2.degree() == 0) {
@@ -964,7 +924,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			T resultant = ring.multiply(power, t2.leadingCoefficient());
 			ExtendedResultantResult<T> result = new ExtendedResultantResult<>(resultant, getEmbedding(resultant),
 					zero(), getEmbedding(power));
-			extendedResultantCache.insert(new Pair<>(t1, t2), result);
 			return result;
 		}
 		Polynomial<T> rPrevPrev = null;
@@ -1028,7 +987,6 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		}
 		ExtendedResultantResult<T> result = new ExtendedResultantResult<>(resultant, gcd, toUnivariate(coeff1Prev),
 				toUnivariate(coeff2Prev));
-		extendedResultantCache.insert(new Pair<>(t1, t2), result);
 		return result;
 	}
 

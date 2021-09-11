@@ -141,7 +141,7 @@ public class RunTests {
 //				z3.getInteger(1));
 //		UnivariatePolynomial<PAdicBaseNumber> t = z3ring.getPolynomial(z3.getInteger(3), z3.getInteger(3),
 //				z3.getInteger(3), z3.getInteger(1));
-	FactorizationResult<Polynomial<PAdicNumber>> factorss = z3.factorization(t);
+	FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> factorss = z3.factorization(t);
 		System.out.println(t);
 		for (Polynomial<PAdicNumber> f : factorss.primeFactors()) {
 			System.out.println("Factor: " + f);
@@ -319,7 +319,7 @@ public class RunTests {
 		UnivariatePolynomialRing<Fraction> qr = q.getUnivariatePolynomialRing();
 		Polynomial<Fraction> poly = qr.getPolynomial(q.one(), q.zero(), q.zero(), q.zero(), q.zero(), q.zero(),
 				q.zero(), q.one(), q.one());
-		FactorizationResult<Polynomial<Fraction>> factors = qr.uniqueFactorization(poly);
+		FactorizationResult<Polynomial<Fraction>, Polynomial<Fraction>> factors = qr.uniqueFactorization(poly);
 		System.out.println("Factorization over the fractions:\n" + factors);
 	
 		Reals r = Reals.r(1024);
@@ -330,7 +330,7 @@ public class RunTests {
 				return r.getEmbedding(t);
 			}
 		}, r.getUnivariatePolynomialRing());
-		FactorizationResult<Polynomial<Real>> factorsReal = r.getUnivariatePolynomialRing().uniqueFactorization(polyReal);
+		FactorizationResult<Polynomial<Real>, Polynomial<Real>> factorsReal = r.getUnivariatePolynomialRing().uniqueFactorization(polyReal);
 		System.out.println("Factorization over the reals:\n" + factorsReal);
 	
 		UnivariatePolynomial<Fraction> minpoly = qr.getPolynomial(q.one(), q.one(), q.one());
@@ -342,7 +342,7 @@ public class RunTests {
 				return nf.getEmbedding(t);
 			}
 		}, nf.getUnivariatePolynomialRing());
-		FactorizationResult<Polynomial<NFE>> factorsNF = nf.getUnivariatePolynomialRing().uniqueFactorization(polyNF);
+		FactorizationResult<Polynomial<NFE>, Polynomial<NFE>> factorsNF = nf.getUnivariatePolynomialRing().uniqueFactorization(polyNF);
 		System.out.println("Factorization over NumberField:\n" + factorsNF);
 	
 //		Map<Monomial, Fraction> intmap = new TreeMap<>(qr.getComparator());

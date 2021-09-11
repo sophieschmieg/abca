@@ -161,7 +161,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 //			}
 			UnivariatePolynomial<RE> reducedMinimalPolynomialOverUnramified = unramifiedRing
 					.reduceUnivariatePolynomial(minimalPolynomialOverUnramified);
-			FactorizationResult<Polynomial<RE>> reducedFactors = unramified.reduction()
+			FactorizationResult<Polynomial<RE>, RE> reducedFactors = unramified.reduction()
 					.factorization(reducedMinimalPolynomialOverUnramified);
 			if (!reducedFactors.isIrreducible()) {
 				throw new ArithmeticException("minimal polynomial not irreducible");
@@ -453,7 +453,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 	}
 	
 	@Override
-	public FactorizationResult<Polynomial<Ext<B>>> factorization(UnivariatePolynomial<Ext<B>> t) {
+	public FactorizationResult<Polynomial<Ext<B>>, Ext<B>> factorization(UnivariatePolynomial<Ext<B>> t) {
 		return ringOfIntegers().factorization(t, true, getAccuracy());
 	}
 

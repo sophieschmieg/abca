@@ -22,7 +22,7 @@ public class TestEllipticCurve<T extends Element<T>> {
 			System.out.println(i + " Division Polynomial: " + div);
 			if (i % 2 == 1) {
 				Map<T, Integer> roots = field.roots(univar.getEmbedding(div, new int[] {0}));
-				FactorizationResult<Polynomial<T>> factors = field.factorization(univar.getEmbedding(div, new int[] {0}));
+				FactorizationResult<Polynomial<T>, T> factors = field.factorization(univar.getEmbedding(div, new int[] {0}));
 				System.out.println("Roots: " + roots);
 				System.out.println("Factors: " + factors);
 				Polynomial<T> product = univar.one();

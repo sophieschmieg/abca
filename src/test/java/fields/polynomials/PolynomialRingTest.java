@@ -15,7 +15,6 @@ import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.PolynomialRing.GroebnerBasis;
-import varieties.curves.EllipticCurve;
 
 class PolynomialRingTest {
 
