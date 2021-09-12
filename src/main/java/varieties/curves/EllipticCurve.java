@@ -36,14 +36,14 @@ import fields.vectors.Vector;
 import util.ConCatMap;
 import util.MiscAlgorithms;
 import varieties.FunctionField;
-import varieties.ProjectiveMorphism;
-import varieties.ProjectivePoint;
-import varieties.ProjectiveVariety;
 import varieties.RationalFunction;
 import varieties.curves.DivisorGroup.Divisor;
-import varieties.projective.AbstractProjectiveVariety;
+import varieties.projective.AbstractProjectiveScheme;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
+import varieties.projective.ProjectiveScheme;
 
-public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveVariety<T>
+public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveScheme<T>
 		implements SmoothCurve<T>, Group<ProjectivePoint<T>> {
 	private static class Isomorphism<T extends Element<T>> implements Isogeny<T> {
 		private final EllipticCurve<T> domain;
@@ -115,13 +115,13 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveVarie
 	private boolean superSingular;
 	private boolean superSingularDeterminied;
 
-	private static <T extends Element<T>> ProjectiveVariety<T> asProjectiveVariety(Field<T> field, T a, T b) {
+	private static <T extends Element<T>> ProjectiveScheme<T> asProjectiveVariety(Field<T> field, T a, T b) {
 		PolynomialRing<T> ring = AbstractPolynomialRing.getPolynomialRing(field, 3, Monomial.GREVLEX);
 		Polynomial<T> f = ring.getEmbedding(field.one(), new int[] { 3, 0, 0 });
 		f = ring.add(f, ring.getEmbedding(field.negative(field.one()), new int[] { 0, 2, 1 }));
 		f = ring.add(f, ring.getEmbedding(a, new int[] { 1, 0, 2 }));
 		f = ring.add(f, ring.getEmbedding(b, new int[] { 0, 0, 3 }));
-		return new ProjectiveVariety<>(field, ring, Collections.singletonList(f));
+		return new ProjectiveScheme<>(field, ring, Collections.singletonList(f));
 	}
 
 	public static class FromPolynomialResult<T extends Element<T>> {
@@ -1488,5 +1488,10 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveVarie
 		if (div.getDegree() != 0)
 			return false;
 		return this.getRiemannRochSpace(div).size() == 1;
+	}
+	
+	@Override
+	public List<EllipticCurve<T>> irreducibleComponents() {
+		return Collections.singletonList(this);
 	}
 }

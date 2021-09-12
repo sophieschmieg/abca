@@ -5,10 +5,10 @@ import java.util.List;
 import fields.interfaces.Element;
 
 public class AffineCover<T extends Element<T>> {
-	private List<AffineVariety<T>> cover;
+	private List<AffineScheme<T>> cover;
 	private List<List<AffineMorphism<T>>> atlas;
 	
-	public AffineCover(List<AffineVariety<T>> cover, List<List<AffineMorphism<T>>> atlas) {
+	public AffineCover(List<AffineScheme<T>> cover, List<List<AffineMorphism<T>>> atlas) {
 		this.cover = cover;
 		this.atlas = atlas;
 		if (cover.size() != atlas.size()) {
@@ -38,11 +38,11 @@ public class AffineCover<T extends Element<T>> {
 		}
 	}
 	
-	public List<AffineVariety<T>> getCover() {
+	public List<AffineScheme<T>> getCover() {
 		return cover;
 	}
 	
-	public AffineVariety<T> getIntersection(int i, int j) {
+	public AffineScheme<T> getIntersection(int i, int j) {
 		return atlas.get(i).get(j).getDomain();
 	}
 	

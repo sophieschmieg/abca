@@ -43,9 +43,9 @@ import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.MiscAlgorithms;
 import varieties.FunctionField;
-import varieties.ProjectivePoint;
 import varieties.RationalFunction;
 import varieties.curves.EllipticCurve;
+import varieties.projective.ProjectivePoint;
 
 public class RunTests {
 

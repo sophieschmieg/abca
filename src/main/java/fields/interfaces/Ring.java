@@ -33,7 +33,11 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public boolean isCommutative();
 
 	public boolean isIntegral();
-
+	
+	public boolean isReduced();
+	
+	public boolean isIrreducible();
+	
 	public boolean isZeroDivisor(T t);
 
 	public boolean isEuclidean();

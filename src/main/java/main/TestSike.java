@@ -8,10 +8,10 @@ import java.util.List;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import util.MiscAlgorithms;
-import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
 import varieties.curves.Isogeny;
 import varieties.curves.KernelIsogeny;
+import varieties.projective.ProjectivePoint;
 
 public class TestSike<T extends Element<T>> {
 	private Field<T> field;

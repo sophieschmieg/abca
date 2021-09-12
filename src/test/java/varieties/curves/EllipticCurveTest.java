@@ -39,7 +39,7 @@ import fields.numberfields.NumberField.NFE;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import fields.vectors.Vector;
-import varieties.ProjectivePoint;
+import varieties.projective.ProjectivePoint;
 
 class EllipticCurveTest {
 	private Map<Vector<IntE>, FFE> binomResult = new TreeMap<>();

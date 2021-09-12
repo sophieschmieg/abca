@@ -1,4 +1,4 @@
-package varieties;
+package varieties.projective;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -17,9 +17,9 @@ import varieties.SpectrumOfField.SingletonPoint;
 import varieties.affine.AffineCover;
 import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
-import varieties.affine.AffineVariety;
+import varieties.affine.AffineScheme;
 
-public class SpectrumOfField<T extends Element<T>> implements Variety<T, SingletonPoint> {
+public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, SingletonPoint> {
 	public static class SingletonPoint extends AbstractElement<SingletonPoint> {
 
 		private SingletonPoint() {
@@ -53,7 +53,7 @@ public class SpectrumOfField<T extends Element<T>> implements Variety<T, Singlet
 	public Exactness exactness() {
 		return Exactness.EXACT;
 	}
-
+	
 	@Override
 	public SingletonPoint getRandomElement() {
 		return POINT;
@@ -92,7 +92,7 @@ public class SpectrumOfField<T extends Element<T>> implements Variety<T, Singlet
 	@Override
 	public AffineCover<T> getAffineCover() {
 		PolynomialRing<T> polynomials = AbstractPolynomialRing.getPolynomialRing(field, 0, Monomial.GREVLEX);
-		AffineVariety<T> asAffineVariety = new AffineVariety<>(field, new CoordinateRing<T>(polynomials,
+		AffineScheme<T> asAffineVariety = new AffineScheme<>(field, new CoordinateRing<T>(polynomials,
 				polynomials.getZeroIdeal()));
 		return new AffineCover<>(Collections.singletonList(asAffineVariety),
 				Collections.singletonList(Collections.singletonList(asAffineVariety.identityMorphism())));
@@ -123,7 +123,7 @@ public class SpectrumOfField<T extends Element<T>> implements Variety<T, Singlet
 			}
 
 			@Override
-			public AffineVariety<T> getDomain() {
+			public AffineScheme<T> getDomain() {
 				return getAffineCover().getCover().get(0);
 			}
 
@@ -167,4 +167,8 @@ public class SpectrumOfField<T extends Element<T>> implements Variety<T, Singlet
 		};
 	}
 
+	@Override
+	public List<Scheme<T, SingletonPoint>> irreducibleComponents() {
+		return Collections.singletonList(this);
+	}
 }

@@ -5,9 +5,9 @@ import fields.interfaces.MathMap;
 import varieties.affine.AffineMorphism;
 
 public interface Morphism<T extends Element<T>, S extends Element<S>, U extends Element<U>> extends MathMap<S, U> {
-	Variety<T, S> getDomain();
+	Scheme<T, S> getDomain();
 
-	Variety<T, U> getRange();
+	Scheme<T, U> getRange();
 
 	public class RestrictionResult<T extends Element<T>> {
 		private int domainCoverIndex;

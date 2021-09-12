@@ -520,6 +520,17 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	}
 
 	@Override
+	public boolean isReduced() {
+		return baseRing.isReduced() && polynomials.squareFreeFactorization(minimalPolynomial).squareFree();
+	}
+
+	@Override
+	public boolean isIrreducible() {
+		return baseRing.isIrreducible() && polynomials.getIdeal(Collections.singletonList(minimalPolynomial))
+				.minimalPrimeIdealsOver().size() == 1;
+	}
+
+	@Override
 	public boolean isZeroDivisor(S t) {
 		return baseRing.isZeroDivisor(polynomials.resultant(t.asPolynomial(), minimalPolynomial));
 //		List<Ext> exts = asIrreducibleProduct();
@@ -576,7 +587,8 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 			return new QuotientAndRemainderResult<>(zero(), dividend);
 		}
 		Polynomial<T> inverse = polynomials.divideChecked(resultant.getCoeff1(), resultant.getGcd());
-		return new QuotientAndRemainderResult<>(fromPolynomial(polynomials.multiply(polynomialDividend, inverse)), zero());
+		return new QuotientAndRemainderResult<>(fromPolynomial(polynomials.multiply(polynomialDividend, inverse)),
+				zero());
 //		List<Ext> exts = asIrreducibleProduct();
 //		List<S> dividendAsProduct = asIrreducibleProductElement(dividend);
 //		List<S> divisorAsProduct = asIrreducibleProductElement(divisor);

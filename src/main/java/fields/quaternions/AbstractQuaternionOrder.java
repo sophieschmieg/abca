@@ -218,6 +218,16 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 	public boolean isIntegral() {
 		return quaternions.isIntegral();
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return quaternions.isReduced();
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return quaternions.isIrreducible();
+	}
 
 	@Override
 	public boolean isZeroDivisor(Quaternion<T> t) {

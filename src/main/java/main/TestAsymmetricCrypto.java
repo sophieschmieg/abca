@@ -24,8 +24,8 @@ import javax.crypto.KeyAgreement;
 
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
-import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
+import varieties.projective.ProjectivePoint;
 
 public class TestAsymmetricCrypto {
 	private SecureRandom rand;

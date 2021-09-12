@@ -1,4 +1,4 @@
-package varieties;
+package varieties.projective;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,18 +15,19 @@ import fields.interfaces.PolynomialRing;
 import fields.local.Value;
 import fields.local.ValueGroup;
 import fields.polynomials.PolynomialIdeal;
+import varieties.Morphism;
 import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
-import varieties.affine.AffineVariety;
+import varieties.affine.AffineScheme;
 
 public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, ProjectivePoint<T>, ProjectivePoint<T>> {
 	private Field<T> field;
-	private ProjectiveVariety<T> domain;
-	private ProjectiveVariety<T> range;
+	private ProjectiveScheme<T> domain;
+	private ProjectiveScheme<T> range;
 	private List<Polynomial<T>> asPolynomials;
 	private PolynomialRing<T> polynomials;
 
-	public ProjectiveMorphism(ProjectiveVariety<T> domain, ProjectiveVariety<T> range,
+	public ProjectiveMorphism(ProjectiveScheme<T> domain, ProjectiveScheme<T> range,
 			List<Polynomial<T>> asPolynomials) {
 		if (!domain.getField().equals(range.getField())) {
 			throw new ArithmeticException("Fields mismatched!");
@@ -97,7 +98,7 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 	@Override
 	public ProjectivePoint<T> evaluate(ProjectivePoint<T> t) {
 		int coverIndex = domain.affineCoverIndex(t).get(0);
-		AffineVariety<T> affineDomain = domain.getAffineCover().getCover().get(coverIndex);
+		AffineScheme<T> affineDomain = domain.getAffineCover().getCover().get(coverIndex);
 		PolynomialRing<T> affineRing = affineDomain.getCoordinateRing().getPolynomialRing();
 		AffinePoint<T> affinePreimage = domain.asAffinePoint(t, coverIndex);
 		LocalizedCoordinateRing<T> localizedRing = affineDomain.localizedCoordinateRing(affinePreimage);
@@ -114,12 +115,12 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 	}
 
 	@Override
-	public ProjectiveVariety<T> getDomain() {
+	public ProjectiveScheme<T> getDomain() {
 		return domain;
 	}
 
 	@Override
-	public ProjectiveVariety<T> getRange() {
+	public ProjectiveScheme<T> getRange() {
 		return range;
 	}
 
@@ -128,8 +129,8 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 		ProjectivePoint<T> image = evaluate(preimage);
 		int domainCoverIndex = domain.affineCoverIndex(preimage).get(0);
 		int rangeCoverIndex = range.affineCoverIndex(image).get(0);
-		AffineVariety<T> affineDomain = domain.getAffineCover().getCover().get(domainCoverIndex);
-		AffineVariety<T> affineRange = range.getAffineCover().getCover().get(rangeCoverIndex);
+		AffineScheme<T> affineDomain = domain.getAffineCover().getCover().get(domainCoverIndex);
+		AffineScheme<T> affineRange = range.getAffineCover().getCover().get(rangeCoverIndex);
 		PolynomialRing<T> affineRing = affineDomain.getCoordinateRing().getPolynomialRing();
 		AffinePoint<T> affinePreimage = domain.asAffinePoint(preimage, domainCoverIndex);
 		LocalizedCoordinateRing<T> localizedRing = affineDomain.localizedCoordinateRing(affinePreimage);
@@ -172,7 +173,7 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 		}
 		PolynomialIdeal<T> inverseIdeal = polynomials.getIdeal(inverseList);
 		CoordinateRing<T> domainSubsetRing = new CoordinateRing<>(polynomials, inverseIdeal);
-		AffineVariety<T> domainSubset = new AffineVariety<>(field, domainSubsetRing);
+		AffineScheme<T> domainSubset = new AffineScheme<>(field, domainSubsetRing);
 		List<CoordinateRingElement<T>> embeddingPolynomials = new ArrayList<>();
 		for (int i = 0; i < affineRing.numberOfVariables(); i++) {
 			embeddingPolynomials.add(domainSubsetRing.getEmbedding(polynomials.getVar(i + 1)));

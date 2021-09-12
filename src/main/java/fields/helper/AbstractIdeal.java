@@ -27,6 +27,11 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 	public Ring<T> getRing() {
 		return r;
 	}
+	
+	@Override
+	public boolean isRadical() {
+		return r.radical(this).equals(this);
+	}
 
 	@Override
 	public T zero() {

@@ -9,8 +9,8 @@ import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
-import varieties.ProjectiveMorphism;
-import varieties.ProjectivePoint;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
 
 public class Frobenius<T extends Element<T>> implements Isogeny<T> {
 	private EllipticCurve<T> domain;

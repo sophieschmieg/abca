@@ -249,7 +249,7 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 			return inverseBaseChange;
 		}
 	}
-	
+
 	public Optional<DiagonalizationResult<T>> diagonalize(Matrix<T> t) {
 		if (!(ring instanceof Field<?>)) {
 			throw new UnsupportedOperationException("Not over a Vector Space");
@@ -367,7 +367,17 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 
 	@Override
 	public boolean isIntegral() {
-		return false;
+		return dimension == 0 && ring.isIntegral();
+	}
+
+	@Override
+	public boolean isReduced() {
+		return dimension == 0 && ring.isReduced();
+	}
+
+	@Override
+	public boolean isIrreducible() {
+		return dimension == 0 && ring.isIrreducible();
 	}
 
 	@Override

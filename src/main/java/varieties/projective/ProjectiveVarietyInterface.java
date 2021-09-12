@@ -1,10 +1,8 @@
 package varieties.projective;
 
 import fields.interfaces.Element;
-import varieties.ProjectivePoint;
-import varieties.ProjectiveVariety;
-import varieties.Variety;
+import varieties.Scheme;
 
-public interface ProjectiveVarietyInterface<T extends Element<T>> extends Variety<T, ProjectivePoint<T>> {
-	ProjectiveVariety<T> asProjectiveVariety();
+public interface ProjectiveVarietyInterface<T extends Element<T>> extends Scheme<T, ProjectivePoint<T>> {
+	ProjectiveScheme<T> asProjectiveVariety();
 }

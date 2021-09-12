@@ -80,6 +80,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public PolynomialIdeal<T> getZeroIdeal();
 	public PolynomialIdeal<T> add(Ideal<Polynomial<T>> t1, Ideal<Polynomial<T>> t2);
 	public PolynomialIdeal<T> intersect(Ideal<Polynomial<T>> t1, Ideal<Polynomial<T>> t2);
+	public PolynomialIdeal<T> radical(Ideal<Polynomial<T>> t);
 	
 	public T evaluate(Polynomial<T> t, @SuppressWarnings("unchecked") T... ts);
 	public T evaluate(Polynomial<T> t, List<T> ts);
@@ -93,6 +94,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public T content(Polynomial<T> t);
 	public Polynomial<T> contentFree(Polynomial<T> t);
 	public FactorizationResult<Polynomial<T>, T> squareFreeFactorization(Polynomial<T> t);
+	public Polynomial<T> radical(Polynomial<T> t);
 
 	public Polynomial<T> derivative(Polynomial<T> t, int variable);
 	

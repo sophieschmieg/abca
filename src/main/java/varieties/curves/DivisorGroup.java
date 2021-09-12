@@ -14,8 +14,8 @@ import fields.exceptions.InfinityException;
 import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Group;
-import varieties.ProjectivePoint;
 import varieties.curves.DivisorGroup.Divisor;
+import varieties.projective.ProjectivePoint;
 
 public class DivisorGroup<T extends Element<T>> implements Group<Divisor<T>> {
 

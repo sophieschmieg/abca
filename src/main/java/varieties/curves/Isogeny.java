@@ -4,8 +4,8 @@ import java.math.BigInteger;
 
 import fields.interfaces.Element;
 import fields.interfaces.MathMap;
-import varieties.ProjectiveMorphism;
-import varieties.ProjectivePoint;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
 
 public interface Isogeny<T extends Element<T>> extends MathMap<ProjectivePoint<T>,ProjectivePoint<T>> {
 	public EllipticCurve<T> getDomain();

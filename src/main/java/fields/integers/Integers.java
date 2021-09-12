@@ -262,6 +262,16 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	public boolean isIntegral() {
 		return true;
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return true;
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return true;
+	}
 
 	@Override
 	public boolean isZeroDivisor(IntE t) {

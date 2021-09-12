@@ -24,8 +24,8 @@ class AffineMorphismTest {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> one = q.getUnivariatePolynomialRing();
 		PolynomialRing<Fraction> two = AbstractPolynomialRing.getPolynomialRing(q, 2, Monomial.GREVLEX);
-		AffineVariety<Fraction> line = new AffineVariety<>(q, new CoordinateRing<>(one, one.getZeroIdeal()));
-		AffineVariety<Fraction> plane = new AffineVariety<>(q, new CoordinateRing<>(two, two.getZeroIdeal()));
+		AffineScheme<Fraction> line = new AffineScheme<>(q, new CoordinateRing<>(one, one.getZeroIdeal()));
+		AffineScheme<Fraction> plane = new AffineScheme<>(q, new CoordinateRing<>(two, two.getZeroIdeal()));
 		List<Polynomial<Fraction>> nodalMapList = new ArrayList<>();
 		nodalMapList.add(one.subtract(one.getVarPower(2), one.one()));
 		nodalMapList.add(one.multiply(nodalMapList.get(0), one.getVar()));
@@ -41,7 +41,7 @@ class AffineMorphismTest {
 		List<CoordinateRingElement<Fraction>> pointList = new ArrayList<>();
 		pointList.add(plane.getCoordinateRing().getVar(1));
 		pointList.add(plane.getCoordinateRing().getVar(2));
-		AffineMorphism<Fraction> embedding = AffineVariety.restrictAwayFrom(plane, pointList);
+		AffineMorphism<Fraction> embedding = AffineScheme.restrictAwayFrom(plane, pointList);
 		AffineMorphism<Fraction> pre = morphism.preimage(embedding);
 		System.out.println(pre.getDomain());
 		System.out.println(pre.image().getDomain());

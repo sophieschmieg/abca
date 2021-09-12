@@ -2,8 +2,8 @@ package varieties;
 
 import fields.interfaces.Element;
 import varieties.affine.AffineMorphism;
-import varieties.affine.AffineVariety;
-import varieties.affine.AffineVariety.IntersectionResult;
+import varieties.affine.AffineScheme;
+import varieties.affine.AffineScheme.IntersectionResult;
 
 public class CompositionMorphism<T extends Element<T>, S extends Element<S>, U extends Element<U>, V extends Element<V>>
 		implements Morphism<T, S, V> {
@@ -21,12 +21,12 @@ public class CompositionMorphism<T extends Element<T>, S extends Element<S>, U e
 	}
 
 	@Override
-	public Variety<T, S> getDomain() {
+	public Scheme<T, S> getDomain() {
 		return firstMorphism.getDomain();
 	}
 
 	@Override
-	public Variety<T, V> getRange() {
+	public Scheme<T, V> getRange() {
 		return secondMorphism.getRange();
 	}
 
@@ -35,9 +35,9 @@ public class CompositionMorphism<T extends Element<T>, S extends Element<S>, U e
 		U intermediate = firstMorphism.evaluate(preimage);
 		RestrictionResult<T> firstRestriction = firstMorphism.restrict(preimage);
 		RestrictionResult<T> secondRestriction = secondMorphism.restrict(intermediate);
-		AffineVariety<T> firstRange = firstMorphism.getRange().getAffineCover().getCover().get(firstRestriction.getRangeCoverIndex());
-		AffineVariety<T> secondDomain = secondMorphism.getDomain().getAffineCover().getCover().get(secondRestriction.getDomainCoverIndex());
-		IntersectionResult<T> intermediateIntersection = AffineVariety.intersect(firstRange, secondDomain);
+		AffineScheme<T> firstRange = firstMorphism.getRange().getAffineCover().getCover().get(firstRestriction.getRangeCoverIndex());
+		AffineScheme<T> secondDomain = secondMorphism.getDomain().getAffineCover().getCover().get(secondRestriction.getDomainCoverIndex());
+		IntersectionResult<T> intermediateIntersection = AffineScheme.intersect(firstRange, secondDomain);
 		AffineMorphism<T> preimageMorphism = firstRestriction.getRestrictedMorphism().preimage(intermediateIntersection.getFirstEmbedding());
 		AffineMorphism<T> restriction = AffineMorphism.composition(AffineMorphism.composition(preimageMorphism, firstRestriction.getRestrictedMorphism()), secondRestriction.getRestrictedMorphism());
 		return new RestrictionResult<>(firstRestriction.getDomainCoverIndex(), secondRestriction.getRangeCoverIndex(), preimageMorphism, secondRestriction.getRangeEmbedding(), restriction);

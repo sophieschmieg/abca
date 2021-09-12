@@ -293,6 +293,16 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		}
 		return true;
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return ideal.isRadical();
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return ideal.minimalPrimeIdealsOver().size() == 1;
+	}
 
 	@Override
 	public boolean isZeroDivisor(CoordinateRingElement<T> t) {
@@ -369,14 +379,19 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
-	public Ideal<CoordinateRingElement<T>> intersect(Ideal<CoordinateRingElement<T>> t1,
+	public CoordinateIdeal<T> intersect(Ideal<CoordinateRingElement<T>> t1,
 			Ideal<CoordinateRingElement<T>> t2) {
-		throw new UnsupportedOperationException();
+		CoordinateIdeal<T> ideal1 = (CoordinateIdeal<T>)t1;
+		CoordinateIdeal<T> ideal2 = (CoordinateIdeal<T>)t2;
+		PolynomialIdeal<T> intersection = ring.intersect(ideal1.asPolynomialIdeal(), ideal2.asPolynomialIdeal());
+		return getIdeal(intersection);
 	}
 
 	@Override
-	public Ideal<CoordinateRingElement<T>> radical(Ideal<CoordinateRingElement<T>> t) {
-		throw new UnsupportedOperationException();
+	public CoordinateIdeal<T> radical(Ideal<CoordinateRingElement<T>> t) {
+		CoordinateIdeal<T> ideal = (CoordinateIdeal<T>)t;
+		PolynomialIdeal<T> radical = ring.radical(ideal.asPolynomialIdeal());
+		return getIdeal(radical);
 	}
 
 	public CoordinateRingElement<T> substitute(CoordinateRingElement<T> t, List<CoordinateRingElement<T>> values) {

@@ -81,6 +81,16 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
+	public final boolean isReduced() {
+		return getRing().isReduced();
+	}
+
+	@Override
+	public boolean isIrreducible() {
+		return getRing().isIrreducible();
+	}
+
+	@Override
 	public final boolean isFree() {
 		return true;
 	}
@@ -307,11 +317,12 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		return getIdeal(intersectionGenerators);
 	}
 
-	private Polynomial<T> radical(Polynomial<T> generator) {
-		if (generator.equals(zero())) {
-			return generator;
+	@Override
+	public Polynomial<T> radical(Polynomial<T> t) {
+		if (t.equals(zero())) {
+			return t;
 		}
-		FactorizationResult<Polynomial<T>, T> squareFreeFactors = squareFreeFactorization(generator);
+		FactorizationResult<Polynomial<T>, T> squareFreeFactors = squareFreeFactorization(t);
 		Polynomial<T> result = one();
 		for (Polynomial<T> factor : squareFreeFactors.primeFactors()) {
 			result = multiply(result, factor);
@@ -327,7 +338,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		}
 		return (PolynomialIdeal<T>) getIdeal(radicalGenerators);
 	}
-	
+
 	@Override
 	public PolynomialIdeal<T> getZeroIdeal() {
 		return getIdeal(Collections.emptyList());
@@ -920,10 +931,9 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		}
 		t = fromUnivariatePolynomial(
 				ring.getUnivariatePolynomialRing().getUnivariatePolynomialRing().contentFree(asUnivariate), 2);
-		 asUnivariate = asUnivariatePolynomial(t, 1);
-		 content = ring.getUnivariatePolynomialRing().getUnivariatePolynomialRing().content(asUnivariate);
-		contentFactors = ring
-				.factorization(ring.getUnivariatePolynomialRing().toUnivariate(content));
+		asUnivariate = asUnivariatePolynomial(t, 1);
+		content = ring.getUnivariatePolynomialRing().getUnivariatePolynomialRing().content(asUnivariate);
+		contentFactors = ring.factorization(ring.getUnivariatePolynomialRing().toUnivariate(content));
 		result.unit = ring.multiply(contentFactors.getUnit(), result.unit);
 		for (Polynomial<T> contentFactor : contentFactors.primeFactors()) {
 			result.factors.add(getEmbedding(contentFactor, new int[] { 1 }));
@@ -1027,28 +1037,93 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		}
 		AbstractPolynomialRing<T> bivariate = (AbstractPolynomialRing<T>) AbstractPolynomialRing
 				.getPolynomialRing(getRing(), 2, getComparator());
+		UnivariatePolynomialRing<T> univariate = getRing().getUnivariatePolynomialRing();
 		Iterator<Vector<T>> it = evaluationIterator(numberOfVariables() - 2);
 		int degreeX = t.degree(1);
+		if (degreeX == 0) {
+			throw new ArithmeticException("Expected non trivial first variable!");
+		}
 		int degreeY = t.degree(2);
-		while (it.hasNext()) {
+		Polynomial<T> leading = asUnivariatePolynomial(t, 1).leadingCoefficient();
+		Polynomial<T> leadingRadical = eliminateVariable().radical(leading);
+		mainLoop: while (it.hasNext()) {
+			List<T> pointList = it.next().asList();
+			for (int i = numberOfVariables(); i > 2; i--) {
+				List<T> evaluationPoint = new ArrayList<>();
+				for (int j = 0; j < i - 1; j++) {
+					evaluationPoint.add(null);
+				}
+				evaluationPoint.addAll(pointList.subList(i - 3, pointList.size()));
+				Polynomial<T> evaluated = bivariate.getEmbedding(partiallyEvaluate(t, evaluationPoint));
+				if (evaluated.degree(i) != t.degree(i)) {
+					continue mainLoop;
+				}
+			}
 			List<T> evaluationPoint = new ArrayList<>();
 			evaluationPoint.add(null);
 			evaluationPoint.add(null);
-			evaluationPoint.addAll(it.next().asList());
+			evaluationPoint.addAll(pointList);
 			Polynomial<T> evaluated = bivariate.getEmbedding(partiallyEvaluate(t, evaluationPoint));
 			if (evaluated.degree(1) != degreeX || evaluated.degree(2) != degreeY) {
 				continue;
 			}
-			Polynomial<T> derivative = bivariate.derivative(evaluated, 1);
-			Polynomial<T> resultant = resultant(t, derivative, 1);
-			if (resultant.equals(getRing().getUnivariatePolynomialRing().zero())) {
+			if (!bivariate.squareFreeFactorization(evaluated).squareFree()) {
 				continue;
 			}
 			SquareFreeFactorizationResult<T> bivariateFactors = bivariate
 					.factorizeBivariateSquareFreePolynomial(evaluated);
+			Polynomial<T> leadingEvaluated = bivariate.asUnivariatePolynomial(evaluated, 1).leadingCoefficient();
+			Polynomial<T> leadingEvaluatedRadical = univariate.radical(leadingEvaluated);
+			Polynomial<T> leadingRadicalEvaluated = univariate.getEmbedding(
+					eliminateVariable().evaluate(leading, evaluationPoint.subList(1, evaluationPoint.size())));
+			Polynomial<T> m;
+			List<Polynomial<T>> p = new ArrayList<>();
+			if (!leadingEvaluatedRadical.equals(leadingRadicalEvaluated)) {
+				m = leading;
+				for (int i = 0; i < bivariateFactors.factors.size(); i++) {
+					p.add(one());
+				}
+			} else {
+				List<Polynomial<T>> squareFreeFactors = new ArrayList<>();
+				for (Polynomial<T> bivariateFactor : bivariateFactors.factors) {
+					Polynomial<T> leadingOfFactor = bivariate.asUnivariatePolynomial(bivariateFactor, 1)
+							.leadingCoefficient();
+					FactorizationResult<Polynomial<T>, T> squareFreeOfLeadingFactors = univariate
+							.squareFreeFactorization(leadingOfFactor);
+					squareFreeFactors.addAll(squareFreeOfLeadingFactors.primeFactors());
+				}
+				List<Polynomial<T>> gcdFreeBasis = gcdFreeBasis(squareFreeFactors);
+			}
 		}
 		// ran out of evaluation points, moving to field extension.
 		return factorizeOverExtension(t);
+	}
+
+	private List<Polynomial<T>> gcdFreeBasis(List<Polynomial<T>> set) {
+		List<Polynomial<T>> reduced = new ArrayList<>();
+		for (Polynomial<T> element : set) {
+			if (element.degree() > 0) {
+				reduced.add(element);
+			}
+		}
+		int reducedSize = reduced.size();
+		for (int i = 0; i < reducedSize; i++) {
+			for (int j = 0; j < reducedSize; j++) {
+				if (i == j) {
+					continue;
+				}
+				Polynomial<T> gcd = gcd(reduced.get(i), reduced.get(j));
+				if (gcd.degree() != 0) {
+					reduced.add(gcd);
+					reduced.set(i, divideChecked(reduced.get(i), gcd));
+					reduced.set(j, divideChecked(reduced.get(j), gcd));
+				}
+			}
+		}
+		if (reducedSize == reduced.size()) {
+			return reduced;
+		}
+		return gcdFreeBasis(reduced);
 	}
 
 	private SquareFreeFactorizationResult<T> factorizeOverExtension(Polynomial<T> t) {
@@ -1115,7 +1190,8 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<Polynomial<T>>, Polynomial<T>> factorization(UnivariatePolynomial<Polynomial<T>> t) {
+	public FactorizationResult<Polynomial<Polynomial<T>>, Polynomial<T>> factorization(
+			UnivariatePolynomial<Polynomial<T>> t) {
 		PolynomialRing<T> addVar = AbstractPolynomialRing.getPolynomialRing(getRing(), numberOfVariables() + 1,
 				getComparator());
 		FactorizationResult<Polynomial<T>, Polynomial<T>> factors = addVar
@@ -1124,8 +1200,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		for (Polynomial<T> factor : factors.primeFactors()) {
 			result.put(addVar.asUnivariatePolynomial(factor, numberOfVariables() + 1), factors.multiplicity(factor));
 		}
-		return new FactorizationResult<>(getEmbedding(factors.getUnit()),
-				result);
+		return new FactorizationResult<>(getEmbedding(factors.getUnit()), result);
 	}
 
 	@Override
@@ -1139,8 +1214,8 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			result.put(getEmbedding(factor), contentFactors.multiplicity(factor));
 		}
 		UnivariatePolynomial<Polynomial<T>> contentFree = asYPolynomialRing.contentFree(asYPolynomial);
-		FactorizationResult<Polynomial<Polynomial<T>>, Polynomial<T>> squareFree = eliminateVariable().getUnivariatePolynomialRing()
-				.squareFreeFactorization(contentFree);
+		FactorizationResult<Polynomial<Polynomial<T>>, Polynomial<T>> squareFree = eliminateVariable()
+				.getUnivariatePolynomialRing().squareFreeFactorization(contentFree);
 		for (Polynomial<Polynomial<T>> factor : squareFree.primeFactors()) {
 			result.put(fromUnivariatePolynomial(eliminateVariable().getUnivariatePolynomialRing().toUnivariate(factor),
 					numberOfVariables()), squareFree.multiplicity(factor));
@@ -1167,7 +1242,8 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			throw new ArithmeticException("zero variable polynomial with degree > 0!");
 		}
 		if (numberOfVariables() == 1) {
-			FactorizationResult<Polynomial<T>, T> factors = getRing().factorization(getRing().getUnivariatePolynomialRing().toUnivariate(t));
+			FactorizationResult<Polynomial<T>, T> factors = getRing()
+					.factorization(getRing().getUnivariatePolynomialRing().toUnivariate(t));
 			SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
 			for (Polynomial<T> factor : factors.primeFactors()) {
 				result.put(factor, factors.multiplicity(factor));
@@ -1353,8 +1429,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 				asUnivariatePolynomial(potentialFactor, 1).leadingCoefficient()), new int[] { 1 });
 		potentialFactor = multiply(potentialLeading, potentialFactor);
 		Polynomial<T> factor = moduloVarPower(potentialFactor, 2, accuracy);
-		factor = fromUnivariatePolynomial(
-				ring.contentFree(asUnivariatePolynomial(factor, 1)), 1);
+		factor = fromUnivariatePolynomial(ring.contentFree(asUnivariatePolynomial(factor, 1)), 1);
 		QuotientAndRemainderResult<Polynomial<T>> qr = quotientAndRemainder(t, factor);
 		if (qr.getRemainder().equals(zero())) {
 			result.foundFactor = true;

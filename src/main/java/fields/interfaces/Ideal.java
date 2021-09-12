@@ -7,6 +7,7 @@ import fields.local.Value;
 public interface Ideal<T extends Element<T>> extends Module<T, T>, Element<Ideal<T>> {
 	public boolean isPrime();
 	public boolean isMaximal();
+	public boolean isRadical();
 	public List<T> generators();
 	public List<T> generate(T t);
 	public T residue(T t);

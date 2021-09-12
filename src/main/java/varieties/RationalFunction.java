@@ -7,8 +7,10 @@ import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
-import varieties.affine.AffineVariety;
+import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
 import varieties.projective.ProjectiveVarietyInterface;
 
 public class RationalFunction<T extends Element<T>>
@@ -18,7 +20,7 @@ public class RationalFunction<T extends Element<T>>
 	private ProjectiveMorphism<T> asProjectiveMorphism;
 	private Polynomial<T> numerator;
 	private Polynomial<T> denominator;
-	private AffineVariety<T> affineSlice;
+	private AffineScheme<T> affineSlice;
 	private CoordinateRing<T> affineCoordinateRing;
 	private PolynomialRing<T> affinePolynomialRing;
 	private int affineCoverIndex;

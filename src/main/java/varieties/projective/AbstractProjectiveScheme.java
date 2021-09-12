@@ -3,17 +3,16 @@ package varieties.projective;
 import java.util.List;
 
 import fields.interfaces.Element;
+import varieties.AbstractScheme;
 import varieties.Morphism;
-import varieties.ProjectivePoint;
-import varieties.ProjectiveVariety;
 import varieties.SpectrumOfField.SingletonPoint;
 import varieties.affine.AffineCover;
 import varieties.affine.AffinePoint;
 
-public abstract class AbstractProjectiveVariety<T extends Element<T>> implements ProjectiveVarietyInterface<T> {
-	private ProjectiveVariety<T> asProjectiveVariety;
+public abstract class AbstractProjectiveScheme<T extends Element<T>> extends AbstractScheme<T, ProjectivePoint<T>> implements ProjectiveVarietyInterface<T> {
+	private ProjectiveScheme<T> asProjectiveVariety;
 
-	public AbstractProjectiveVariety(ProjectiveVariety<T> asProjectiveVariety) {
+	public AbstractProjectiveScheme(ProjectiveScheme<T> asProjectiveVariety) {
 		this.asProjectiveVariety = asProjectiveVariety;
 	}
 	
@@ -23,7 +22,7 @@ public abstract class AbstractProjectiveVariety<T extends Element<T>> implements
 	}
 
 	@Override
-	public ProjectiveVariety<T> asProjectiveVariety() {
+	public ProjectiveScheme<T> asProjectiveVariety() {
 		return asProjectiveVariety;
 	}
 

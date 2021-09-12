@@ -363,6 +363,16 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 
 	@Override
 	public abstract boolean isIntegral();
+	
+	@Override
+	public boolean isReduced() {
+		return isIntegral();
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return isIntegral();
+	}
 
 	@Override
 	public boolean isEuclidean() {

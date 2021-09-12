@@ -7,8 +7,8 @@ import java.util.List;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
-import varieties.ProjectiveMorphism;
-import varieties.ProjectivePoint;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
 
 public class CompositionIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private Isogeny<T> firstIsogeny;

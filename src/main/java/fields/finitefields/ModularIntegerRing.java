@@ -172,6 +172,16 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	public boolean isIntegral() {
 		return n.isProbablePrime(10);
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return Integers.z().uniqueFactorization(new IntE(n)).squareFree();
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return Integers.z().uniqueFactorization(new IntE(n)).primeFactors().size() == 1;
+	}
 
 	@Override
 	public boolean isZeroDivisor(ModularIntegerRingElement t) {

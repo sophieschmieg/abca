@@ -16,11 +16,11 @@ import varieties.Morphism;
 import varieties.SpectrumOfField;
 
 public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffinePoint<T>, AffinePoint<T>> {
-	private AffineVariety<T> domain;
-	private AffineVariety<T> range;
+	private AffineScheme<T> domain;
+	private AffineScheme<T> range;
 	private List<Polynomial<T>> polynomials;
 
-	public AffineMorphism(AffineVariety<T> domain, AffineVariety<T> range, List<CoordinateRingElement<T>> polynomials) {
+	public AffineMorphism(AffineScheme<T> domain, AffineScheme<T> range, List<CoordinateRingElement<T>> polynomials) {
 		this.domain = domain;
 		this.range = range;
 		this.polynomials = new ArrayList<>();
@@ -36,8 +36,8 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 		}
 	}
 
-	public static <T extends Element<T>> AffineMorphism<T> fromPolynomials(AffineVariety<T> domain,
-			AffineVariety<T> range, List<Polynomial<T>> polynomials) {
+	public static <T extends Element<T>> AffineMorphism<T> fromPolynomials(AffineScheme<T> domain,
+			AffineScheme<T> range, List<Polynomial<T>> polynomials) {
 		List<CoordinateRingElement<T>> result = new ArrayList<>();
 		for (Polynomial<T> p : polynomials) {
 			result.add(domain.getCoordinateRing().getEmbedding(p));
@@ -56,28 +56,28 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 	}
 
 	public static class AffineFiberedProduct<T extends Element<T>> {
-		private AffineVariety<T> product;
-		private AffineVariety<T> factor1;
-		private AffineVariety<T> factor2;
-		private AffineVariety<T> base;
+		private AffineScheme<T> product;
+		private AffineScheme<T> factor1;
+		private AffineScheme<T> factor2;
+		private AffineScheme<T> base;
 		private AffineMorphism<T> projection1;
 		private AffineMorphism<T> projection2;
 		private AffineMorphism<T> structural1;
 		private AffineMorphism<T> structural2;
 
-		public AffineVariety<T> getProduct() {
+		public AffineScheme<T> getProduct() {
 			return product;
 		}
 
-		public AffineVariety<T> getFactor1() {
+		public AffineScheme<T> getFactor1() {
 			return factor1;
 		}
 
-		public AffineVariety<T> getFactor2() {
+		public AffineScheme<T> getFactor2() {
 			return factor2;
 		}
 
-		public AffineVariety<T> getBase() {
+		public AffineScheme<T> getBase() {
 			return base;
 		}
 
@@ -134,7 +134,7 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 		}
 		CoordinateIdeal<T> ideal = tensorProduct.getIdeal(additionalEquations);
 		CoordinateRing<T> pushout = new CoordinateRing<T>(tensorProduct, ideal);
-		result.product = new AffineVariety<>(result.factor1.getField(), pushout);
+		result.product = new AffineScheme<>(result.factor1.getField(), pushout);
 		List<CoordinateRingElement<T>> projection1List = new ArrayList<>();
 		for (int i = 0; i < polynomialRing1.numberOfVariables(); i++) {
 			projection1List.add(tensorProduct.getVar(i + 1));
@@ -174,11 +174,11 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 		return new AffinePoint<>(domain.getField(), list);
 	}
 
-	public AffineVariety<T> getDomain() {
+	public AffineScheme<T> getDomain() {
 		return domain;
 	}
 
-	public AffineVariety<T> getRange() {
+	public AffineScheme<T> getRange() {
 		return range;
 	}
 
@@ -254,7 +254,7 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 			imageGenerators
 					.add(rangeCoordinateRing.getEmbedding(rangePolynomialRing.getEmbedding(graphGenerator, map)));
 		}
-		AffineVariety<T> image = new AffineVariety<>(range.getField(),
+		AffineScheme<T> image = new AffineScheme<>(range.getField(),
 				new CoordinateRing<>(rangeCoordinateRing, rangeCoordinateRing.getIdeal(imageGenerators)));
 		return new AffineMorphism<>(image, range, embedding);
 	}

@@ -146,6 +146,16 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	public boolean isIntegral() {
 		return true;
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return true;
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return true;
+	}
 
 	@Override
 	public boolean isZeroDivisor(NFE t) {

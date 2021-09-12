@@ -15,13 +15,13 @@ import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import varieties.FunctionField;
-import varieties.ProjectivePoint;
-import varieties.ProjectiveVariety;
 import varieties.RationalFunction;
 import varieties.curves.DivisorGroup.Divisor;
-import varieties.projective.AbstractProjectiveVariety;
+import varieties.projective.AbstractProjectiveScheme;
+import varieties.projective.ProjectivePoint;
+import varieties.projective.ProjectiveScheme;
 
-public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveVariety<T> implements SmoothCurve<T> {
+public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveScheme<T> implements SmoothCurve<T> {
 	private Field<T> field;
 	private ProjectivePoint<T> pointAtInfinity;
 	private ProjectivePoint<T> pointAtZero;
@@ -29,7 +29,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveVari
 	private CoordinateRing<T> coordRing;
 
 	public ProjectiveLine(Field<T> field) {
-		super(new ProjectiveVariety<>(field, AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX), Collections.emptyList()));
+		super(new ProjectiveScheme<>(field, AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX), Collections.emptyList()));
 		this.field = field;
 		this.ring = asProjectiveVariety().homogenousPolynomialRing();
 		PolynomialRing<T> r = field.getUnivariatePolynomialRing();
@@ -200,4 +200,9 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveVari
 		return this.coordRing;
 	}
 
+	@Override
+	public List<ProjectiveLine<T>> irreducibleComponents() {
+		return Collections.singletonList(this);
+	}
+	
 }

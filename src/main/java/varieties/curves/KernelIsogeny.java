@@ -10,8 +10,8 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import fields.interfaces.Element;
-import varieties.ProjectiveMorphism;
-import varieties.ProjectivePoint;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
 
 public class KernelIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private Deque<Isogeny<T>> isogenies;

@@ -13,8 +13,8 @@ import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Ring.FactorizationResult;
 import util.MiscAlgorithms;
-import varieties.ProjectivePoint;
 import varieties.curves.EllipticCurve;
+import varieties.projective.ProjectivePoint;
 
 public class TestFindRelatedCurves<T extends Element<T>> {
 	private EllipticCurve<T> curve;

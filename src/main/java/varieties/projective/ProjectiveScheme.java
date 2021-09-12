@@ -1,4 +1,4 @@
-package varieties;
+package varieties.projective;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -12,19 +12,22 @@ import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import varieties.AbstractScheme;
+import varieties.Morphism;
+import varieties.SpectrumOfField;
 import varieties.SpectrumOfField.SingletonPoint;
 import varieties.affine.AffineCover;
 import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
-import varieties.affine.AffineVariety;
+import varieties.affine.AffineScheme;
 
-public class ProjectiveVariety<T extends Element<T>> implements Variety<T, ProjectivePoint<T>> {
+public class ProjectiveScheme<T extends Element<T>> extends AbstractScheme<T, ProjectivePoint<T>> {
 	private PolynomialRing<T> polynomialRing;
 	private List<Polynomial<T>> generators;
 	private Field<T> field;
 	private AffineCover<T> cover;
 
-	public ProjectiveVariety(Field<T> field, PolynomialRing<T> polynomialRing, List<Polynomial<T>> generators) {
+	public ProjectiveScheme(Field<T> field, PolynomialRing<T> polynomialRing, List<Polynomial<T>> generators) {
 		this.field = field;
 		this.polynomialRing = polynomialRing;
 		this.generators = polynomialRing.getIdeal(generators).generators();
@@ -33,7 +36,7 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 				throw new ArithmeticException("not homogenous");
 			}
 		}
-		List<AffineVariety<T>> coverList = new ArrayList<>();
+		List<AffineScheme<T>> coverList = new ArrayList<>();
 		List<List<AffineMorphism<T>>> intersectionList = new ArrayList<>();
 		PolynomialRing<T> affineRing = AbstractPolynomialRing.getPolynomialRing(field,
 				polynomialRing.numberOfVariables() - 1, polynomialRing.getComparator());
@@ -54,7 +57,7 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 				affineList.add(affineRing.getEmbedding(polynomialRing.dehomogenize(generator, i + 1), map));
 			}
 			CoordinateRing<T> cr = new CoordinateRing<>(affineRing, affineRing.getIdeal(affineList));
-			coverList.add(new AffineVariety<>(field, cr));
+			coverList.add(new AffineScheme<>(field, cr));
 			intersectionList.add(new ArrayList<>());
 			for (int j = 0; j < i; j++) {
 				Polynomial<T> inverse = polynomialRing
@@ -66,7 +69,7 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 				}
 				CoordinateRing<T> intersectionCoordinateRing = new CoordinateRing<>(polynomialRing,
 						polynomialRing.getIdeal(intersectionGenerators));
-				AffineVariety<T> intersection = new AffineVariety<>(field, intersectionCoordinateRing);
+				AffineScheme<T> intersection = new AffineScheme<>(field, intersectionCoordinateRing);
 				List<Polynomial<T>> firstEmbeddingList = new ArrayList<>();
 				List<Polynomial<T>> secondEmbeddingList = new ArrayList<>();
 				for (int k = 0; k < affineRing.numberOfVariables(); k++) {
@@ -91,6 +94,17 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 			intersectionList.get(i).add(coverList.get(i).identityMorphism());
 		}
 		this.cover = new AffineCover<>(coverList, intersectionList);
+	}
+
+	public static <T extends Element<T>> ProjectiveScheme<T> fromAffineScheme(AffineScheme<T> affine) {
+		PolynomialRing<T> affinePolynomialRing = affine.getCoordinateRing().getPolynomialRing();
+		PolynomialRing<T> homogenousPolynomialRing = AbstractPolynomialRing.getPolynomialRing(affine.getField(),
+				affinePolynomialRing.numberOfVariables() + 1, affinePolynomialRing.getComparator());
+		List<Polynomial<T>> polynomials = new ArrayList<>();
+		for (Polynomial<T> polynominal : affine.getCoordinateRing().getIdeal().generators()) {
+			polynomials.add(affinePolynomialRing.homogenize(polynominal));
+		}
+		return new ProjectiveScheme<>(affine.getField(), homogenousPolynomialRing, polynomials);
 	}
 
 	public PolynomialRing<T> homogenousPolynomialRing() {
@@ -181,13 +195,13 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 			}
 
 			@Override
-			public AffineVariety<T> getDomain() {
+			public AffineScheme<T> getDomain() {
 				return cover.getCover().get(coverIndex);
 			}
 
 			@Override
-			public ProjectiveVariety<T> getRange() {
-				return ProjectiveVariety.this;
+			public ProjectiveScheme<T> getRange() {
+				return ProjectiveScheme.this;
 			}
 
 			@Override
@@ -234,17 +248,17 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 			}
 
 			@Override
-			public ProjectiveVariety<T> getRange() {
-				return ProjectiveVariety.this;
+			public ProjectiveScheme<T> getRange() {
+				return ProjectiveScheme.this;
 			}
 
 			@Override
 			public RestrictionResult<T> restrict(SingletonPoint preimage) {
-				AffineVariety<T> singleton = domain.getAffineCover().getCover().get(0);
+				AffineScheme<T> singleton = domain.getAffineCover().getCover().get(0);
 				PolynomialRing<T> polynomials = singleton.getCoordinateRing().getPolynomialRing();
 				List<Polynomial<T>> asPolynomials = new ArrayList<>();
 				int rangeCoverIndex = affineCoverIndex(p).get(0);
-				AffineVariety<T> affineRange = getAffineCover().getCover().get(rangeCoverIndex);
+				AffineScheme<T> affineRange = getAffineCover().getCover().get(rangeCoverIndex);
 				for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
 					if (i == rangeCoverIndex) {
 						continue;
@@ -257,5 +271,14 @@ public class ProjectiveVariety<T extends Element<T>> implements Variety<T, Proje
 			}
 
 		};
+	}
+
+	@Override
+	public List<ProjectiveScheme<T>> irreducibleComponents() {
+		List<ProjectiveScheme<T>> result = new ArrayList<>();
+		for (AffineScheme<T> affine : getAffineCover().getCover().get(0).irreducibleComponents()) {
+			result.add(fromAffineScheme(affine));
+		}
+		return result;
 	}
 }

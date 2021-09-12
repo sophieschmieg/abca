@@ -7,10 +7,13 @@ import java.util.List;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractIdeal;
+import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.Ring.FactorizationResult;
+import util.MiscAlgorithms;
 
 public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynomial<T>> {
 	private List<Polynomial<T>> basis;
@@ -97,9 +100,46 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 
 	@Override
 	public boolean isMaximal() {
-		return isPrime() && generators().size() == polynomialRing.numberOfVariables() && intersectToRing().isMaximal();
+		return isPrime() && new CoordinateRing<>(polynomialRing, this).krullDimension() == polynomialRing.getRing()
+				.krullDimension() && intersectToRing().isMaximal();
 	}
-	
+
+	@Override
+	public boolean isRadical() {
+		for (Polynomial<T> polynomial : generators()) {
+			if (!polynomialRing.isSquareFree(polynomial)) {
+				return false;
+			}
+		}
+		return intersectToRing().isRadical();
+	}
+
+	public List<PolynomialIdeal<T>> minimalPrimeIdealsOver() {
+		if (polynomialRing.getRing().isIntegral()) {
+			throw new UnsupportedOperationException("Non integral base ring!");
+		}
+		if (!isRadical()) {
+			return polynomialRing.radical(this).minimalPrimeIdealsOver();
+		}
+		List<List<Polynomial<T>>> factors = new ArrayList<>();
+		for (Polynomial<T> generator : generators()) {
+			if (generator.equals(polynomialRing.zero())) {
+				continue;
+			}
+			FactorizationResult<Polynomial<T>, Polynomial<T>> factorization = polynomialRing
+					.uniqueFactorization(generator);
+			List<Polynomial<T>> factorsOfGenerator = new ArrayList<>();
+			factorsOfGenerator.addAll(factorization.primeFactors());
+			factors.add(factorsOfGenerator);
+		}
+		List<List<Polynomial<T>>> crossProduct = MiscAlgorithms.crossProduct(factors);
+		List<PolynomialIdeal<T>> result = new ArrayList<>();
+		for (List<Polynomial<T>> crossed : crossProduct) {
+			result.add(polynomialRing.getIdeal(crossed));
+		}
+		return result;
+	}
+
 	public boolean isMaximalOverAlgebraicClosure() {
 		if (polynomialRing.numberOfVariables() != polynomialRing.krullDimension()) {
 			throw new ArithmeticException("Only defined over field!");

@@ -570,6 +570,16 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public boolean isIntegral() {
 		return true;
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return true;
+	}
+
+	@Override
+	public boolean isIrreducible() {
+		return true;
+	}
 
 	@Override
 	public boolean isZeroDivisor(S t) {

@@ -12,7 +12,7 @@ import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
-import varieties.affine.AffineVariety;
+import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
 import varieties.projective.ProjectiveVarietyInterface;
 
@@ -21,7 +21,7 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 	private ProjectiveVarietyInterface<T> domain;
 	private ProjectiveLine<T> range;
 	private PolynomialRing<T> projectivePolynomialRing;
-	private AffineVariety<T> affineSlice;
+	private AffineScheme<T> affineSlice;
 	private CoordinateRing<T> affineCoordinateRing;
 	private PolynomialRing<T> affinePolynomialRing;
 	private int affineCoverIndex;
@@ -88,7 +88,7 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 		return affineCoverIndex;
 	}
 	
-	public AffineVariety<T> getAffineVariety() {
+	public AffineScheme<T> getAffineVariety() {
 		return affineSlice;
 	}
 	

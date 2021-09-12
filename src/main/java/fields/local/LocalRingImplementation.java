@@ -166,6 +166,16 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	public boolean isIntegral() {
 		return true;
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return true;
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return true;
+	}
 
 	@Override
 	public boolean isZeroDivisor(T t) {

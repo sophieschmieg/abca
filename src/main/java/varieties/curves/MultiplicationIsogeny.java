@@ -3,8 +3,8 @@ package varieties.curves;
 import java.math.BigInteger;
 
 import fields.interfaces.Element;
-import varieties.ProjectiveMorphism;
-import varieties.ProjectivePoint;
+import varieties.projective.ProjectiveMorphism;
+import varieties.projective.ProjectivePoint;
 
 public class MultiplicationIsogeny<T extends Element<T>> implements Isogeny<T> {
 	private BigInteger n;

@@ -403,6 +403,16 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	public boolean isIntegral() {
 		return true;
 	}
+	
+	@Override
+	public boolean isReduced() {
+		return true;
+	}
+	
+	@Override
+	public boolean isIrreducible() {
+		return true;
+	}
 
 	@Override
 	public boolean isZeroDivisor(T t) {
@@ -692,6 +702,11 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		@Override
 		public boolean isMaximal() {
 			return isZero;
+		}
+		
+		@Override
+		public boolean isRadical() {
+			return true;
 		}
 
 		@Override

@@ -17,17 +17,17 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.PolynomialIdeal;
+import varieties.AbstractScheme;
 import varieties.Morphism;
 import varieties.SpectrumOfField;
 import varieties.SpectrumOfField.SingletonPoint;
-import varieties.Variety;
 
-public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoint<T>> {
+public class AffineScheme<T extends Element<T>> extends AbstractScheme<T, AffinePoint<T>> {
 	private CoordinateRing<T> coordinateRing;
 	private Field<T> field;
 	private AffineCover<T> cover;
 
-	public AffineVariety(Field<T> field, CoordinateRing<T> coordinateRing) {
+	public AffineScheme(Field<T> field, CoordinateRing<T> coordinateRing) {
 		if (!coordinateRing.getPolynomialRing().getRing().equals(field)) {
 			throw new ArithmeticException("Incompatible parameters");
 		}
@@ -38,11 +38,11 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 	}
 
 	public static class IntersectionResult<T extends Element<T>> {
-		private AffineVariety<T> intersection;
+		private AffineScheme<T> intersection;
 		private AffineMorphism<T> firstEmbedding;
 		private AffineMorphism<T> secondEmbedding;
 
-		public AffineVariety<T> getIntersection() {
+		public AffineScheme<T> getIntersection() {
 			return intersection;
 		}
 
@@ -55,7 +55,7 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 		}
 	}
 
-	public static <T extends Element<T>> IntersectionResult<T> intersect(AffineVariety<T> t1, AffineVariety<T> t2) {
+	public static <T extends Element<T>> IntersectionResult<T> intersect(AffineScheme<T> t1, AffineScheme<T> t2) {
 		PolynomialRing<T> polynomialRing = t1.coordinateRing.getPolynomialRing();
 		if (!polynomialRing.equals(t2.coordinateRing.getPolynomialRing())) {
 			throw new ArithmeticException("different polynomial rings!");
@@ -66,13 +66,13 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 			identity.add(polynomialRing.getVar(i + 1));
 		}
 		IntersectionResult<T> result = new IntersectionResult<>();
-		result.intersection = new AffineVariety<>(t1.getField(), new CoordinateRing<>(polynomialRing, ideal));
+		result.intersection = new AffineScheme<>(t1.getField(), new CoordinateRing<>(polynomialRing, ideal));
 		result.firstEmbedding = AffineMorphism.fromPolynomials(result.intersection, t1, identity);
 		result.secondEmbedding = AffineMorphism.fromPolynomials(result.intersection, t2, identity);
 		return result;
 	}
 
-	public static <T extends Element<T>> AffineMorphism<T> restrictAwayFrom(AffineVariety<T> variety,
+	public static <T extends Element<T>> AffineMorphism<T> restrictAwayFrom(AffineScheme<T> variety,
 			List<CoordinateRingElement<T>> constraints) {
 		int numVars = variety.coordinateRing.getPolynomialRing().numberOfVariables();
 		PolynomialRing<T> polynomialRing = AbstractPolynomialRing.getPolynomialRing(variety.field, numVars + constraints.size(), variety.coordinateRing.getPolynomialRing().getComparator());
@@ -89,17 +89,17 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 		for (int i = 0; i < numVars; i++) {
 			identity.add(polynomialRing.getVar(i + 1));
 		}
-		AffineVariety<T> restricted = new AffineVariety<>(variety.getField(),
+		AffineScheme<T> restricted = new AffineScheme<>(variety.getField(),
 				new CoordinateRing<T>(polynomialRing, ideal));
 		return AffineMorphism.fromPolynomials(restricted, variety, identity);
 	}
 
 	public static class UnionResult<T extends Element<T>> {
-		private AffineVariety<T> union;
+		private AffineScheme<T> union;
 		private AffineMorphism<T> firstEmbedding;
 		private AffineMorphism<T> secondEmbedding;
 
-		public AffineVariety<T> getUnion() {
+		public AffineScheme<T> getUnion() {
 			return union;
 		}
 
@@ -112,7 +112,7 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 		}
 	}
 
-	public static <T extends Element<T>> UnionResult<T> union(AffineVariety<T> t1, AffineVariety<T> t2) {
+	public static <T extends Element<T>> UnionResult<T> union(AffineScheme<T> t1, AffineScheme<T> t2) {
 		PolynomialRing<T> polynomialRing = t1.coordinateRing.getPolynomialRing();
 		if (!polynomialRing.equals(t2.coordinateRing.getPolynomialRing())) {
 			throw new ArithmeticException("different polynomial rings!");
@@ -123,7 +123,7 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 			identity.add(polynomialRing.getVar(i + 1));
 		}
 		UnionResult<T> result = new UnionResult<>();
-		result.union = new AffineVariety<>(t1.getField(), new CoordinateRing<>(polynomialRing, ideal));
+		result.union = new AffineScheme<>(t1.getField(), new CoordinateRing<>(polynomialRing, ideal));
 		result.firstEmbedding = AffineMorphism.fromPolynomials(t1, result.union, identity);
 		result.secondEmbedding = AffineMorphism.fromPolynomials(t2, result.union, identity);
 		return result;
@@ -239,22 +239,32 @@ public class AffineVariety<T extends Element<T>> implements Variety<T, AffinePoi
 			}
 
 			@Override
-			public AffineVariety<T> getRange() {
-				return AffineVariety.this;
+			public AffineScheme<T> getRange() {
+				return AffineScheme.this;
 			}
 
 			@Override
 			public RestrictionResult<T> restrict(SingletonPoint preimage) {
-				AffineVariety<T> singleton = domain.getAffineCover().getCover().get(0);
+				AffineScheme<T> singleton = domain.getAffineCover().getCover().get(0);
 				PolynomialRing<T> polynomials = singleton.coordinateRing.getPolynomialRing();
 				List<Polynomial<T>> asPolynomials = new ArrayList<>();
 				for (int i = 0; i < coordinateRing.getPolynomialRing().numberOfVariables(); i++) {
 					asPolynomials.add(polynomials.getEmbedding(p.getCoord(i + 1)));
 				}
 				return new RestrictionResult<>(0, 0, singleton.identityMorphism(), identityMorphism(),
-						AffineMorphism.fromPolynomials(singleton, AffineVariety.this, asPolynomials));
+						AffineMorphism.fromPolynomials(singleton, AffineScheme.this, asPolynomials));
 			}
 
 		};
+	}
+	
+	@Override
+	public List<AffineScheme<T>> irreducibleComponents() {
+		List<AffineScheme<T>> result = new ArrayList<>();
+		List<PolynomialIdeal<T>> components = coordinateRing.getIdeal().minimalPrimeIdealsOver();
+		for (PolynomialIdeal<T> component : components) {
+			result.add(new AffineScheme<>(field, new CoordinateRing<>(coordinateRing.getPolynomialRing(), component)));
+		}
+		return result;
 	}
 }
