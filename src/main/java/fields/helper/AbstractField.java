@@ -403,12 +403,12 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	public boolean isIntegral() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isReduced() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isIrreducible() {
 		return true;
@@ -515,6 +515,67 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
+	public BezoutIdentityResult<T> bezoutIdentity(Ideal<T> t1, Ideal<T> t2) {
+		if (!t1.contains(one()) && !t2.contains(one())) {
+			throw new ArithmeticException("Ideals not coprime!");
+		}
+		if (!t1.contains(one())) {
+			return new BezoutIdentityResult<>(Collections.singletonList(zero()), Collections.singletonList(one()));
+		}
+		if (!t2.contains(one()) || characteristic().equals(BigInteger.TWO)) {
+			return new BezoutIdentityResult<>(Collections.singletonList(one()), Collections.singletonList(zero()));
+		}
+		T oneHalf = inverse(getInteger(2));
+		return new BezoutIdentityResult<>(Collections.singletonList(oneHalf), Collections.singletonList(oneHalf));
+	}
+	
+	@Override
+	public boolean coprime(Ideal<T> t1, Ideal<T> t2) {
+		return t1.contains(one()) || t2.contains(one());
+	}
+	
+	@Override
+	public boolean coprime(T t1, T t2) {
+		return !t1.equals(zero()) || !t2.equals(zero());
+	}
+	
+	@Override
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals) {
+		if (ideals.size() > 1){
+			throw new ArithmeticException("Not coprime proper ideals!");
+		}
+		if (ideals.size() == 1 && ideals.get(0).contains(one())) {
+			throw new ArithmeticException("Not proper ideals!");
+		}
+		if (ideals.size() == 1) {
+			return new ChineseRemainderPreparation<>(ideals, getZeroIdeal(), Collections.singletonList(one()));
+		}
+		return new ChineseRemainderPreparation<>(ideals, getZeroIdeal(), Collections.emptyList());
+	}
+	
+	@Override
+	public T chineseRemainderTheorem(List<T> elements, ChineseRemainderPreparation<T> preparation) {
+		if (elements.size() != preparation.getMultipliers().size()) {
+			throw new ArithmeticException("Mismatched multipliers!");
+		}
+		if (elements.size() == 0) {
+			return zero();
+		}
+		return elements.get(0);
+	}
+	
+	@Override
+	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals) {
+		if (elements.size() != ideals.size()) {
+			throw new ArithmeticException("Mismatched multipliers!");
+		}
+		if (elements.size() == 0) {
+			return zero();
+		}
+		return elements.get(0);
+	}
+
+	@Override
 	public UnivariatePolynomialRing<T> getUnivariatePolynomialRing() {
 		return ring;
 	}
@@ -606,7 +667,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	public FactorizationResult<Ideal<T>, Ideal<T>> idealFactorization(Ideal<T> t) {
 		throw new ArithmeticException("Ideal not proper and non zero (it's a field!)");
 	}
-	
+
 	@Override
 	public IdealResult<T, FieldIdeal<T>> getIdealWithTransforms(List<T> generators) {
 		FieldIdeal<T> ideal = new FieldIdeal<>(generators, this);
@@ -703,7 +764,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		public boolean isMaximal() {
 			return isZero;
 		}
-		
+
 		@Override
 		public boolean isRadical() {
 			return true;

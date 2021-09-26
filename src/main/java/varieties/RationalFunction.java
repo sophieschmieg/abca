@@ -11,11 +11,11 @@ import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
-import varieties.projective.ProjectiveVarietyInterface;
+import varieties.projective.ProjectiveScheme;
 
 public class RationalFunction<T extends Element<T>>
 		implements Morphism<T, ProjectivePoint<T>, ProjectivePoint<T>>, Element<RationalFunction<T>> {
-	private ProjectiveVarietyInterface<T> domain;
+	private ProjectiveScheme<T> domain;
 	private ProjectiveLine<T> range;
 	private ProjectiveMorphism<T> asProjectiveMorphism;
 	private Polynomial<T> numerator;
@@ -27,17 +27,17 @@ public class RationalFunction<T extends Element<T>>
 	private Polynomial<T> dehomogenizedNumerator;
 	private Polynomial<T> dehomogenizedDenominator;
 
-	public static <T extends Element<T>> RationalFunction<T> fromFraction(ProjectiveVarietyInterface<T> domain,
+	public static <T extends Element<T>> RationalFunction<T> fromFraction(ProjectiveScheme<T> domain,
 			ProjectiveLine<T> range, Polynomial<T> numerator, Polynomial<T> denominator) {
 		List<Polynomial<T>> asList = new ArrayList<>();
 		asList.add(numerator);
 		asList.add(denominator);
-		ProjectiveMorphism<T> asProjectiveMorphism = new ProjectiveMorphism<>(domain.asProjectiveVariety(),
-				range.asProjectiveVariety(), asList);
+		ProjectiveMorphism<T> asProjectiveMorphism = new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(),
+				range.asGenericProjectiveScheme(), asList);
 		return new RationalFunction<>(domain, range, asProjectiveMorphism);
 	}
 
-	public RationalFunction(ProjectiveVarietyInterface<T> domain, ProjectiveLine<T> range,
+	public RationalFunction(ProjectiveScheme<T> domain, ProjectiveLine<T> range,
 			ProjectiveMorphism<T> morphism) {
 		if (morphism.getRange().dimension() != 1) {
 			throw new ArithmeticException("Not a meromorphic function!");
@@ -50,18 +50,18 @@ public class RationalFunction<T extends Element<T>>
 		this.range = range;
 		this.numerator = asProjectiveMorphism.asPolynomials().get(0);
 		this.denominator = asProjectiveMorphism.asPolynomials().get(1);
-		this.affineCoverIndex = domain.asProjectiveVariety().homogenousPolynomialRing().numberOfVariables() - 1;
+		this.affineCoverIndex = domain.asGenericProjectiveScheme().homogenousPolynomialRing().numberOfVariables() - 1;
 		this.affineSlice = domain.getAffineCover().getCover().get(affineCoverIndex);
 		this.affineCoordinateRing = affineSlice.getCoordinateRing();
 		this.affinePolynomialRing = affineCoordinateRing.getPolynomialRing();
 		this.dehomogenizedNumerator = affinePolynomialRing.getEmbedding(
-				domain.asProjectiveVariety().homogenousPolynomialRing().dehomogenize(numerator, affineCoverIndex + 1));
-		this.dehomogenizedDenominator = affinePolynomialRing.getEmbedding(domain.asProjectiveVariety()
+				domain.asGenericProjectiveScheme().homogenousPolynomialRing().dehomogenize(numerator, affineCoverIndex + 1));
+		this.dehomogenizedDenominator = affinePolynomialRing.getEmbedding(domain.asGenericProjectiveScheme()
 				.homogenousPolynomialRing().dehomogenize(denominator, affineCoverIndex + 1));
 	}
-
+	
 	@Override
-	public ProjectiveVarietyInterface<T> getDomain() {
+	public ProjectiveScheme<T> getDomain() {
 		return domain;
 	}
 

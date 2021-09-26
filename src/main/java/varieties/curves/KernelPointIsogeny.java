@@ -106,7 +106,7 @@ public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 	@Override
 	public ProjectiveMorphism<T> asMorphism() {
 		if (asMorphism == null) {
-			PolynomialRing<T> polynomials = domain.asProjectiveVariety().homogenousPolynomialRing();
+			PolynomialRing<T> polynomials = domain.asGenericProjectiveScheme().homogenousPolynomialRing();
 			Polynomial<T> x = polynomials.getVar(1);
 			Polynomial<T> y = polynomials.getVar(2);
 			Polynomial<T> z = polynomials.getVar(3);
@@ -126,7 +126,7 @@ public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 			result.add(x);
 			result.add(y);
 			result.add(z);
-			asMorphism = new ProjectiveMorphism<>(domain.asProjectiveVariety(), range.asProjectiveVariety(), result);
+			asMorphism = new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(), result);
 		}
 		return asMorphism;
 	}

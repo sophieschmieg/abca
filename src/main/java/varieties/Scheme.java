@@ -13,6 +13,7 @@ public interface Scheme<T extends Element<T>, S extends Element<S>> extends Math
 	public Field<T> getField();
 	public boolean hasRationalPoint(S p);
 	public int dimension();
+	public int degree();
 	public AffineCover<T> getAffineCover();
 	public List<Integer> affineCoverIndex(S p);
 	public AffinePoint<T> asAffinePoint(S p, int affineCoverIndex);

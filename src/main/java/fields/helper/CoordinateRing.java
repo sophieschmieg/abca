@@ -7,16 +7,25 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
 import fields.helper.CoordinateRing.CoordinateRingElement;
+import fields.integers.Integers;
+import fields.integers.Integers.IntE;
+import fields.integers.Rationals;
+import fields.integers.Rationals.Fraction;
 import fields.interfaces.Element;
 import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.Ring;
+import fields.interfaces.UnivariatePolynomial;
+import fields.local.FormalPowerSeries;
+import fields.local.FormalPowerSeries.PowerSeries;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
@@ -27,6 +36,8 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	private PolynomialRing<T> ring;
 	private PolynomialIdeal<T> ideal;
 	private int dimension;
+	private int degree;
+	private Set<Integer> boundVariables;
 
 	public static class CoordinateRingElement<T extends Element<T>> extends AbstractElement<CoordinateRingElement<T>> {
 		private Polynomial<T> polynomial;
@@ -100,11 +111,18 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 			leadingMonomials[i] = generator.leadingMonomial().exponents();
 			i++;
 		}
+		this.boundVariables = new TreeSet<>();
+		this.degree = -1;
 		if (ideal.contains(ring.one())) {
 			this.dimension = -1;
 		} else {
-			this.dimension = this.ring.numberOfVariables() - this.makeset(0, new int[this.ring.numberOfVariables() + 1],
-					leadingMonomials)[this.ring.numberOfVariables()];
+			int[] set = this.makeset(0, new int[this.ring.numberOfVariables() + 1], leadingMonomials);
+			this.dimension = this.ring.numberOfVariables() - set[this.ring.numberOfVariables()];
+			for (int j = 0; j < ring.numberOfVariables(); j++) {
+				if (set[j] != 0) {
+					boundVariables.add(j + 1);
+				}
+			}
 		}
 	}
 
@@ -116,13 +134,15 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		for (int i = 0; i < leadingMonomials[level].length; i++) {
 			if (leadingMonomials[level][i] == 0)
 				continue;
-			if (set[i] == 1)
+			if (set[i] == 1) {
 				return this.makeset(level + 1, set, leadingMonomials);
+			}
 			set[i] = 1;
 			set[set.length - 1]++;
 			int[] sethere = this.makeset(level + 1, set, leadingMonomials);
-			if (optimalset[set.length - 1] == -1 || optimalset[set.length - 1] > sethere[set.length - 1])
+			if (optimalset[set.length - 1] == -1 || optimalset[set.length - 1] > sethere[set.length - 1]) {
 				optimalset = Arrays.copyOf(sethere, sethere.length);
+			}
 			set[i] = 0;
 			set[set.length - 1]--;
 		}
@@ -154,6 +174,90 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	@Override
 	public int krullDimension() {
 		return dimension;
+	}
+
+	public Set<Integer> boundVariables() {
+		return boundVariables;
+	}
+
+	private static IntE hilbertFunction(int degree, int variable, int numberOfVariables, Set<Monomial> monomials) {
+		Integers z = Integers.z();
+		if (variable > numberOfVariables) {
+			return z.zero();
+		}
+		if (monomials.size() == 0) {
+			return Integers.z().binomialCoefficient(degree + numberOfVariables - variable,
+					numberOfVariables - variable);
+		}
+		Set<Monomial> xMinusOneMonomials = new TreeSet<>();
+		Set<Monomial> yMonomials = new TreeSet<>();
+		for (Monomial m : monomials) {
+			if (m.degree() == 0) {
+				return z.zero();
+			}
+			if (m.exponents()[variable - 1] > 0) {
+				int[] exponents = Arrays.copyOf(m.exponents(), numberOfVariables);
+				exponents[variable - 1]--;
+				xMinusOneMonomials.add(new Monomial(Monomial.GREVLEX, exponents));
+			} else {
+				if (m.degree() < degree) {
+					xMinusOneMonomials.add(m);
+				}
+				yMonomials.add(m);
+			}
+		}
+		return z.add(hilbertFunction(degree - 1, variable, numberOfVariables, xMinusOneMonomials),
+				hilbertFunction(degree, variable + 1, numberOfVariables, yMonomials));
+	}
+
+	public IntE hilbertFunction(int degree) {
+		Set<Monomial> monomials = new TreeSet<>();
+		for (Polynomial<T> generator : ideal.generators()) {
+			generator = ring.homogenize(generator);
+			if (generator.leadingMonomial().degree() <= degree) {
+				monomials.add(generator.leadingMonomial());
+			}
+		}
+		return hilbertFunction(degree, 1, ring.numberOfVariables() + 1, monomials);
+	}
+
+	public PowerSeries<Fraction> hilbertSeries(FormalPowerSeries<Fraction> powerSeries) {
+		Rationals q = Rationals.q();
+		List<Fraction> coefficients = new ArrayList<>();
+		for (int i = 0; i <= powerSeries.getAccuracy(); i++) {
+			coefficients.add(q.getInteger(hilbertFunction(i)));
+		}
+		UnivariatePolynomial<Fraction> result = q.getUnivariatePolynomialRing().getPolynomial(coefficients);
+		return powerSeries.getEmbedding(result);
+	}
+
+	public int degree() {
+		if (degree < 0) {
+			if (dimension + ideal.generators().size() == ring.numberOfVariables()) {
+				int product = 1;
+				for (Polynomial<T> generator : ideal.generators()) {
+					product *= generator.degree();
+				}
+				degree = product;
+			} else {
+				int accuracy = 0;
+				for (Polynomial<T> generator : ideal.generators()) {
+					if (generator.degree() > accuracy) {
+						accuracy = generator.degree();
+					}
+				}
+				accuracy += 3;
+				Rationals q = Rationals.q();
+				FormalPowerSeries<Fraction> powerSeries = new FormalPowerSeries<>(q, accuracy);
+				PowerSeries<Fraction> oneMinusX = powerSeries.subtract(powerSeries.one(), powerSeries.uniformizer());
+				PowerSeries<Fraction> denominator = powerSeries.power(oneMinusX, dimension + 1);
+				PowerSeries<Fraction> numerator = powerSeries.multiply(hilbertSeries(powerSeries), denominator);
+				PolynomialRing<Fraction> polynomialRing = q.getUnivariatePolynomialRing();
+				Fraction result = polynomialRing.evaluate(powerSeries.roundToPolynomial(numerator, accuracy), q.one());
+				degree = result.asInteger().intValueExact();
+			}
+		}
+		return degree;
 	}
 
 	public boolean isFree() {
@@ -293,12 +397,12 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		}
 		return true;
 	}
-	
+
 	@Override
 	public boolean isReduced() {
 		return ideal.isRadical();
 	}
-	
+
 	@Override
 	public boolean isIrreducible() {
 		return ideal.minimalPrimeIdealsOver().size() == 1;
@@ -325,7 +429,8 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
-	public FactorizationResult<CoordinateRingElement<T>, CoordinateRingElement<T>> uniqueFactorization(CoordinateRingElement<T> t) {
+	public FactorizationResult<CoordinateRingElement<T>, CoordinateRingElement<T>> uniqueFactorization(
+			CoordinateRingElement<T> t) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -379,17 +484,16 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
-	public CoordinateIdeal<T> intersect(Ideal<CoordinateRingElement<T>> t1,
-			Ideal<CoordinateRingElement<T>> t2) {
-		CoordinateIdeal<T> ideal1 = (CoordinateIdeal<T>)t1;
-		CoordinateIdeal<T> ideal2 = (CoordinateIdeal<T>)t2;
+	public CoordinateIdeal<T> intersect(Ideal<CoordinateRingElement<T>> t1, Ideal<CoordinateRingElement<T>> t2) {
+		CoordinateIdeal<T> ideal1 = (CoordinateIdeal<T>) t1;
+		CoordinateIdeal<T> ideal2 = (CoordinateIdeal<T>) t2;
 		PolynomialIdeal<T> intersection = ring.intersect(ideal1.asPolynomialIdeal(), ideal2.asPolynomialIdeal());
 		return getIdeal(intersection);
 	}
 
 	@Override
 	public CoordinateIdeal<T> radical(Ideal<CoordinateRingElement<T>> t) {
-		CoordinateIdeal<T> ideal = (CoordinateIdeal<T>)t;
+		CoordinateIdeal<T> ideal = (CoordinateIdeal<T>) t;
 		PolynomialIdeal<T> radical = ring.radical(ideal.asPolynomialIdeal());
 		return getIdeal(radical);
 	}

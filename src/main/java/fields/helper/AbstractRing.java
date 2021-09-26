@@ -281,6 +281,103 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
+	public BezoutIdentityResult<T> bezoutIdentity(Ideal<T> t1, Ideal<T> t2) {
+		if (isEuclidean()) {
+			if (t1.generators().size() != 1 || t2.generators().size() != 1) {
+				throw new ArithmeticException("Euclidean rings should use principal ideals");
+			}
+			ExtendedEuclideanResult<T> ee = extendedEuclidean(t1.generators().get(0), t2.generators().get(0));
+			T inverseGcd = inverse(ee.getGcd());
+			return new BezoutIdentityResult<>(Collections.singletonList(multiply(inverseGcd, ee.getCoeff1())),
+					Collections.singletonList(multiply(inverseGcd, ee.getCoeff2())));
+		}
+		List<T> generators1 = t1.generators();
+		List<T> generators2 = t2.generators();
+		List<T> generators = new ArrayList<>();
+		generators.addAll(generators1);
+		generators.addAll(generators2);
+		IdealResult<T, ? extends Ideal<T>> idealResult = getIdealWithTransforms(generators);
+		if (!idealResult.getIdeal().contains(one())) {
+			throw new ArithmeticException("Ideals not coprime!");
+		}
+		List<T> generateOne = idealResult.getIdeal().generate(one());
+		List<T> bezout1 = new ArrayList<>();
+		for (int i = 0; i < generators1.size(); i++) {
+			bezout1.add(zero());
+		}
+		List<T> bezout2 = new ArrayList<>();
+		for (int i = 0; i < generators2.size(); i++) {
+			bezout2.add(zero());
+		}
+		for (int i = 0; i < generateOne.size(); i++) {
+			T generate = generateOne.get(i);
+			List<T> expression = idealResult.getGeneratorExpressions().get(i);
+			for (int j = 0; j < generators1.size(); j++) {
+				bezout1.set(j, add(bezout1.get(j), multiply(generate, expression.get(j))));
+			}
+			for (int j = 0; j < generators2.size(); j++) {
+				bezout2.set(j, add(bezout2.get(j), multiply(generate, expression.get(j + generators1.size()))));
+			}
+		}
+		return new BezoutIdentityResult<>(bezout1, bezout2);
+	}
+
+	@Override
+	public boolean coprime(Ideal<T> t1, Ideal<T> t2) {
+		return add(t1, t2).contains(one());
+	}
+
+	@Override
+	public boolean coprime(T t1, T t2) {
+		if (isUniqueFactorizationDomain()) {
+			return isUnit(gcd(t1, t2));
+		}
+		return coprime(getIdeal(Collections.singletonList(t1)), getIdeal(Collections.singletonList(t2)));
+	}
+
+	@Override
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals) {
+		Ideal<T> product = getUnitIdeal();
+		List<T> multipliers = new ArrayList<>();
+		for (int i = 0; i < ideals.size(); i++) {
+			product = multiply(product, ideals.get(i));
+			Ideal<T> cofactor = getUnitIdeal();
+			for (int j = 0; j < ideals.size(); j++) {
+				if (i == j) {
+					continue;
+				}
+				cofactor = multiply(cofactor, ideals.get(j));
+			}
+			BezoutIdentityResult<T> bezout = bezoutIdentity(ideals.get(i), cofactor);
+			T multiplier = one();
+			List<T> generators = ideals.get(i).generators();
+			for (int j = 0; j < generators.size(); j++) {
+				multiplier = subtract(multiplier, multiply(bezout.getCoeff1().get(j), generators.get(j)));
+			}
+			multipliers.add(multiplier);
+		}
+		return new ChineseRemainderPreparation<>(ideals, product, multipliers);
+	}
+
+	@Override
+	public T chineseRemainderTheorem(List<T> elements, ChineseRemainderPreparation<T> preparation) {
+		if (elements.size() != preparation.getMultipliers().size()) {
+			throw new ArithmeticException("Unequal list sizes!");
+		}
+		T result = zero();
+		for (int i = 0; i < elements.size(); i++) {
+			result = preparation.getProduct()
+					.residue(add(result, multiply(elements.get(i), preparation.getMultipliers().get(i))));
+		}
+		return result;
+	}
+
+	@Override
+	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals) {
+		return chineseRemainderTheorem(elements, prepareChineseRemainderTheorem(ideals));
+	}
+
+	@Override
 	public PivotStrategy<T> preferredPivotStrategy() {
 		if (isEuclidean()) {
 			return new EuclidPivotStrategy<>(this);

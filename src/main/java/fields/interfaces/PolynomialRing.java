@@ -81,6 +81,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public PolynomialIdeal<T> add(Ideal<Polynomial<T>> t1, Ideal<Polynomial<T>> t2);
 	public PolynomialIdeal<T> intersect(Ideal<Polynomial<T>> t1, Ideal<Polynomial<T>> t2);
 	public PolynomialIdeal<T> radical(Ideal<Polynomial<T>> t);
+	public PolynomialIdeal<T> homogenizeIdeal(Ideal<Polynomial<T>> ideal);
 	
 	public T evaluate(Polynomial<T> t, @SuppressWarnings("unchecked") T... ts);
 	public T evaluate(Polynomial<T> t, List<T> ts);
@@ -106,4 +107,8 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Polynomial<T> dehomogenize(Polynomial<T> t, int coord);
 			
 	public Polynomial<T> round(Polynomial<T> t, int degree);
+	
+	public Vector<T> asVector(Polynomial<T> t);
+	public Vector<T> asVector(Polynomial<T> t, int[] degrees);
+	public Polynomial<T> fromVector(Vector<T> t, int[] degrees);
 }

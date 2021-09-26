@@ -52,11 +52,11 @@ public class CompositionIsogeny<T extends Element<T>> implements Isogeny<T> {
 	public ProjectiveMorphism<T> asMorphism() {
 		if (asMorphism == null) {
 			List<Polynomial<T>> asPolynomials = new ArrayList<>();
-			PolynomialRing<T> domainRing = getDomain().asProjectiveVariety().homogenousPolynomialRing();
+			PolynomialRing<T> domainRing = getDomain().asGenericProjectiveScheme().homogenousPolynomialRing();
 			for (Polynomial<T> second : secondIsogeny.asMorphism().asPolynomials()) {
 				asPolynomials.add(domainRing.substitute(second, firstIsogeny.asMorphism().asPolynomials()));
 			}
-			this.asMorphism = new ProjectiveMorphism<>(getDomain().asProjectiveVariety(), getRange().asProjectiveVariety(), asPolynomials);
+			this.asMorphism = new ProjectiveMorphism<>(getDomain().asGenericProjectiveScheme(), getRange().asGenericProjectiveScheme(), asPolynomials);
 		}
 		return asMorphism;
 	}

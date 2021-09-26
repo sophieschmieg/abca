@@ -20,7 +20,7 @@ public class ProjectiveSpace<T extends Element<T>> extends AbstractProjectiveSch
 	private int dimension;
 
 	public ProjectiveSpace(Field<T> field, int dimension) {
-		super(new ProjectiveScheme<>(field,
+		super(new GenericProjectiveScheme<>(field,
 				AbstractPolynomialRing.getPolynomialRing(field, dimension + 1, Monomial.GREVLEX),
 				Collections.emptyList()));
 		this.field = field;
@@ -65,21 +65,16 @@ public class ProjectiveSpace<T extends Element<T>> extends AbstractProjectiveSch
 	}
 
 	@Override
-	public int dimension() {
-		return dimension;
-	}
-
-	@Override
 	public boolean hasRationalPoint(ProjectivePoint<T> p) {
 		return p.getDim() == this.dimension;
 	}
 
 	public Ideal<Polynomial<T>> asIdeal(ProjectivePoint<T> p) {
-		return p.asIdeal(asProjectiveVariety().homogenousPolynomialRing());
+		return p.asIdeal(asGenericProjectiveScheme().homogenousPolynomialRing());
 	}
 
 	public Ideal<Polynomial<T>> asHyperplaneIdeal(List<ProjectivePoint<T>> points) {
-		PolynomialRing<T> ring = asProjectiveVariety().homogenousPolynomialRing();
+		PolynomialRing<T> ring = asGenericProjectiveScheme().homogenousPolynomialRing();
 		if (points.isEmpty()) {
 			return ring.getIdeal(Collections.singletonList(ring.one()));
 		}

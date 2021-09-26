@@ -10,7 +10,6 @@ import fields.interfaces.Element;
 import fields.interfaces.MathMap;
 import fields.interfaces.Module;
 import fields.interfaces.Ring;
-import fields.interfaces.VectorSpace;
 
 public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 	private T[][] elements;

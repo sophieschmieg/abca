@@ -2,13 +2,17 @@ package fields.helper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
+import fields.helper.CoordinateRing.CoordinateIdeal;
+import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.AlgebraicRingExtension;
 import fields.interfaces.Element;
@@ -634,6 +638,91 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	@Override
 	public int krullDimension() {
 		return baseRing.krullDimension() + (polynomials.isIrreducible(minimalPolynomial) ? 0 : 1);
+	}
+
+	@Override
+	public CoordinateRing<T> asCoordinateRing() {
+		return new CoordinateRing<>(polynomials, polynomials.getIdeal(Collections.singletonList(minimalPolynomial)));
+	}
+
+	@Override
+	public PolynomialRingAsCoordinateRing<T, S> asCoordinateRing(PolynomialRing<S> polynomialRing) {
+		PolynomialRing<T> polynomialsForCoordinateRing = AbstractPolynomialRing.getPolynomialRing(baseRing,
+				polynomialRing.numberOfVariables() + 1, polynomialRing.getComparator());
+		Polynomial<T> embeddedMinimalPolynomial = polynomialsForCoordinateRing.getEmbedding(minimalPolynomial,
+				new int[] { polynomialRing.numberOfVariables() });
+		CoordinateRing<T> coordinateRing = new CoordinateRing<>(polynomialsForCoordinateRing,
+				polynomialsForCoordinateRing.getIdeal(Collections.singletonList(embeddedMinimalPolynomial)));
+		return new PolynomialRingAsCoordinateRing<>(polynomialRing, coordinateRing, new MathMap<>() {
+
+			@Override
+			public CoordinateRingElement<T> evaluate(Polynomial<S> t) {
+				Map<Monomial, T> coefficients = new TreeMap<>();
+				for (Monomial m : t.monomials()) {
+					S coefficient = t.coefficient(m);
+					UnivariatePolynomial<T> asPolynomial = coefficient.asPolynomial();
+					int[] exponents = Arrays.copyOf(m.exponents(), polynomialRing.numberOfVariables() + 1);
+					for (int i = 0; i <= asPolynomial.degree(); i++) {
+						exponents[polynomialRing.numberOfVariables()] = i;
+						Monomial m2 = polynomialsForCoordinateRing.getMonomial(exponents);
+						coefficients.put(m2, asPolynomial.univariateCoefficient(i));
+					}
+				}
+				return coordinateRing.getEmbedding(polynomialsForCoordinateRing.getPolynomial(coefficients));
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public Polynomial<S> evaluate(CoordinateRingElement<T> t) {
+				Polynomial<T> asPolynomial = t.getElement();
+				Map<Monomial, S> coefficients = new TreeMap<>();
+				for (Monomial m : asPolynomial.monomials()) {
+					int[] exponents = Arrays.copyOf(m.exponents(), polynomialRing.numberOfVariables());
+					Monomial m2 = polynomialRing.getMonomial(exponents);
+					S coefficient = coefficients.getOrDefault(m2, zero());
+					coefficients.put(m2, add(coefficient, scalarMultiply(asPolynomial.coefficient(m),
+							power(alpha(), m.exponents()[polynomialRing.numberOfVariables()]))));
+				}
+				return polynomialRing.getPolynomial(coefficients);
+			}
+		});
+	}
+
+	@Override
+	public PolynomialRingAsCoordinateRing<T, S> asCoordinateRing(int numberOfVariables) {
+		return asCoordinateRing(numberOfVariables, Monomial.GREVLEX);
+	}
+
+	@Override
+	public PolynomialRingAsCoordinateRing<T, S> asCoordinateRing(int numberOfVariables,
+			Comparator<Monomial> comparator) {
+		return asCoordinateRing(AbstractPolynomialRing.getPolynomialRing(this, numberOfVariables, comparator));
+	}
+
+	@Override
+	public ExtensionCoordinateRing<T, S> asCoordinateRing(CoordinateRing<S> coordinateRing) {
+		PolynomialRingAsCoordinateRing<T, S> polynomialRing = asCoordinateRing(coordinateRing.getPolynomialRing());
+		List<CoordinateRingElement<T>> generators = new ArrayList<>();
+		for (Polynomial<S> generator : coordinateRing.getIdeal().generators()) {
+			generators.add(polynomialRing.getIsomorphism().evaluate(generator));
+		}
+		CoordinateIdeal<T> ideal = polynomialRing.getCoordinateRing().getIdeal(generators);
+		CoordinateRing<T> baseCoordinateRing = new CoordinateRing<>(polynomialRing.getCoordinateRing(), ideal);
+		return new ExtensionCoordinateRing<>(coordinateRing, baseCoordinateRing, new MathMap<>() {
+
+			@Override
+			public CoordinateRingElement<T> evaluate(CoordinateRingElement<S> t) {
+				return baseCoordinateRing
+						.getEmbedding(polynomialRing.getIsomorphism().evaluate(t.getElement()).getElement());
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public CoordinateRingElement<S> evaluate(CoordinateRingElement<T> t) {
+				return coordinateRing.getEmbedding(polynomialRing.getInverseIsomorphism()
+						.evaluate(polynomialRing.getCoordinateRing().getEmbedding(t.getElement())));
+			}
+		});
 	}
 
 	@Override

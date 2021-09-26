@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -16,6 +17,8 @@ import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.integers.Rationals;
+import fields.integers.Rationals.Fraction;
 import fields.interfaces.Ideal;
 import fields.local.Value;
 import util.MiscAlgorithms;
@@ -83,6 +86,18 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 
 	public ModularIntegerRingElement reduce(IntE t) {
 		return new ModularIntegerRingElement(t.getValue());
+	}
+	
+	public IntE lift(ModularIntegerRingElement t) {
+		return Integers.z().getInteger(t.getValue());
+	}
+
+	public Optional<Fraction> rationalReconstruction(ModularIntegerRingElement t, BigInteger numeratorBound, BigInteger denominatorBound) {
+		return Rationals.q().rationalReconstruction(lift(t), new IntE(n), numeratorBound, denominatorBound);
+	}
+
+	public Optional<Fraction> rationalReconstruction(ModularIntegerRingElement t) {
+		return Rationals.q().rationalReconstruction(lift(t), new IntE(n));
 	}
 
 	@Override

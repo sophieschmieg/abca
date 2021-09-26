@@ -8,7 +8,6 @@ import fields.exceptions.InfinityException;
 import fields.helper.AbstractModule;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
-import fields.interfaces.MathSet.Exactness;
 import fields.interfaces.Ring;
 import fields.interfaces.VectorSpace;
 

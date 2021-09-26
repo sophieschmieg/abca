@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.SortedSet;
 
 import fields.exceptions.InfinityException;
-import fields.polynomials.GenericUnivariatePolynomial;
 import fields.polynomials.Monomial;
 import fields.vectors.Vector;
 
@@ -78,7 +77,7 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	Monomial getMonomial(int[] exponents);
 
-	GenericUnivariatePolynomial<T> add(Polynomial<T> s1, Polynomial<T> s2);
+	UnivariatePolynomial<T> add(Polynomial<T> s1, Polynomial<T> s2);
 
 	UnivariatePolynomial<T> negative(Polynomial<T> s);
 

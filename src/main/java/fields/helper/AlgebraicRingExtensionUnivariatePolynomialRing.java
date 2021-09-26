@@ -10,9 +10,12 @@ import java.util.Random;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
+import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.AlgebraicRingExtension;
+import fields.interfaces.AlgebraicRingExtension.PolynomialRingAsCoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
@@ -22,24 +25,27 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.Value;
 import fields.polynomials.AbstractPolynomialRing;
-import fields.polynomials.GenericUnivariatePolynomial;
 import fields.polynomials.Monomial;
 import fields.vectors.Vector;
 
 public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>, S extends AlgebraicExtensionElement<T, S>, Ext extends AlgebraicRingExtension<T, S, Ext>>
 		extends AbstractPolynomialRing<S> implements UnivariatePolynomialRing<S> {
+	private PolynomialRingAsCoordinateRing<T, S> asCoordinateRing;
+	private CoordinateRing<T> coordinateRing;
 	private PolynomialRing<T> multivariatePolynomialRing;
+	private UnivariatePolynomialRing<T> basePolynomialRing;
 	private Ext algebraicRingExtension;
 	private Ring<T> base;
-	private UnivariatePolynomialRing<T> basePolynomials;
 	private ExtensionPolynomial zero;
 	private ExtensionPolynomial one;
 	private ExtensionPolynomial var;
+	private SortedSet<Monomial> monomials;
+	
 
 	private class ExtensionPolynomial extends AbstractElement<Polynomial<S>> implements UnivariatePolynomial<S> {
-		private Polynomial<T> value;
-
-		private ExtensionPolynomial(Polynomial<T> value) {
+		private CoordinateRingElement<T> value;
+		
+		private ExtensionPolynomial(CoordinateRingElement<T> value) {
 			this.value = value;
 		}
 
@@ -68,13 +74,13 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 
 		@Override
 		public int degree() {
-			return value.leadingMonomial().exponents()[0];
+			return value.getElement().leadingMonomial().exponents()[0];
 		}
 
 		@Override
 		public Value order() {
-			for (Monomial m : value.monomials()) {
-				if (!value.coefficient(m).equals(base.zero())) {
+			for (Monomial m : value.getElement().monomials()) {
+				if (!value.getElement().coefficient(m).equals(base.zero())) {
 					return new Value(m.exponents()[0]);
 				}
 			}
@@ -93,8 +99,8 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 		
 		@Override
 		public S univariateCoefficient(int degree) {
-			return algebraicRingExtension.fromPolynomial(basePolynomials.toUnivariate(
-					multivariatePolynomialRing.asUnivariatePolynomial(value, 0).univariateCoefficient(degree)));
+			return algebraicRingExtension.fromPolynomial(basePolynomialRing.toUnivariate(
+					multivariatePolynomialRing.asUnivariatePolynomial(value.getElement(), 1).univariateCoefficient(degree)));
 		}
 
 		@Override
@@ -119,7 +125,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 
 		@Override
 		public String toString(String variable, boolean ascending) {
-			if (this.value.equals(basePolynomials.zero()))
+			if (this.value.equals(coordinateRing.zero()))
 				return "0";
 			StringBuffer buf = new StringBuffer();
 			boolean first = true;
@@ -166,13 +172,16 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 	public AlgebraicRingExtensionUnivariatePolynomialRing(Ext algebraicRingExtension) {
 		super(false);
 		this.algebraicRingExtension = algebraicRingExtension;
-		this.multivariatePolynomialRing = AbstractPolynomialRing.getPolynomialRing(algebraicRingExtension.getRing(), 2,
-				Monomial.LEX);
-		this.zero = new ExtensionPolynomial(multivariatePolynomialRing.zero());
-		this.one = new ExtensionPolynomial(multivariatePolynomialRing.one());
-		this.var = new ExtensionPolynomial(multivariatePolynomialRing.getVar(0));
+		this.asCoordinateRing=algebraicRingExtension.asCoordinateRing(this);
+		this.coordinateRing = asCoordinateRing.getCoordinateRing();
+		this.multivariatePolynomialRing = coordinateRing.getPolynomialRing();
+		this.basePolynomialRing = algebraicRingExtension.getRing().getUnivariatePolynomialRing();
+		this.zero = new ExtensionPolynomial(coordinateRing.zero());
+		this.one = new ExtensionPolynomial(coordinateRing.one());
+		this.var = new ExtensionPolynomial(coordinateRing.getVar(1));
+		this.monomials = new TreeSet<>();
 	}
-
+	
 	@Override
 	public Exactness exactness() {
 		return algebraicRingExtension.exactness();
@@ -215,7 +224,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 
 	@Override
 	public UnivariatePolynomial<S> getVarPower(int power) {
-		return new ExtensionPolynomial(multivariatePolynomialRing.getVarPower(0, power));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getVarPower(1, power)));
 	}
 
 	@Override
@@ -225,7 +234,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 
 	@Override
 	public UnivariatePolynomial<S> getEmbedding(S t) {
-		return new ExtensionPolynomial(multivariatePolynomialRing.getEmbedding(t.asPolynomial(), new int[] { 1 }));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getEmbedding(t.asPolynomial(), new int[] { 1 })));
 	}
 
 	@Override
@@ -238,7 +247,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 				c.put(multivariatePolynomialRing.getMonomial(new int[] { i, j }), p.univariateCoefficient(j));
 			}
 		}
-		return new ExtensionPolynomial(multivariatePolynomialRing.getPolynomial(c));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getPolynomial(c)));
 	}
 
 	@Override
@@ -256,7 +265,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 						s.asPolynomial().univariateCoefficient(i));
 			}
 		}
-		return new ExtensionPolynomial(multivariatePolynomialRing.getPolynomial(c));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getPolynomial(c)));
 	}
 
 	@Override
@@ -266,7 +275,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 			c.put(multivariatePolynomialRing.getMonomial(new int[] { exponent, i }),
 					t.asPolynomial().univariateCoefficient(i));
 		}
-		return new ExtensionPolynomial(multivariatePolynomialRing.getPolynomial(c));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getPolynomial(c)));
 	}
 
 	@Override
@@ -320,7 +329,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 						s.asPolynomial().univariateCoefficient(i));
 			}
 		}
-		return new ExtensionPolynomial(multivariatePolynomialRing.getPolynomial(c));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getPolynomial(c)));
 	}
 
 	@Override
@@ -332,7 +341,7 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 				c.put(getMonomial(new int[] { m.exponents()[0], i }), s.asPolynomial().univariateCoefficient(i));
 			}
 		}
-		return new ExtensionPolynomial(multivariatePolynomialRing.getPolynomial(c));
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getPolynomial(c)));
 	}
 
 	@Override
@@ -342,56 +351,57 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 
 	@Override
 	public UnivariatePolynomial<S> getRandomElement(int degree) {
-		// TODO Auto-generated method stub
-		return null;
+		return new ExtensionPolynomial(coordinateRing.getEmbedding(multivariatePolynomialRing.getRandomElement(degree)));
 	}
 
 	@Override
 	public SortedSet<Monomial> monomials(int degree) {
-		// TODO Auto-generated method stub
-		return null;
+		for (int i = monomials.last().exponents()[0]; i < degree; i++) {
+			monomials.add(getMonomial(new int[] { i + 1 }));
+		}
+		return monomials.headSet(getMonomial(new int[] { degree + 1 }));
 	}
 
 	@Override
 	public Monomial getMonomial(int[] exponents) {
-		// TODO Auto-generated method stub
-		return null;
+		return new Monomial(Monomial.LEX, exponents);
 	}
 
+	private ExtensionPolynomial toExtensionPolynomial(Polynomial<S> s) {
+		if (s instanceof AlgebraicRingExtensionUnivariatePolynomialRing.ExtensionPolynomial) {
+			return (ExtensionPolynomial)s;
+		}
+		return toExtensionPolynomial(getEmbedding(s));
+	}
+	
 	@Override
-	public GenericUnivariatePolynomial<S> add(Polynomial<S> s1, Polynomial<S> s2) {
-		// TODO Auto-generated method stub
-		return null;
+	public UnivariatePolynomial<S> add(Polynomial<S> s1, Polynomial<S> s2) {
+		return new ExtensionPolynomial(coordinateRing.add(toExtensionPolynomial(s1).value, toExtensionPolynomial(s2).value));
 	}
 
 	@Override
 	public UnivariatePolynomial<S> negative(Polynomial<S> s) {
-		// TODO Auto-generated method stub
-		return null;
+		return new ExtensionPolynomial(coordinateRing.negative(toExtensionPolynomial(s).value));
 	}
 
 	@Override
 	public UnivariatePolynomial<S> multiply(Polynomial<S> t1, Polynomial<S> t2) {
-		// TODO Auto-generated method stub
-		return null;
+		return new ExtensionPolynomial(coordinateRing.multiply(toExtensionPolynomial(t1).value, toExtensionPolynomial(t2).value));
 	}
 
 	@Override
 	public UnivariatePolynomial<S> multiplyPower(int power, Polynomial<S> t) {
-		// TODO Auto-generated method stub
-		return null;
+		return multiply(getVarPower(power), t);
 	}
 
 	@Override
 	public UnivariatePolynomial<S> multiply(S t1, Polynomial<S> t2) {
-		// TODO Auto-generated method stub
-		return null;
+		return multiply(getEmbedding(t1), t2);
 	}
 
 	@Override
 	public UnivariatePolynomial<S> multiplyPower(int power, S t1, Polynomial<S> t2) {
-		// TODO Auto-generated method stub
-		return null;
+		return multiply(multiplyPower(power, getEmbedding(t1)), t2);
 	}
 
 	@Override
@@ -631,6 +641,18 @@ public class AlgebraicRingExtensionUnivariatePolynomialRing<T extends Element<T>
 
 	@Override
 	public UnivariatePolynomial<S> round(Polynomial<S> t, int degree) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
+	@Override
+	public Vector<S> asVector(Polynomial<S> t, int[] degrees) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
+	@Override
+	public Polynomial<S> fromVector(Vector<S> t, int[] degrees) {
 		// TODO Auto-generated method stub
 		return null;
 	}

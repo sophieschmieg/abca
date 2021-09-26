@@ -9,51 +9,51 @@ import varieties.SpectrumOfField.SingletonPoint;
 import varieties.affine.AffineCover;
 import varieties.affine.AffinePoint;
 
-public abstract class AbstractProjectiveScheme<T extends Element<T>> extends AbstractScheme<T, ProjectivePoint<T>> implements ProjectiveVarietyInterface<T> {
-	private ProjectiveScheme<T> asProjectiveVariety;
+public abstract class AbstractProjectiveScheme<T extends Element<T>> extends AbstractScheme<T, ProjectivePoint<T>> implements ProjectiveScheme<T> {
+	private GenericProjectiveScheme<T> asGenericProjectiveScheme;
 
-	public AbstractProjectiveScheme(ProjectiveScheme<T> asProjectiveVariety) {
-		this.asProjectiveVariety = asProjectiveVariety;
+	public AbstractProjectiveScheme(GenericProjectiveScheme<T> asProjectiveVariety) {
+		this.asGenericProjectiveScheme = asProjectiveVariety;
 	}
 	
 	@Override
 	public Exactness exactness() {
-		return asProjectiveVariety.exactness();
+		return asGenericProjectiveScheme.exactness();
 	}
 
 	@Override
-	public ProjectiveScheme<T> asProjectiveVariety() {
-		return asProjectiveVariety;
+	public GenericProjectiveScheme<T> asGenericProjectiveScheme() {
+		return asGenericProjectiveScheme;
 	}
 
 	@Override
 	public AffineCover<T> getAffineCover() {
-		return asProjectiveVariety.getAffineCover();
+		return asGenericProjectiveScheme.getAffineCover();
 	}
 
 	@Override
 	public List<Integer> affineCoverIndex(ProjectivePoint<T> p) {
-		return asProjectiveVariety.affineCoverIndex(p);
+		return asGenericProjectiveScheme.affineCoverIndex(p);
 	}
 
 	@Override
 	public AffinePoint<T> asAffinePoint(ProjectivePoint<T> p, int affineCoverIndex) {
-		return asProjectiveVariety.asAffinePoint(p, affineCoverIndex);
+		return asGenericProjectiveScheme.asAffinePoint(p, affineCoverIndex);
 	}
 
 	@Override
 	public ProjectivePoint<T> fromAffinePoint(AffinePoint<T> p, int affineCoverIndex) {
-		return asProjectiveVariety.fromAffinePoint(p, affineCoverIndex);
+		return asGenericProjectiveScheme.fromAffinePoint(p, affineCoverIndex);
 	}
 
 	@Override
 	public Morphism<T, AffinePoint<T>, ProjectivePoint<T>> embedding(int affineCoverIndex) {
-		return asProjectiveVariety.embedding(affineCoverIndex);
+		return asGenericProjectiveScheme.embedding(affineCoverIndex);
 	}
 
 	@Override
 	public Morphism<T, SingletonPoint, ProjectivePoint<T>> pointAsMorphism(ProjectivePoint<T> p) {
-		return asProjectiveVariety.pointAsMorphism(p);
+		return asGenericProjectiveScheme.pointAsMorphism(p);
 	}
 
 }

@@ -10,7 +10,7 @@ public abstract class AbstractScheme<T extends Element<T>, S extends Element<S>>
 	@Override
 	public boolean isConnected() {
 		AffineCover<T> affineCover = getAffineCover();
-		for (int i = 0; i < affineCover.getCover().size(); i++){
+		for (int i = 0; i < affineCover.getCover().size(); i++) {
 			for (int j = 0; j < affineCover.getCover().size(); j++) {
 				CoordinateRing<T> coordinateRing = affineCover.getIntersection(i, j).getCoordinateRing();
 				if (coordinateRing.getIdeal().contains(coordinateRing.getPolynomialRing().one())) {
@@ -20,7 +20,7 @@ public abstract class AbstractScheme<T extends Element<T>, S extends Element<S>>
 		}
 		return true;
 	}
-	
+
 	@Override
 	public boolean isIntegral() {
 		if (!isConnected()) {
@@ -55,6 +55,16 @@ public abstract class AbstractScheme<T extends Element<T>, S extends Element<S>>
 			}
 		}
 		return true;
+	}
+
+	@Override
+	public final int dimension() {
+		return getAffineCover().getCover().get(0).getCoordinateRing().krullDimension();
+	}
+
+	@Override
+	public int degree() {
+		return getAffineCover().getCover().get(0).getCoordinateRing().degree();
 	}
 
 }

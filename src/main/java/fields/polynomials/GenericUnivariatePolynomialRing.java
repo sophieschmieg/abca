@@ -505,6 +505,16 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	public GenericUnivariatePolynomial<T> fromVector(Vector<T> vector) {
 		return getPolynomial(vector.asList());
 	}
+	
+	@Override
+	public Vector<T> asVector(Polynomial<T> t, int[] degrees) {
+		return asVector(t, degrees[0]);
+	}
+	
+	@Override
+	public Polynomial<T> fromVector(Vector<T> t, int[] degrees) {
+		return fromVector(t);
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<Polynomial<T>> s) {

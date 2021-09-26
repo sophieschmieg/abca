@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -466,7 +467,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		UnivariatePolynomial<PFE> psi = minimalPolynomial();
 		UnivariatePolynomial<IntE> quadratic = null;
 		PFE root = null;
-		Fraction reconstruction = null;
+		Optional<Fraction> reconstruction = Optional.empty();
 		for (UnivariatePolynomial<IntE> q : integerPolynomials.monicPolynomialSet(2)) {
 			Map<PFE, Integer> roots = base.roots(z.reduceUnivariatePolynomial(q, characteristic()));
 			if (roots.size() != 2) {
@@ -478,7 +479,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 				root = it.next();
 			}
 			reconstruction = base.rationalReconstruction(root);
-			if (reconstruction == null) {
+			if (reconstruction.isEmpty()) {
 				continue;
 			}
 			if (!z.factorization(q).isIrreducible()) {
@@ -501,8 +502,8 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 					polynomials.subtract(psi,
 							polynomials.multiply(root, z.reduceUnivariatePolynomial(g1, characteristic()))),
 					characteristic());
-			g = integerPolynomials.add(integerPolynomials.scalarMultiply(reconstruction.getDenominator(), g0),
-					integerPolynomials.scalarMultiply(reconstruction.getNumerator(), g1));
+			g = integerPolynomials.add(integerPolynomials.scalarMultiply(reconstruction.get().getDenominator(), g0),
+					integerPolynomials.scalarMultiply(reconstruction.get().getNumerator(), g1));
 			if (!z.factorization(g).isIrreducible()) {
 				continue;
 			}

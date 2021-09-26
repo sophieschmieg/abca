@@ -85,11 +85,6 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 	}
 
 	@Override
-	public int dimension() {
-		return 0;
-	}
-
-	@Override
 	public AffineCover<T> getAffineCover() {
 		PolynomialRing<T> polynomials = AbstractPolynomialRing.getPolynomialRing(field, 0, Monomial.GREVLEX);
 		AffineScheme<T> asAffineVariety = new AffineScheme<>(field, new CoordinateRing<T>(polynomials,

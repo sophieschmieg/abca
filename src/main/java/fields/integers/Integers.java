@@ -22,6 +22,8 @@ import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
+import fields.helper.CoordinateRing;
+import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.DedekindRing;
@@ -30,6 +32,7 @@ import fields.interfaces.Ideal;
 import fields.interfaces.LocalRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.PAdicField;
@@ -48,10 +51,12 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	private IntE zero;
 	private IntE one;
 	private List<IntE> smallPrimes;
+	private Map<Integer, Map<Integer, IntE>> binomialCoefficients;
 
 	private Integers() {
 		factorizatonCache = new TreeMap<>();
 		polynomialFactorizationCache = new TreeMap<>();
+		binomialCoefficients = new TreeMap<>();
 		zero = new IntE(0);
 		one = new IntE(1);
 		smallPrimes = new ArrayList<>();
@@ -262,12 +267,12 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	public boolean isIntegral() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isReduced() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isIrreducible() {
 		return true;
@@ -767,6 +772,39 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return result;
 	}
 
+	public Polynomial<IntE> clearFractionsAndContent(Polynomial<Fraction> polynomial) {
+		IntE denominator = one();
+		for (Monomial m : polynomial.monomials()) {
+			denominator = lcm(denominator, polynomial.coefficient(m).getDenominator());
+		}
+		PolynomialRing<Fraction> polynomialRing = polynomial.getPolynomialRing();
+		PolynomialRing<IntE> intPolynomialRing = AbstractPolynomialRing.getPolynomialRing(this,
+				polynomialRing.numberOfVariables(), polynomialRing.getComparator());
+		polynomial = polynomialRing.multiply(denominator, polynomial);
+		Polynomial<IntE> result = intPolynomialRing.getEmbedding(polynomial, new MathMap<>() {
+			@Override
+			public IntE evaluate(Fraction t) {
+				return t.asInteger();
+			}
+		});
+		return intPolynomialRing.contentFree(result);
+	}
+
+	public CoordinateRingElement<IntE> gcdCoordinateRingElements(CoordinateRing<IntE> coordinateRing,
+			CoordinateRingElement<IntE> t1, CoordinateRingElement<IntE> t2) {
+		if (coordinateRing.getIdeal().generators().size() > 1) {
+			throw new ArithmeticException("Coordinate ring is only allowed to have one equation");
+		}
+		PolynomialRing<IntE> polynomialRing = coordinateRing.getPolynomialRing();
+		int freeVariable = polynomialRing.numberOfVariables() - 1;
+		int boundVariable = polynomialRing.numberOfVariables();
+		Polynomial<IntE> modulus = coordinateRing.getIdeal().generators().get(0);
+		if (modulus.degree(freeVariable) != 0) {
+			throw new ArithmeticException("Variable " + freeVariable + " is not free!");
+		}
+		return null;
+	}
+
 	@Override
 	public FactorizationResult<Polynomial<IntE>, IntE> factorization(UnivariatePolynomial<IntE> t) {
 		UnivariatePolynomialRing<IntE> ring = this.getUnivariatePolynomialRing();
@@ -996,6 +1034,23 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	@Override
 	public String toString() {
 		return "Z";
+	}
+
+	public IntE binomialCoefficient(int n, int k) {
+		if (!binomialCoefficients.containsKey(n)) {
+			binomialCoefficients.put(n, new TreeMap<>());
+		}
+		if (!binomialCoefficients.get(n).containsKey(k)) {
+			if (n < 0 || k < 0 || k > n) {
+				binomialCoefficients.get(n).put(k, zero());
+			} else if (n == 0 && k == 0) {
+				binomialCoefficients.get(n).put(k, one());
+			} else {
+				binomialCoefficients.get(n).put(k,
+						add(binomialCoefficient(n - 1, k - 1), binomialCoefficient(n - 1, k)));
+			}
+		}
+		return binomialCoefficients.get(n).get(k);
 	}
 
 	@Override
@@ -1232,7 +1287,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			if (m.equals(zero())) {
 				return Value.ZERO;
 			}
-			FactorizationResult<Ideal<IntE>,Ideal<IntE>> factors = z.idealFactorization(this);
+			FactorizationResult<Ideal<IntE>, Ideal<IntE>> factors = z.idealFactorization(this);
 			Value value = Value.INFINITY;
 			for (Ideal<IntE> factor : factors.primeFactors()) {
 				value = value.min(new Value(z.valuation(t, factor).value() / z.valuation(m, factor).value()));

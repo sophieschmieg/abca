@@ -14,6 +14,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
+import fields.integers.Rationals;
+import fields.integers.Rationals.Fraction;
 import fields.interfaces.Element;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
@@ -67,7 +69,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return free.isLinearIndependent(asVectors);
 	}
-	
+
 	@Override
 	public List<List<T>> nonTrivialCombinations(List<Polynomial<T>> s) {
 		Monomial degrees = getMonomial(new int[numvars]);
@@ -87,10 +89,10 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return free.nonTrivialCombinations(asVectors);
 	}
-	
+
 	public MultivariatePolynomial<T> toMultivariate(Polynomial<T> t) {
 		if (t instanceof MultivariatePolynomial<?> && t.getPolynomialRing() == this) {
-			return (MultivariatePolynomial<T>)t;
+			return (MultivariatePolynomial<T>) t;
 		}
 		Map<Monomial, T> c = new TreeMap<>();
 		for (Monomial m : t.monomials()) {
@@ -99,11 +101,11 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		return getPolynomial(c);
 	}
 
+	@Override
 	public Vector<T> asVector(Polynomial<T> s, int[] dimensions) {
-		Monomial leading = s.leadingMonomial();
 		int dimension = 1;
 		for (int i = 0; i < numvars; i++) {
-			if (dimensions[i] < leading.exponents()[i] + 1) {
+			if (dimensions[i] < s.degree(i + 1) + 1) {
 				throw new ArithmeticException("Not high dimensional enough");
 			}
 			dimension *= dimensions[i];
@@ -123,11 +125,26 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 
 	@Override
 	public Vector<T> asVector(Polynomial<T> s) {
-		int[] dimensions = s.leadingMonomial().exponents();
+		int[] dimensions = new int[numvars];
 		for (int i = 0; i < numvars; i++) {
-			dimensions[i]++;
+			dimensions[i] = s.degree(i + 1) + 1;
 		}
 		return asVector(s, dimensions);
+	}
+	
+	@Override
+	public Polynomial<T> fromVector(Vector<T> t, int[] degrees) {
+		Map<Monomial, T> result = new TreeMap<>();
+		for (int i = 0; i < t.dimension(); i++) {
+			int value = i;
+			int[] exponents = new int[numvars];
+			for (int j = 0; j < numvars; j++) {
+				exponents[j] = value % degrees[j];
+				value /= degrees[j];
+			}
+			result.put(getMonomial(exponents), t.get(i+1));
+		}
+		return getPolynomial(result);
 	}
 
 	@Override
@@ -174,7 +191,6 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		return getPolynomial(coeff);
 	}
 
-
 	@Override
 	public MultivariatePolynomial<T> getPolynomial(Map<Monomial, T> coeff) {
 		return new MultivariatePolynomial<T>(coeff, this);
@@ -216,7 +232,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return this.getPolynomial(coeffs);
 	}
-	
+
 	public PolynomialRing<T> eliminateVariable() {
 		if (eliminatedVariable != null) {
 			return eliminatedVariable;
@@ -224,7 +240,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		eliminatedVariable = AbstractPolynomialRing.getPolynomialRing(ring, numvars - 1, Monomial.GREVLEX);
 		return eliminatedVariable;
 	}
-	
+
 	public UnivariatePolynomial<Polynomial<T>> asUnivariatePolynomial(Polynomial<T> t, int variable) {
 		if (variable < 1 || variable > numvars) {
 			throw new ArithmeticException("Variable out of bounds");
@@ -240,11 +256,13 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 				}
 				exponents[i < variable - 1 ? i : i - 1] = m.exponents()[i];
 			}
-			result = eliminatedRing.add(result, eliminatedRing.multiply(eliminated.getEmbedding(t.coefficient(m), exponents), eliminatedRing.getVarPower(m.exponents()[variable - 1])));
+			result = eliminatedRing.add(result,
+					eliminatedRing.multiply(eliminated.getEmbedding(t.coefficient(m), exponents),
+							eliminatedRing.getVarPower(m.exponents()[variable - 1])));
 		}
 		return result;
 	}
-	
+
 	public Polynomial<T> fromUnivariatePolynomial(UnivariatePolynomial<Polynomial<T>> t, int variable) {
 		if (variable < 1 || variable > numvars) {
 			throw new ArithmeticException("Variable out of bounds");
@@ -428,7 +446,8 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		return comparator;
 	}
 
-	public GeneralQuotientAndRemainderResult<T> generalQuotientAndRemainder(Polynomial<T> polynomial, List<Polynomial<T>> basis) {
+	public GeneralQuotientAndRemainderResult<T> generalQuotientAndRemainder(Polynomial<T> polynomial,
+			List<Polynomial<T>> basis) {
 		List<SortedMap<Monomial, T>> quotient = new ArrayList<>();
 		SortedMap<Monomial, T> remainder = new TreeMap<>();
 		SortedMap<Monomial, T> p = new TreeMap<>();
@@ -455,7 +474,8 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 					totalFailure = false;
 				}
 				Monomial div = leadingmonomial.divide(base.leadingMonomial());
-				QuotientAndRemainderResult<T> qr = ring.quotientAndRemainder(leadingcoefficient, base.leadingCoefficient());
+				QuotientAndRemainderResult<T> qr = ring.quotientAndRemainder(leadingcoefficient,
+						base.leadingCoefficient());
 				if (div == null || !qr.getRemainder().equals(ring.zero()))
 					continue;
 				T factor = qr.getQuotient();
@@ -516,7 +536,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return getPolynomial(coeff);
 	}
-	
+
 	private T evaluateMonomialPartially(Monomial m, List<T> values) {
 		T result = this.ring.one();
 		for (int i = 0; i < this.numvars; i++)
@@ -532,7 +552,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 				exponents[i] = m.exponents()[i];
 		return getMonomial(exponents);
 	}
-	
+
 	@Override
 	public MultivariatePolynomial<T> substitute(Polynomial<T> t, List<Polynomial<T>> values) {
 		MultivariatePolynomial<T> result = this.zero();
@@ -545,7 +565,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return result;
 	}
-	
+
 	@Override
 	public boolean isHomogeneous(Polynomial<T> t) {
 		for (Monomial m : t.monomials())
@@ -553,7 +573,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 				return false;
 		return true;
 	}
-	
+
 	@Override
 	public boolean canBeNormalized(Polynomial<T> t) {
 		T lc = t.leadingCoefficient();
@@ -577,7 +597,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return content;
 	}
-	
+
 	@Override
 	public MultivariatePolynomial<T> divideScalar(Polynomial<T> dividend, T divisor) {
 		Map<Monomial, T> coeff = new TreeMap<Monomial, T>();
@@ -613,7 +633,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return getPolynomial(coeff);
 	}
-	
+
 	@Override
 	public Polynomial<T> resultant(Polynomial<T> t1, Polynomial<T> t2, int variable) {
 		UnivariatePolynomialRing<Polynomial<T>> eliminatedRing = eliminateVariable().getUnivariatePolynomialRing();
@@ -622,10 +642,21 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 
 	@Override
 	public Polynomial<T> gcd(Polynomial<T> t1, Polynomial<T> t2) {
+//		if (ring.equals(Rationals.q())) {
+//			return gcdOverRationals(t1, t2);
+//		}
 		UnivariatePolynomialRing<Polynomial<T>> eliminatedRing = eliminateVariable().getUnivariatePolynomialRing();
-		return fromUnivariatePolynomial(eliminatedRing.gcd(asUnivariatePolynomial(t1, 1), asUnivariatePolynomial(t2, 1)), 1);
+		return fromUnivariatePolynomial(
+				eliminatedRing.gcd(asUnivariatePolynomial(t1, 1), asUnivariatePolynomial(t2, 1)), 1);
 	}
-	
+
+	private Polynomial<T> gcdOverRationals(Polynomial<T> t1, Polynomial<T> t2) {
+		Rationals q = Rationals.q();
+		Polynomial<Fraction> p1 = (Polynomial<Fraction>) t1;
+		Polynomial<Fraction> p2 = (Polynomial<Fraction>) t2;
+		return null;
+	}
+
 	@Override
 	public MultivariatePolynomial<T> round(Polynomial<T> t, int degree) {
 		Map<Monomial, T> map = new TreeMap<>();

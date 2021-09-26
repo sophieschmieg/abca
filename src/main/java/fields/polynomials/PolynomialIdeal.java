@@ -88,6 +88,15 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 		return polynomialRing.getRing().getIdeal(ringGenerators);
 	}
 
+	public boolean isHomogenous() {
+		for (Polynomial<T> generator : generators()) {
+			if (!polynomialRing.isHomogeneous(generator)) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
 	@Override
 	public boolean isPrime() {
 		for (Polynomial<T> polynomial : generators()) {
@@ -115,7 +124,7 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 	}
 
 	public List<PolynomialIdeal<T>> minimalPrimeIdealsOver() {
-		if (polynomialRing.getRing().isIntegral()) {
+		if (!polynomialRing.getRing().isIntegral()) {
 			throw new UnsupportedOperationException("Non integral base ring!");
 		}
 		if (!isRadical()) {

@@ -1,7 +1,11 @@
 package fields.interfaces;
 
+import java.util.Comparator;
 import java.util.List;
 
+import fields.helper.CoordinateRing;
+import fields.helper.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.Monomial;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
@@ -65,4 +69,79 @@ public interface AlgebraicRingExtension<T extends Element<T>, S extends Algebrai
 	Matrix<Polynomial<T>> genericMatrix();
 
 	UnivariatePolynomial<T> minimalPolynomial(S s);
+
+	CoordinateRing<T> asCoordinateRing();
+
+	public static class PolynomialRingAsCoordinateRing<T extends Element<T>, S extends AlgebraicExtensionElement<T, S>> {
+		private PolynomialRing<S> polynomialRing;
+		private CoordinateRing<T> coordinateRing;
+		private MathMap<Polynomial<S>, CoordinateRingElement<T>> isomorphism;
+		private MathMap<CoordinateRingElement<T>, Polynomial<S>> inverseIsomorphism;
+
+		public PolynomialRingAsCoordinateRing(PolynomialRing<S> polynomialRing, CoordinateRing<T> coordinateRing,
+				MathMap<Polynomial<S>, CoordinateRingElement<T>> isomorphism,
+				MathMap<CoordinateRingElement<T>, Polynomial<S>> inverseIsomorphism) {
+			this.polynomialRing = polynomialRing;
+			this.coordinateRing = coordinateRing;
+			this.isomorphism = isomorphism;
+			this.inverseIsomorphism = inverseIsomorphism;
+		}
+
+		public PolynomialRing<S> getPolynomialRing() {
+			return polynomialRing;
+		}
+
+		public CoordinateRing<T> getCoordinateRing() {
+			return coordinateRing;
+		}
+
+		public MathMap<Polynomial<S>, CoordinateRingElement<T>> getIsomorphism() {
+			return isomorphism;
+		}
+
+		public MathMap<CoordinateRingElement<T>, Polynomial<S>> getInverseIsomorphism() {
+			return inverseIsomorphism;
+		}
+	}
+
+	PolynomialRingAsCoordinateRing<T, S> asCoordinateRing(PolynomialRing<S> polynomialRing);
+
+	PolynomialRingAsCoordinateRing<T, S> asCoordinateRing(int numberOfVariables);
+
+	PolynomialRingAsCoordinateRing<T, S> asCoordinateRing(int numberOfVariables, Comparator<Monomial> comparator);
+
+
+	public static class ExtensionCoordinateRing<T extends Element<T>, S extends AlgebraicExtensionElement<T, S>> {
+		private CoordinateRing<S> extensionCoordinateRing;
+		private CoordinateRing<T> baseCoordinateRing;
+		private MathMap<CoordinateRingElement<S>, CoordinateRingElement<T>> isomorphism;
+		private MathMap<CoordinateRingElement<T>, CoordinateRingElement<S>> inverseIsomorphism;
+
+		public ExtensionCoordinateRing(CoordinateRing<S> extensionCoordinateRing, CoordinateRing<T> baseCoordinateRing,
+				MathMap<CoordinateRingElement<S>, CoordinateRingElement<T>> isomorphism,
+				MathMap<CoordinateRingElement<T>, CoordinateRingElement<S>> inverseIsomorphism) {
+			this.extensionCoordinateRing = extensionCoordinateRing;
+			this.baseCoordinateRing = baseCoordinateRing;
+			this.isomorphism = isomorphism;
+			this.inverseIsomorphism = inverseIsomorphism;
+		}
+
+		public CoordinateRing<S> getExtensionCoordinateRing() {
+			return extensionCoordinateRing;
+		}
+
+		public CoordinateRing<T> getBaseCoordinateRing() {
+			return baseCoordinateRing;
+		}
+
+		public MathMap<CoordinateRingElement<S>, CoordinateRingElement<T>> getIsomorphism() {
+			return isomorphism;
+		}
+
+		public MathMap<CoordinateRingElement<T>, CoordinateRingElement<S>> getInverseIsomorphism() {
+			return inverseIsomorphism;
+		}
+	}
+
+	ExtensionCoordinateRing<T, S> asCoordinateRing(CoordinateRing<S> coordinateRing);
 }

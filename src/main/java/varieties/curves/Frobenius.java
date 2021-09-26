@@ -56,11 +56,11 @@ public class Frobenius<T extends Element<T>> implements Isogeny<T> {
 	public ProjectiveMorphism<T> asMorphism() {
 		if (asMorphism == null) {
 			List<Polynomial<T>> asPolynomials = new ArrayList<>();
-			PolynomialRing<T> polynomials = domain.asProjectiveVariety().homogenousPolynomialRing();
+			PolynomialRing<T> polynomials = domain.asGenericProjectiveScheme().homogenousPolynomialRing();
 			for (int var = 0; var < polynomials.numberOfVariables(); var++) {
 				asPolynomials.add(polynomials.getVarPower(var + 1, q.intValueExact()));
 			}
-			asMorphism = new ProjectiveMorphism<>(domain.asProjectiveVariety(), range.asProjectiveVariety(), asPolynomials);
+			asMorphism = new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(), asPolynomials);
 		}
 		return asMorphism;
 	}
@@ -109,9 +109,9 @@ public class Frobenius<T extends Element<T>> implements Isogeny<T> {
 					List<Polynomial<T>> asPolynomials = new ArrayList<>();
 					Isogeny<T> mulQ = new MultiplicationIsogeny<T>(q, range);
 					for (Polynomial<T> mulQPolynomial : mulQ.asMorphism().asPolynomials()) {
-						asPolynomials.add(range.asProjectiveVariety().homogenousPolynomialRing().characteristicRoot(mulQPolynomial, power));
+						asPolynomials.add(range.asGenericProjectiveScheme().homogenousPolynomialRing().characteristicRoot(mulQPolynomial, power));
 					}
-					asMorphism = new ProjectiveMorphism<>(range.asProjectiveVariety(), domain.asProjectiveVariety(), asPolynomials);
+					asMorphism = new ProjectiveMorphism<>(range.asGenericProjectiveScheme(), domain.asGenericProjectiveScheme(), asPolynomials);
 				}
 				return asMorphism;
 			}

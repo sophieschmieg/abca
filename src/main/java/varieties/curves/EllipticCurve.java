@@ -41,7 +41,7 @@ import varieties.curves.DivisorGroup.Divisor;
 import varieties.projective.AbstractProjectiveScheme;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
-import varieties.projective.ProjectiveScheme;
+import varieties.projective.GenericProjectiveScheme;
 
 public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveScheme<T>
 		implements SmoothCurve<T>, Group<ProjectivePoint<T>> {
@@ -80,12 +80,12 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 		@Override
 		public ProjectiveMorphism<T> asMorphism() {
-			PolynomialRing<T> projectiveRing = domain.asProjectiveVariety().homogenousPolynomialRing();
+			PolynomialRing<T> projectiveRing = domain.asGenericProjectiveScheme().homogenousPolynomialRing();
 			List<Polynomial<T>> asPolynomials = new ArrayList<>();
 			asPolynomials.add(projectiveRing.multiply(field.power(u, 2), projectiveRing.getVar(1)));
 			asPolynomials.add(projectiveRing.multiply(field.power(u, 3), projectiveRing.getVar(2)));
 			asPolynomials.add(projectiveRing.getVar(3));
-			return new ProjectiveMorphism<>(domain.asProjectiveVariety(), range.asProjectiveVariety(), asPolynomials);
+			return new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(), asPolynomials);
 		}
 
 		@Override
@@ -115,13 +115,13 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	private boolean superSingular;
 	private boolean superSingularDeterminied;
 
-	private static <T extends Element<T>> ProjectiveScheme<T> asProjectiveVariety(Field<T> field, T a, T b) {
+	private static <T extends Element<T>> GenericProjectiveScheme<T> asGenericProjectiveScheme(Field<T> field, T a, T b) {
 		PolynomialRing<T> ring = AbstractPolynomialRing.getPolynomialRing(field, 3, Monomial.GREVLEX);
 		Polynomial<T> f = ring.getEmbedding(field.one(), new int[] { 3, 0, 0 });
 		f = ring.add(f, ring.getEmbedding(field.negative(field.one()), new int[] { 0, 2, 1 }));
 		f = ring.add(f, ring.getEmbedding(a, new int[] { 1, 0, 2 }));
 		f = ring.add(f, ring.getEmbedding(b, new int[] { 0, 0, 3 }));
-		return new ProjectiveScheme<>(field, ring, Collections.singletonList(f));
+		return new GenericProjectiveScheme<>(field, ring, Collections.singletonList(f));
 	}
 
 	public static class FromPolynomialResult<T extends Element<T>> {
@@ -455,7 +455,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	}
 
 	public EllipticCurve(Field<T> field, T a, T b) {
-		super(asProjectiveVariety(field, a, b));
+		super(asGenericProjectiveScheme(field, a, b));
 		this.field = field;
 		this.a = a;
 		this.b = b;
@@ -465,7 +465,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 				.add(this.field.multiply(4, this.field.power(a, 3)), this.field.multiply(27, this.field.power(b, 2)))
 				.equals(this.field.zero()))
 			throw new ArithmeticException("Singular curve");
-		this.projectiveRing = asProjectiveVariety().homogenousPolynomialRing();
+		this.projectiveRing = asGenericProjectiveScheme().homogenousPolynomialRing();
 		this.affineRing = AbstractPolynomialRing.getPolynomialRing(this.field, 2, Monomial.REVLEX);
 		PolynomialRing<T> r = this.affineRing;
 		Polynomial<T> x = r.getVar(1);
@@ -763,11 +763,6 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	@Override
 	public int getEmbeddingDimension() {
 		return 2;
-	}
-
-	@Override
-	public int dimension() {
-		return 1;
 	}
 
 	private T crossProductCoefficient(T x1, T y1, T x2, T y2) {
@@ -1249,7 +1244,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			values.add(projectiveRing.getVar(1));
 			values.add(projectiveRing.getVar(2));
 			values.add(projectiveRing.getVar(3));
-			return new ProjectiveMorphism<>(asProjectiveVariety(), asProjectiveVariety(), values);
+			return new ProjectiveMorphism<>(asGenericProjectiveScheme(), asGenericProjectiveScheme(), values);
 		}
 		PolynomialRing<T> r = projectiveRing;
 		Polynomial<T> xp = r.getEmbedding(point.getDehomogenisedCoord(1, 3));
@@ -1273,7 +1268,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		values.add(xResult);
 		values.add(yResult);
 		values.add(zResult);
-		return new ProjectiveMorphism<>(asProjectiveVariety(), asProjectiveVariety(), values);
+		return new ProjectiveMorphism<>(asGenericProjectiveScheme(), asGenericProjectiveScheme(), values);
 	}
 
 	public ProjectiveMorphism<T> multiplicationMorphism(int n) {
@@ -1287,7 +1282,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			asPolynomials.add(projectiveRing.getEmbedding(field.zero()));
 			asPolynomials.add(projectiveRing.getEmbedding(field.one()));
 			asPolynomials.add(projectiveRing.getEmbedding(field.zero()));
-			return new ProjectiveMorphism<>(asProjectiveVariety(), asProjectiveVariety(), asPolynomials);
+			return new ProjectiveMorphism<>(asGenericProjectiveScheme(), asGenericProjectiveScheme(), asPolynomials);
 		}
 		if (n == 1) {
 			return new Isomorphism<>(this, negative ? field.getInteger(-1) : field.getInteger(1)).asMorphism();
@@ -1318,7 +1313,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		polynomials.add(x);
 		polynomials.add(y);
 		polynomials.add(z);
-		return new ProjectiveMorphism<>(asProjectiveVariety(), asProjectiveVariety(), polynomials);
+		return new ProjectiveMorphism<>(asGenericProjectiveScheme(), asGenericProjectiveScheme(), polynomials);
 	}
 
 	public List<ProjectivePoint<T>> getTorsionPoints(int l) {

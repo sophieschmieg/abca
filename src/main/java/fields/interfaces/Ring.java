@@ -33,18 +33,19 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public boolean isCommutative();
 
 	public boolean isIntegral();
-	
+
 	public boolean isReduced();
-	
+
 	public boolean isIrreducible();
-	
+
 	public boolean isZeroDivisor(T t);
 
 	public boolean isEuclidean();
 
 	public boolean isUniqueFactorizationDomain();
 
-	public static class FactorizationResult<T extends Element<? super T>, U extends Element<? super U>> implements Comparable<FactorizationResult<T, U>> {
+	public static class FactorizationResult<T extends Element<? super T>, U extends Element<? super U>>
+			implements Comparable<FactorizationResult<T, U>> {
 		private U unit;
 		private SortedMap<T, Integer> factors;
 
@@ -60,7 +61,7 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		public SortedMap<T, Integer> factorMap() {
 			return factors;
 		}
-		
+
 		public Set<T> primeFactors() {
 			return factors.keySet();
 		}
@@ -291,6 +292,69 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public ExtendedEuclideanListResult<T> extendedEuclidean(List<T> t);
 
+	public static class BezoutIdentityResult<T extends Element<T>> {
+		private List<T> coeff1;
+		private List<T> coeff2;
+
+		public BezoutIdentityResult(List<T> coeff1, List<T> coeff2) {
+			this.coeff1 = coeff1;
+			this.coeff2 = coeff2;
+		}
+
+		public List<T> getCoeff1() {
+			return coeff1;
+		}
+
+		public List<T> getCoeff2() {
+			return coeff2;
+		}
+	}
+
+	/**
+	 * For two coprime ideals, computes coefficients c1i and c2j such that sum_i c1i
+	 * * g1i + sum_j c2j * g2j = 1
+	 * 
+	 * @param t1 Ideal of this ring. Coprime to t2.
+	 * @param t2 Ideal of this ring. Coprime to t1.
+	 * @return two lists of coefficients.
+	 */
+	public BezoutIdentityResult<T> bezoutIdentity(Ideal<T> t1, Ideal<T> t2);
+
+	public static class ChineseRemainderPreparation<T extends Element<T>> {
+		private List<Ideal<T>> ideals;
+		private Ideal<T> product;
+		private List<T> multipliers;
+
+		public ChineseRemainderPreparation(List<Ideal<T>> ideals, Ideal<T> product, List<T> multipliers) {
+			this.ideals = ideals;
+			this.product = product;
+			this.multipliers = multipliers;
+		}
+
+		public List<Ideal<T>> getIdeals() {
+			return ideals;
+		}
+
+		public Ideal<T> getProduct() {
+			return product;
+		}
+
+		public List<T> getMultipliers() {
+			return multipliers;
+		}
+
+	}
+
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals);
+
+	public T chineseRemainderTheorem(List<T> elements, ChineseRemainderPreparation<T> preparation);
+
+	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals);
+
+	public boolean coprime(T t1, T t2);
+
+	public boolean coprime(Ideal<T> t1, Ideal<T> t2);
+
 	public Iterable<T> getUnits();
 
 	public int krullDimension();
@@ -319,7 +383,7 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		}
 
 	}
-	
+
 	public IdealResult<T, ?> getIdealWithTransforms(List<T> generators);
 
 	@SuppressWarnings("unchecked")

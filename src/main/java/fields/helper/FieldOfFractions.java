@@ -2,12 +2,18 @@ package fields.helper;
 
 import java.math.BigInteger;
 import java.util.Iterator;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
 import fields.helper.FieldOfFractions.Fraction;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.MathMap;
+import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
+import fields.interfaces.UnivariatePolynomial;
+import fields.interfaces.UnivariatePolynomialRing;
 
 public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fraction<T>> implements Field<Fraction<T>> {
 	private Ring<T> ring;
@@ -16,6 +22,11 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		this.ring = ring;
 		if (!this.ring.isIntegral())
 			throw new RuntimeException("Object does not exist");
+	}
+
+	@Override
+	public String toString() {
+		return "Q(" + ring + ")";
 	}
 
 	@Override
@@ -55,15 +66,9 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		T denominator;
 		T ext1;
 		T ext2;
-//		if (ring.isUniqueFactorizationDomain()) {
-//			denominator = ring.lcm(t1.getDenominator(), t2.getDenominator());
-//			ext1 = ring.divideChecked(denominator, t1.getDenominator());
-//			ext2 = ring.divideChecked(denominator, t2.getDenominator());
-//		} else {
-			denominator = this.ring.multiply(t1.denominator, t2.denominator);
-			ext1 = t2.denominator;
-			ext2 = t1.denominator;
-		//}
+		denominator = this.ring.multiply(t1.denominator, t2.denominator);
+		ext1 = t2.denominator;
+		ext2 = t1.denominator;
 		T numerator = ring.add(ring.multiply(t1.numerator, ext1), ring.multiply(t2.numerator, ext2));
 		return new Fraction<>(this.ring, numerator, denominator);
 	}
@@ -88,6 +93,41 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 	@Override
 	public Fraction<T> inverse(Fraction<T> t) {
 		return new Fraction<T>(this.ring, t.denominator, t.numerator);
+	}
+
+	@Override
+	public FactorizationResult<Polynomial<Fraction<T>>, Fraction<T>> factorization(
+			UnivariatePolynomial<Fraction<T>> t) {
+		if (!ring.isUniqueFactorizationDomain()) {
+			throw new ArithmeticException("Not a UFD!");
+		}
+		UnivariatePolynomialRing<Fraction<T>> polynomialRing = getUnivariatePolynomialRing();
+		Fraction<T> unit = t.leadingCoefficient();
+		t = polynomialRing.normalize(t);
+		T lcm = ring.one();
+		for (int i = 0; i <= t.degree(); i++) {
+			lcm = ring.lcm(lcm, t.univariateCoefficient(i).getDenominator());
+		}
+		t = polynomialRing.toUnivariate(polynomialRing.scalarMultiply(getEmbedding(lcm), t));
+		UnivariatePolynomial<T> overRing = ring.getUnivariatePolynomialRing().getEmbedding(t, new MathMap<>() {
+			@Override
+			public T evaluate(Fraction<T> t) {
+				return t.asInteger();
+			}
+		});
+		FactorizationResult<Polynomial<T>, T> overRingFactors = ring.factorization(overRing);
+		SortedMap<Polynomial<Fraction<T>>, Integer> factors = new TreeMap<>();
+		for (Polynomial<T> overRingFactor : overRingFactors.primeFactors()) {
+			int multiplicity = overRingFactors.multiplicity(overRingFactor);
+			Polynomial<Fraction<T>> factor = polynomialRing.getEmbedding(overRingFactor, new MathMap<>() {
+				@Override
+				public Fraction<T> evaluate(T t) {
+					return getEmbedding(t);
+				}
+			});
+			factors.put(polynomialRing.normalize(factor), multiplicity);
+		}
+		return new FactorizationResult<>(unit, factors);
 	}
 
 	@Override
@@ -175,6 +215,14 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		public T getDenominator() {
 			canonicalize();
 			return this.denominator;
+		}
+
+		public T asInteger() {
+			QuotientAndRemainderResult<T> qr = ring.quotientAndRemainder(numerator, denominator);
+			if (!qr.getRemainder().equals(ring.zero())) {
+				throw new ArithmeticException("not an integer!");
+			}
+			return qr.getQuotient();
 		}
 
 		public String toString() {

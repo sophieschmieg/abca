@@ -17,6 +17,8 @@ import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractAlgebra;
+import fields.helper.FieldOfFractions;
+import fields.helper.FieldOfFractions.Fraction;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.interfaces.AlgebraicExtensionElement;
@@ -96,6 +98,11 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
+	public boolean isSquareFree(Polynomial<T> t) {
+		return squareFreeFactorization(t).squareFree();
+	}
+
+	@Override
 	public Polynomial<T> getEmbedding(Polynomial<T> t) {
 		if (t.getPolynomialRing() == this) {
 			return t;
@@ -162,6 +169,16 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			else
 				values.add(null);
 		return this.partiallyEvaluate(t, values);
+	}
+	
+	@Override
+	public PolynomialIdeal<T> homogenizeIdeal(Ideal<Polynomial<T>> ideal) {
+		List<Polynomial<T>> homogenousGenerators = new ArrayList<>();
+		PolynomialRing<T> homogenousPolynomialRing = AbstractPolynomialRing.getPolynomialRing(getRing(), numberOfVariables()+1, getComparator());
+		for (Polynomial<T> generator : ideal.generators()) {
+			homogenousGenerators.add(homogenousPolynomialRing.homogenize(homogenousPolynomialRing.getEmbedding(generator), numberOfVariables()+1));
+		}
+		return homogenousPolynomialRing.getIdeal(homogenousGenerators);
 	}
 
 	@SafeVarargs
@@ -1244,11 +1261,47 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		if (numberOfVariables() == 1) {
 			FactorizationResult<Polynomial<T>, T> factors = getRing()
 					.factorization(getRing().getUnivariatePolynomialRing().toUnivariate(t));
+			return new FactorizationResult<Polynomial<T>, Polynomial<T>>(getEmbedding(factors.getUnit()),
+					factors.factorMap());
+		}
+		if (!getRing().isUniqueFactorizationDomain()) {
+			throw new ArithmeticException("Not a UFD!");
+		}
+		if (getRing().krullDimension() != 0) {
+			FieldOfFractions<T> fieldOfFractions = new FieldOfFractions<>(getRing());
+			T content = content(t);
+			FactorizationResult<T, T> contentFactors = getRing().uniqueFactorization(content);
+			t = contentFree(t);
+			PolynomialRing<Fraction<T>> fractionPolynomialRing = getPolynomialRing(fieldOfFractions,
+					numberOfVariables(), getComparator());
+			Polynomial<Fraction<T>> overField = fractionPolynomialRing.getEmbedding(t, new MathMap<>() {
+				@Override
+				public Fraction<T> evaluate(T t) {
+					return fieldOfFractions.getEmbedding(t);
+				}
+			});
+			FactorizationResult<Polynomial<Fraction<T>>, Polynomial<Fraction<T>>> factors = fractionPolynomialRing
+					.uniqueFactorization(overField);
+			Fraction<T> unit = fieldOfFractions.multiply(fieldOfFractions.getEmbedding(contentFactors.getUnit()),
+					factors.getUnit().leadingCoefficient());
 			SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
-			for (Polynomial<T> factor : factors.primeFactors()) {
-				result.put(factor, factors.multiplicity(factor));
+			for (Polynomial<Fraction<T>> factor : factors.primeFactors()) {
+				int multiplicity = factors.multiplicity(factor);
+				factor = fractionPolynomialRing.scalarMultiply(fieldOfFractions.getEmbedding(content), factor);
+				Polynomial<T> intFactor = getEmbedding(factor, new MathMap<>() {
+					@Override
+					public T evaluate(Fraction<T> t) {
+						return t.asInteger();
+					}
+				});
+				unit = fieldOfFractions.multiply(unit, fieldOfFractions.getEmbedding(content(intFactor)));
+				intFactor = contentFree(intFactor);
+				result.put(intFactor, multiplicity);
 			}
-			return new FactorizationResult<Polynomial<T>, Polynomial<T>>(getEmbedding(factors.getUnit()), result);
+			for (T prime : contentFactors.primeFactors()) {
+				result.put(getEmbedding(prime), contentFactors.multiplicity(prime));
+			}
+			return new FactorizationResult<>(getEmbedding(unit.asInteger()), result);
 		}
 		SortedMap<Polynomial<T>, Integer> result = new TreeMap<>();
 		// UnivariatePolynomialRing<Polynomial<T>> asYPolynomialRing =

@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
+import fields.integers.Integers;
+import fields.integers.Integers.IntE;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.Ring.FactorizationResult;
@@ -46,8 +48,8 @@ class MultivariateFactorizationTest {
 	}
 
 	@Test
-	void standardBivariateTest() {
-		//fail();
+	void f5BivariateTest() {
+		// fail();
 		PrimeField fp = PrimeField.getPrimeField(5);
 		PolynomialRing<PFE> polynomialRing = AbstractPolynomialRing.getPolynomialRing(fp, 2, Monomial.GREVLEX);
 		List<Polynomial<PFE>> polynomials = new ArrayList<>();
@@ -70,7 +72,8 @@ class MultivariateFactorizationTest {
 			for (int j = 0; j < polynomials.size(); j++) {
 				Map<Polynomial<PFE>, Integer> factors = new TreeMap<>();
 				Polynomial<PFE> product = polynomialRing.multiply(polynomials.get(i), polynomials.get(j));
-				FactorizationResult<Polynomial<PFE>, Polynomial<PFE>> fs = polynomialRing.uniqueFactorization(polynomials.get(i));
+				FactorizationResult<Polynomial<PFE>, Polynomial<PFE>> fs = polynomialRing
+						.uniqueFactorization(polynomials.get(i));
 				Polynomial<PFE> unit = fs.getUnit();
 				assertTrue(polynomialRing.isUnit(unit));
 				for (Polynomial<PFE> f : fs.primeFactors()) {
@@ -96,12 +99,84 @@ class MultivariateFactorizationTest {
 				}
 				System.out.println();
 				System.out.println("Polynomial: " + product);
-				FactorizationResult<Polynomial<PFE>, Polynomial<PFE>> factorization = polynomialRing.uniqueFactorization(product);
+				FactorizationResult<Polynomial<PFE>, Polynomial<PFE>> factorization = polynomialRing
+						.uniqueFactorization(product);
 				Polynomial<PFE> test = factorization.getUnit();
 				assertTrue(polynomialRing.isUnit(factorization.getUnit()));
 				System.out.println("Actual Factors: " + factors);
 				System.out.println("Computed Factors: " + factorization);
 				for (Polynomial<PFE> factor : factorization.primeFactors()) {
+					assertTrue(factors.containsKey(polynomialRing.upToUnit(factor)));
+					assertEquals(factors.get(polynomialRing.upToUnit(factor)), factorization.multiplicity(factor));
+					test = polynomialRing.multiply(test,
+							polynomialRing.power(factor, factorization.multiplicity(factor)));
+				}
+				assertEquals(product, test);
+				System.out.println("Test case done");
+				System.out.println();
+			}
+		}
+	}
+
+	@Test
+	void integerBivariateTest() {
+		// fail();
+		Integers z = Integers.z();
+		PolynomialRing<IntE> polynomialRing = AbstractPolynomialRing.getPolynomialRing(z, 2, Monomial.GREVLEX);
+		List<Polynomial<IntE>> polynomials = new ArrayList<>();
+		Polynomial<IntE> p;
+		do {
+			p = polynomialRing.getRandomElement(3);
+		} while (p.equals(polynomialRing.zero()));
+		polynomials.add(p);
+		do {
+			p = polynomialRing.getRandomElement(3);
+		} while (p.equals(polynomialRing.zero()));
+		polynomials.add(p);
+		do {
+			p = polynomialRing.getRandomElement(1);
+		} while (p.equals(polynomialRing.zero()));
+		polynomials.add(p);
+		polynomials.add(polynomialRing.subtract(polynomialRing.getVarPower(1, 4), polynomialRing.one()));
+		polynomials.add(polynomialRing.subtract(polynomialRing.getVarPower(2, 4), polynomialRing.one()));
+		for (int i = 0; i < polynomials.size(); i++) {
+			for (int j = 0; j < polynomials.size(); j++) {
+				Map<Polynomial<IntE>, Integer> factors = new TreeMap<>();
+				Polynomial<IntE> product = polynomialRing.multiply(polynomials.get(i), polynomials.get(j));
+				FactorizationResult<Polynomial<IntE>, Polynomial<IntE>> fs = polynomialRing
+						.uniqueFactorization(polynomials.get(i));
+				Polynomial<IntE> unit = fs.getUnit();
+				assertTrue(polynomialRing.isUnit(unit));
+				for (Polynomial<IntE> f : fs.primeFactors()) {
+					int multiplicity = fs.multiplicity(f);
+					f = polynomialRing.upToUnit(f);
+					if (factors.containsKey(f)) {
+						factors.put(f, factors.get(f) + multiplicity);
+					} else {
+						factors.put(f, multiplicity);
+					}
+				}
+				fs = polynomialRing.uniqueFactorization(polynomials.get(j));
+				assertTrue(polynomialRing.isUnit(fs.getUnit()));
+				unit = polynomialRing.multiply(unit, fs.getUnit());
+				for (Polynomial<IntE> f : fs.primeFactors()) {
+					int multiplicity = fs.multiplicity(f);
+					f = polynomialRing.upToUnit(f);
+					if (factors.containsKey(f)) {
+						factors.put(f, factors.get(f) + multiplicity);
+					} else {
+						factors.put(f, multiplicity);
+					}
+				}
+				System.out.println();
+				System.out.println("Polynomial: " + product);
+				FactorizationResult<Polynomial<IntE>, Polynomial<IntE>> factorization = polynomialRing
+						.uniqueFactorization(product);
+				Polynomial<IntE> test = factorization.getUnit();
+				assertTrue(polynomialRing.isUnit(factorization.getUnit()));
+				System.out.println("Actual Factors: " + factors);
+				System.out.println("Computed Factors: " + factorization);
+				for (Polynomial<IntE> factor : factorization.primeFactors()) {
 					assertTrue(factors.containsKey(polynomialRing.upToUnit(factor)));
 					assertEquals(factors.get(polynomialRing.upToUnit(factor)), factorization.multiplicity(factor));
 					test = polynomialRing.multiply(test,

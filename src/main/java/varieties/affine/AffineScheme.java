@@ -151,10 +151,6 @@ public class AffineScheme<T extends Element<T>> extends AbstractScheme<T, Affine
 		return field;
 	}
 
-	public int dimension() {
-		return coordinateRing.krullDimension();
-	}
-
 	@Override
 	public Exactness exactness() {
 		return field.exactness();

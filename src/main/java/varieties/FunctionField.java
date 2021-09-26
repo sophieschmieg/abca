@@ -14,11 +14,11 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
-import varieties.projective.ProjectiveVarietyInterface;
+import varieties.projective.ProjectiveScheme;
 
 public class FunctionField<T extends Element<T>> extends AbstractField<RationalFunction<T>> {
 	private Field<T> field;
-	private ProjectiveVarietyInterface<T> domain;
+	private ProjectiveScheme<T> domain;
 	private ProjectiveLine<T> range;
 	private PolynomialRing<T> projectivePolynomialRing;
 	private AffineScheme<T> affineSlice;
@@ -26,12 +26,13 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 	private PolynomialRing<T> affinePolynomialRing;
 	private int affineCoverIndex;
 
-	public FunctionField(ProjectiveVarietyInterface<T> domain) {
+	
+	public FunctionField(ProjectiveScheme<T> domain) {
 		this.domain = domain;
 		this.field = domain.getField();
-		this.projectivePolynomialRing = domain.asProjectiveVariety().homogenousPolynomialRing();
+		this.projectivePolynomialRing = domain.asGenericProjectiveScheme().homogenousPolynomialRing();
 		this.range = new ProjectiveLine<>(field);
-		this.affineCoverIndex = domain.asProjectiveVariety().homogenousPolynomialRing().numberOfVariables() - 1;
+		this.affineCoverIndex = domain.asGenericProjectiveScheme().homogenousPolynomialRing().numberOfVariables() - 1;
 		this.affineSlice = domain.getAffineCover().getCover().get(affineCoverIndex);
 		this.affineCoordinateRing = affineSlice.getCoordinateRing();
 		this.affinePolynomialRing = affineCoordinateRing.getPolynomialRing();
@@ -51,7 +52,7 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 		return field;
 	}
 
-	public ProjectiveVarietyInterface<T> getDomain() {
+	public ProjectiveScheme<T> getDomain() {
 		return domain;
 	}
 

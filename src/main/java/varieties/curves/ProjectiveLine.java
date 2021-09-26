@@ -19,7 +19,7 @@ import varieties.RationalFunction;
 import varieties.curves.DivisorGroup.Divisor;
 import varieties.projective.AbstractProjectiveScheme;
 import varieties.projective.ProjectivePoint;
-import varieties.projective.ProjectiveScheme;
+import varieties.projective.GenericProjectiveScheme;
 
 public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveScheme<T> implements SmoothCurve<T> {
 	private Field<T> field;
@@ -29,9 +29,9 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	private CoordinateRing<T> coordRing;
 
 	public ProjectiveLine(Field<T> field) {
-		super(new ProjectiveScheme<>(field, AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX), Collections.emptyList()));
+		super(new GenericProjectiveScheme<>(field, AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX), Collections.emptyList()));
 		this.field = field;
-		this.ring = asProjectiveVariety().homogenousPolynomialRing();
+		this.ring = asGenericProjectiveScheme().homogenousPolynomialRing();
 		PolynomialRing<T> r = field.getUnivariatePolynomialRing();
 		this.coordRing = new CoordinateRing<>(r, r.getIdeal(Collections.emptyList()));
 		this.pointAtInfinity = new ProjectivePoint<T>(this.field, this.field.one(), this.field.zero());
@@ -46,11 +46,6 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	@Override
 	public Field<T> getField() {
 		return this.field;
-	}
-
-	@Override
-	public int dimension() {
-		return 1;
 	}
 
 	@Override

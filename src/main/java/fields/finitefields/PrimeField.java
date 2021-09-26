@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -21,8 +22,6 @@ import fields.integers.Rationals.Fraction;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.vectors.FreeModule;
-import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
 public class PrimeField extends AbstractField<PFE> {
@@ -376,32 +375,12 @@ public class PrimeField extends AbstractField<PFE> {
 		return Integers.z().getInteger(t.value);
 	}
 
-	public Fraction rationalReconstruction(PFE t, BigInteger numeratorBound, BigInteger denominatorBound) {
-		Integers z = Integers.z();
-		FreeModule<IntE> vectors = new FreeModule<>(z, 2);
-		Vector<IntE> v = new Vector<>(new IntE(p), z.zero());
-		Vector<IntE> w = new Vector<>(lift(t), z.one());
-		while (w.get(1).getValue().compareTo(numeratorBound) > 0) {
-			IntE q = Rationals.q().getFraction(v.get(1), w.get(1)).roundDown();
-			Vector<IntE> next = vectors.subtract(v, vectors.scalarMultiply(q, w));
-			v = w;
-			w = next;
-		}
-		if (w.get(2).compareTo(z.zero()) < 0) {
-			w = vectors.negative(w);
-		}
-		if (w.get(2).getValue().compareTo(denominatorBound) > 0 || !z.gcd(w.get(1), w.get(2)).equals(z.one())) {
-			return null;
-		}
-		return Rationals.q().getFraction(w.get(1), w.get(2));
+	public Optional<Fraction> rationalReconstruction(PFE t, BigInteger numeratorBound, BigInteger denominatorBound) {
+		return Rationals.q().rationalReconstruction(lift(t), new IntE(p), numeratorBound, denominatorBound);
 	}
 
-	public Fraction rationalReconstruction(PFE t) {
-		if (p.equals(BigInteger.TWO)) {
-			return rationalReconstruction(t, BigInteger.ONE, BigInteger.ONE);
-		}
-		BigInteger sqrt = p.shiftRight(1).sqrt();
-		return rationalReconstruction(t, sqrt.add(BigInteger.ONE), sqrt);
+	public Optional<Fraction> rationalReconstruction(PFE t) {
+		return Rationals.q().rationalReconstruction(lift(t), new IntE(p));
 	}
 
 	@Override

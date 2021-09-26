@@ -342,6 +342,9 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 
 	@Override
 	public FieldEmbedding<T, S, Ext> getEmbeddedExtension(UnivariatePolynomial<S> minimalPolynomial) {
+		if (getUnivariatePolynomialRing().derivative(minimalPolynomial).equals(getUnivariatePolynomialRing().zero())) {
+			throw new ArithmeticException("Inseparable field extensions are not supported at the moment");
+		}
 		GenericAlgebraicRingExtension<S> cr = new GenericAlgebraicRingExtension<>(minimalPolynomial, this);
 		int degree = minimalPolynomial.degree();
 		GenericAlgebraicExtensionElement<S> alpha = cr.alpha();

@@ -22,12 +22,12 @@ import varieties.affine.AffineScheme;
 
 public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, ProjectivePoint<T>, ProjectivePoint<T>> {
 	private Field<T> field;
-	private ProjectiveScheme<T> domain;
-	private ProjectiveScheme<T> range;
+	private GenericProjectiveScheme<T> domain;
+	private GenericProjectiveScheme<T> range;
 	private List<Polynomial<T>> asPolynomials;
 	private PolynomialRing<T> polynomials;
 
-	public ProjectiveMorphism(ProjectiveScheme<T> domain, ProjectiveScheme<T> range,
+	public ProjectiveMorphism(GenericProjectiveScheme<T> domain, GenericProjectiveScheme<T> range,
 			List<Polynomial<T>> asPolynomials) {
 		if (!domain.getField().equals(range.getField())) {
 			throw new ArithmeticException("Fields mismatched!");
@@ -115,12 +115,12 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 	}
 
 	@Override
-	public ProjectiveScheme<T> getDomain() {
+	public GenericProjectiveScheme<T> getDomain() {
 		return domain;
 	}
 
 	@Override
-	public ProjectiveScheme<T> getRange() {
+	public GenericProjectiveScheme<T> getRange() {
 		return range;
 	}
 
