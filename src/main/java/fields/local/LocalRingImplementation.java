@@ -19,23 +19,22 @@ import fields.helper.AbstractFieldExtension;
 import fields.helper.AbstractIdeal;
 import fields.helper.AbstractModule;
 import fields.helper.AbstractRing;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.helper.FieldEmbedding;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
+import fields.interfaces.DedekindRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Field.Extension;
 import fields.interfaces.FieldExtension;
 import fields.interfaces.Ideal;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalField.OtherVersion;
-import fields.interfaces.LocalField.Valuation;
-import fields.interfaces.LocalRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationField.OtherVersion;
+import fields.interfaces.DiscreteValuationField.Valuation;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Module;
 import fields.interfaces.Polynomial;
@@ -45,23 +44,27 @@ import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.UnivariatePolynomialRing.ExtendedResultantResult;
 import fields.interfaces.ValueField.AbsoluteValue;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
 import util.ConCatMap;
+import util.ConstantMap;
 import util.FlattenProductVectorMap;
+import util.Identity;
 import util.MiscAlgorithms;
 import util.Pair;
 import util.SingletonSortedMap;
 
 public class LocalRingImplementation<T extends Element<T>, S extends Element<S>> extends AbstractRing<T>
-		implements LocalRing<T, S> {
-	private LocalField<T, S> field;
+		implements DiscreteValuationRing<T, S> {
+	private DiscreteValuationField<T, S> field;
 	private String asString;
 
-	public LocalRingImplementation(LocalField<T, S> field, String asString) {
+	public LocalRingImplementation(DiscreteValuationField<T, S> field, String asString) {
 		this.field = field;
 		this.asString = asString;
 	}
@@ -74,6 +77,55 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	@Override
 	public boolean isCommutative() {
 		return true;
+	}
+
+	@Override
+	public FieldOfFractionsResult<T, T> fieldOfFractions() {
+		return new FieldOfFractionsResult<>(this, localField(), new Identity<>(), new MathMap<>() {
+
+			@Override
+			public T evaluate(T t) {
+				Value v = valuation(t);
+				if (v.compareTo(Value.ZERO) >= 0) {
+					return t;
+				}
+				return localField().multiply(t, power(uniformizer(), -v.value()));
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public T evaluate(T t) {
+				Value v = valuation(t);
+				if (v.compareTo(Value.ZERO) >= 0) {
+					return one();
+				}
+				return power(uniformizer(), -v.value());
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public T evaluate(T t) {
+				Value v = valuation(t);
+				if (v.compareTo(Value.ZERO) >= 0) {
+					return t;
+				}
+				throw new ArithmeticException("Not an integer");
+			}
+		});
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public LocalizeResult<T, T, T, ?> localizeAtIdeal(Ideal<T> primeIdeal) {
+		LocalIdeal<T, S> ideal = (LocalIdeal<T, S>) primeIdeal;
+		if (ideal.valuation.equals(Value.ZERO)) {
+			FieldOfFractionsResult<T, T> fieldOfFractions = fieldOfFractions();
+			return new LocalizeResult<T, T, T, T>(this, ideal, field, fieldOfFractions.getEmbedding(),
+					fieldOfFractions.getNumerator(), fieldOfFractions.getDenominator(),
+					fieldOfFractions.getAsInteger());
+		}
+		return new LocalizeResult<>(this, ideal, this, new Identity<>(), new Identity<>(), new ConstantMap<>(one()),
+				new Identity<>());
 	}
 
 	@Override
@@ -166,12 +218,12 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	public boolean isIntegral() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isReduced() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isIrreducible() {
 		return true;
@@ -276,6 +328,28 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start) {
+		return maximalPrimeIdealChain(start, getIdeal(Collections.singletonList(uniformizer())));
+	}
+
+	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end) {
+		if (!end.contains(start) || !end.isPrime()) {
+			throw new ArithmeticException("Invalid arguments");
+		}
+		if (start.equals(getZeroIdeal())) {
+			if (end.equals(getZeroIdeal())) {
+				return Collections.singletonList(getZeroIdeal());
+			}
+			List<Ideal<T>> result = new ArrayList<>();
+			result.add(start);
+			result.add(end);
+			return result;
+		}
+		return Collections.singletonList(end);
+	}
+
+	@Override
 	public IdealResult<T, LocalIdeal<T, S>> getIdealWithTransforms(List<T> generators) {
 		if (generators.size() == 0) {
 			return new IdealResult<>(Collections.singletonList(Collections.emptyList()), generators,
@@ -286,22 +360,77 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 				new LocalIdeal<>(this, valuation(extendedEuclidean.getGcd())));
 	}
 
+	@Override
+	public LocalIdeal<T, S> getIdeal(List<T> generators) {
+		return getIdealWithTransforms(generators).getIdeal();
+	}
+
+	@Override
+	public LocalIdeal<T, S> getZeroIdeal() {
+		return getIdeal(Collections.emptyList());
+	}
+
+	@Override
+	public LocalIdeal<T, S> getNilRadical() {
+		return getZeroIdeal();
+	}
+
+	@Override
+	public LocalIdeal<T, S> maximalIdeal() {
+		return getIdeal(Collections.singletonList(uniformizer()));
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
-	public Ideal<T> intersect(Ideal<T> t1, Ideal<T> t2) {
+	public LocalIdeal<T, S> intersect(Ideal<T> t1, Ideal<T> t2) {
 		LocalIdeal<T, S> ideal1 = (LocalIdeal<T, S>) t1;
 		LocalIdeal<T, S> ideal2 = (LocalIdeal<T, S>) t2;
 		return ideal1.valuation.compareTo(ideal2.valuation) >= 0 ? ideal1 : ideal2;
 	}
 
 	@Override
-	public Ideal<T> radical(Ideal<T> t) {
+	public LocalIdeal<T, S> radical(Ideal<T> t) {
 		return getIdeal(Collections.singletonList(uniformizer()));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public PrimaryDecompositionResult<T, LocalIdeal<T, S>> primaryDecomposition(Ideal<T> t) {
+		return new PrimaryDecompositionResult<>(Collections.singletonList((LocalIdeal<T, S>) t),
+				Collections.singletonList(radical(t)));
+	}
+
+	@Override
+	public ModuloMaximalIdealResult<T, S> moduloMaximalIdeal(Ideal<T> ideal) {
+		if (!ideal.isMaximal()) {
+			throw new ArithmeticException("not a maximal ideal!");
+		}
+		return new ModuloMaximalIdealResult<>(this, ideal, reduction(), new MathMap<>() {
+			@Override
+			public S evaluate(T t) {
+				return reduce(t);
+			}
+		}, new MathMap<>() {
+			@Override
+			public T evaluate(S t) {
+				return lift(t);
+			}
+		});
+	}
+
+	@Override
+	public ModuloIdealResult<T, ?> moduloIdeal(Ideal<T> ideal) {
+		throw new UnsupportedOperationException("Not yet implemented!");
 	}
 
 	@Override
 	public T getRandomElement() {
 		return field.getRandomInteger();
+	}
+
+	@Override
+	public DedekindRing<T, T, S> asDedekindRing() {
+		return this;
 	}
 
 	@Override
@@ -325,7 +454,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
-	public LocalField<T, S> fieldOfFractions() {
+	public DiscreteValuationField<T, S> localField() {
 		return field;
 	}
 
@@ -335,12 +464,12 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 	@Override
 	public Field<S> reduction() {
-		return field.reduction();
+		return field.residueField();
 	}
 
 	@Override
 	public S reduce(T t) {
-		return field.reduce(t);
+		return field.reduceInteger(t);
 	}
 
 	@Override
@@ -367,7 +496,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 	@Override
 	public T lift(S s) {
-		return field.lift(s);
+		return field.liftToInteger(s);
 	}
 
 	@Override
@@ -493,8 +622,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			if (ramification == 1) {
 				result.add(alphaForFactor);
 			} else {
-				CoordinateRing<T> cr = new CoordinateRing<>(ring,
-						ring.getIdeal(Collections.singletonList(minimalPolynomial)));
+				CoordinateRing<T> cr = ring.getIdeal(Collections.singletonList(minimalPolynomial)).divideOut();
 				final int degree = minimalPolynomial.degree();
 				UnivariatePolynomial<T> alphaForFactorMinimalPolynomial = AbstractFieldExtension
 						.minimalPolynomial(cr.getEmbedding(alphaForFactor), degree, cr, field, new MathMap<>() {
@@ -1612,14 +1740,20 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		if (type.valuation(t).compareTo(Value.ZERO) > 0) {
 			throw new ArithmeticException("Not divisible in ring");
 		}
+		int requiredDigitAccuracy;
 		if (type.quality().isInfinite()) {
-			ExtendedResultantResult<T> er = polynomials.extendedResultant(t, type.getPolynomial());
-			return er.getCoeff1();
+			requiredDigitAccuracy = MiscAlgorithms.DivRoundUp(
+					2 * type.ramificationIndex()
+							* (Math.max(0, precision - type.previousLevel().precision().value()) + 1),
+					type.ramificationIndex());
+			// ExtendedResultantResult<T> er = polynomials.extendedResultant(t,
+			// type.getPolynomial());
+//			return er.getCoeff1();
+		} else {
+			requiredDigitAccuracy = MiscAlgorithms.DivRoundUp(2 * type.ramificationIndex()
+					* (Math.max(0, precision - type.previousLevel().precision().value()) + 1) + type.quality().value(),
+					type.ramificationIndex()) + 4 * type.exponent();
 		}
-		int requiredDigitAccuracy = MiscAlgorithms.DivRoundUp(
-				2 * type.ramificationIndex() * (Math.max(0, precision - type.previousLevel().precision().value()) + 1)
-						+ type.quality().value(),
-				type.ramificationIndex()) + 4 * type.exponent();
 		int mu = valuationOfUnivariatePolynomial(t).value();
 		t = polynomials.multiply(field.power(field.uniformizer(), -mu), t);
 		RE reduced = type.reduction().extension().inverse(type.reduce(t));
@@ -1887,10 +2021,10 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		return new FactorizationResult<>(unit, result);
 	}
 
-	private <E extends Element<E>, LE extends LocalField<E, S>> FactorizationResult<Polynomial<T>, T> factorization(
+	private <E extends Element<E>, LE extends DiscreteValuationField<E, S>> FactorizationResult<Polynomial<T>, T> factorization(
 			UnivariatePolynomial<T> t, OtherVersion<T, E, S, LE> exact, int accuracy) {
 		LE exactField = exact.getField();
-		LocalRing<E, S> exactRing = exactField.ringOfIntegers();
+		DiscreteValuationRing<E, S> exactRing = exactField.ringOfIntegers();
 		UnivariatePolynomialRing<E> exactPolynomials = exactField.getUnivariatePolynomialRing();
 		UnivariatePolynomialRing<T> polynomials = field.getUnivariatePolynomialRing();
 		FactorizationResult<Polynomial<E>, E> exactSquareFreeFactors = exactPolynomials
@@ -1908,8 +2042,8 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	private <E extends Element<E>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> List<Polynomial<E>> factorSquareFreePolynomial(
-			Polynomial<E> squareFree, TheMontesResult<E, S, R, RE, RFE> theMontes, LocalRing<E, S> exactRing,
-			int accuracy) {
+			Polynomial<E> squareFree, TheMontesResult<E, S, R, RE, RFE> theMontes,
+			DiscreteValuationRing<E, S> exactRing, int accuracy) {
 		List<Polynomial<E>> result = new ArrayList<>();
 		for (OkutsuType<E, S, R, RE, RFE> type : theMontes.getTypes()) {
 			result.add(exactRing.singleFactorLifting(type, 2 * accuracy).representative());
@@ -1924,19 +2058,19 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 	public static class LocalFieldAsModule<T extends Element<T>, S extends Element<S>> extends AbstractModule<T, T>
 			implements Module<T, T> {
-		private LocalField<T, S> field;
+		private DiscreteValuationField<T, S> field;
 
-		private LocalFieldAsModule(LocalField<T, S> field) {
+		private LocalFieldAsModule(DiscreteValuationField<T, S> field) {
 			this.field = field;
 		}
 
-		public LocalField<T, S> getField() {
+		public DiscreteValuationField<T, S> getField() {
 			return field;
 		}
 
 		@Override
 
-		public LocalRing<T, S> getRing() {
+		public DiscreteValuationRing<T, S> getRing() {
 			return field.ringOfIntegers();
 		}
 
@@ -2082,13 +2216,18 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	private static class LocalIdeal<T extends Element<T>, S extends Element<S>> extends AbstractIdeal<T> {
 		private Value valuation;
 		private T generator;
-		private LocalRing<T, S> ring;
+		private DiscreteValuationRing<T, S> ring;
 
-		private LocalIdeal(LocalRing<T, S> ring, Value valuation) {
+		private LocalIdeal(DiscreteValuationRing<T, S> ring, Value valuation) {
 			super(ring);
 			this.ring = ring;
 			this.valuation = valuation;
 			this.generator = valuation.isInfinite() ? ring.zero() : ring.power(ring.uniformizer(), valuation.value());
+		}
+
+		@Override
+		public boolean isPrimary() {
+			return !valuation.isInfinite();
 		}
 
 		@Override

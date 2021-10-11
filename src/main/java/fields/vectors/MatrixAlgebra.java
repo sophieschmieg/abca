@@ -353,6 +353,10 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 		return multiply(gauss.getColOperationsInverse(), new Matrix<T>(matrix), gauss.getRowOperationsInverse());
 	}
 
+	public Matrix<T> invertUpperTriangleMatrix(Matrix<T> t) {
+		return module.invertUpperTriangleMatrix(t);
+	}
+
 	public int[] invertPermutation(int[] permutation) {
 		return module.invertPermutation(permutation);
 	}

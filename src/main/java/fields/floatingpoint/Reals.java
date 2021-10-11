@@ -174,7 +174,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		this.zero = new Real(BigInteger.ZERO, 0, true);
 		this.one = new Real(BigInteger.ONE, 0, true);
 	}
-	
+
 	public static Reals r(int precision) {
 		if (!reals.containsKey(precision)) {
 			reals.put(precision, new Reals(precision));
@@ -257,7 +257,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	public Real getInteger(BigInteger t) {
 		return new Real(t, 0, true);
 	}
-	
+
 	public Real getPowerOfTwo(int power) {
 		return new Real(BigInteger.ONE, power, true);
 	}
@@ -435,17 +435,35 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real positiveSqrt(Real t) {
+		return positiveRoot(t, 2);
+//		if (t.equals(zero())) {
+//			return zero();
+//		}
+//		if (t.compareTo(zero()) < 0) {
+//			throw new ArithmeticException("No square root");
+//		}
+//		Real result = one();
+//		Real prevResult;
+//		do {
+//			prevResult = result;
+//			result = divide(add(result, divide(t, result)), getInteger(2));
+//		} while (!close(result, prevResult));
+//		return result;
+	}
+
+	public Real positiveRoot(Real t, int degree) {
 		if (t.equals(zero())) {
 			return zero();
 		}
 		if (t.compareTo(zero()) < 0) {
-			throw new ArithmeticException("No square root");
+			throw new ArithmeticException("No positive root");
 		}
 		Real result = one();
 		Real prevResult;
 		do {
 			prevResult = result;
-			result = divide(add(result, divide(t, result)), getInteger(2));
+			result = divide(add(multiply(degree - 1, result), divide(t, power(result, degree - 1))),
+					getInteger(degree));
 		} while (!close(result, prevResult));
 		return result;
 	}

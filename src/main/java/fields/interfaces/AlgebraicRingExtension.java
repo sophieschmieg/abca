@@ -3,9 +3,9 @@ package fields.interfaces;
 import java.util.Comparator;
 import java.util.List;
 
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;

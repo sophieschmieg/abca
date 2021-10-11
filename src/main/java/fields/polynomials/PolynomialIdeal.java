@@ -7,7 +7,6 @@ import java.util.List;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractIdeal;
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
@@ -18,11 +17,27 @@ import util.MiscAlgorithms;
 public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynomial<T>> {
 	private List<Polynomial<T>> basis;
 	private PolynomialRing<T> polynomialRing;
+	private CoordinateRing<T> coordinateRing;
 
 	PolynomialIdeal(PolynomialRing<T> polynomialRing, List<Polynomial<T>> generators) {
 		super(polynomialRing);
 		this.polynomialRing = polynomialRing;
-		this.basis = polynomialRing.buchberger(generators).getBasis();
+		this.basis = generators;
+	}
+
+	public CoordinateRing<T> divideOut() {
+		if (coordinateRing == null) {
+			coordinateRing = new CoordinateRing<>(polynomialRing, this);
+		}
+		return coordinateRing;
+	}
+
+	public int dimension() {
+		return divideOut().krullDimension() - polynomialRing.getRing().krullDimension();
+	}
+
+	public int degree() {
+		return divideOut().degree();
 	}
 
 	@Override
@@ -96,21 +111,51 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 		}
 		return true;
 	}
-	
+
+	@Override
+	public boolean isPrimary() {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
 	@Override
 	public boolean isPrime() {
-		for (Polynomial<T> polynomial : generators()) {
-			if (!polynomialRing.isIrreducible(polynomial)) {
-				return false;
+		if (!intersectToRing().isPrime()) {
+			return false;
+		}
+		if (polynomialRing.numberOfVariables() == 0) {
+			return true;
+		}
+		if (polynomialRing.numberOfVariables() == 1) {
+			for (Polynomial<T> generator : generators()) {
+				if (generator.degree() > 0 && !polynomialRing.isIrreducible(generator)) {
+					return false;
+				}
 			}
+			return true;
+		}
+		if (polynomialRing.getComparator() != Monomial.REVLEX) {
+			PolynomialRing<T> revlexRing = AbstractPolynomialRing.getPolynomialRing(polynomialRing.getRing(),
+					polynomialRing.numberOfVariables(), Monomial.REVLEX);
+			return revlexRing.getEmbedding(this).isPrime();
+		}
+		List<Polynomial<T>> intersect = new ArrayList<>();
+		for (Polynomial<T> polynomial : generators()) {
+			if (polynomial.degree(polynomialRing.numberOfVariables()) == 0) {
+				intersect.add(polynomialRing.eliminateVariable().getEmbedding(polynomial));
+			}
+		}
+		PolynomialIdeal<T> intersectIdeal = polynomialRing.eliminateVariable().getIdeal(intersect);
+		if (!intersectIdeal.isPrime()) {
+			return false;
 		}
 		return intersectToRing().isPrime();
 	}
 
 	@Override
 	public boolean isMaximal() {
-		return isPrime() && new CoordinateRing<>(polynomialRing, this).krullDimension() == polynomialRing.getRing()
-				.krullDimension() && intersectToRing().isMaximal();
+		return isPrime() && divideOut().krullDimension() == polynomialRing.getRing().krullDimension()
+				&& intersectToRing().isMaximal();
 	}
 
 	@Override

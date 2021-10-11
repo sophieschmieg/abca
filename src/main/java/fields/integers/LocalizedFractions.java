@@ -1,9 +1,12 @@
 package fields.integers;
 
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 
 import fields.exceptions.InfinityException;
+import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Reals;
@@ -11,24 +14,29 @@ import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractField;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.UnivariatePolynomial;
 import fields.local.LocalRingImplementation;
 import fields.local.PAdicField;
 import fields.local.PAdicField.PAdicNumber;
+import fields.local.Value;
+import fields.numberfields.LocalizedNumberField;
+import fields.numberfields.NumberField;
+import fields.numberfields.NumberField.NFE;
+import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
-import fields.local.Value;
 import util.Identity;
 
-public class LocalizedFractions extends AbstractField<Fraction> implements LocalField<Fraction, PFE> {
+public class LocalizedFractions extends AbstractField<Fraction> implements DiscreteValuationField<Fraction, PFE> {
 	private Fraction uniformizer;
 	private Rationals q = Rationals.q();
 	private Reals r = Reals.r(1024);
 	private Integers z = Integers.z();
 	private BigInteger prime;
 	private PrimeField reduction;
-	private LocalRing<Fraction, PFE> localRing;
+	private DiscreteValuationRing<Fraction, PFE> localRing;
 
 	LocalizedFractions(BigInteger prime) {
 		this.uniformizer = q.getEmbedding(prime);
@@ -144,12 +152,12 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Local
 	}
 
 	@Override
-	public PrimeField reduction() {
+	public PrimeField residueField() {
 		return reduction;
 	}
 
 	@Override
-	public PFE reduce(Fraction t) {
+	public PFE reduceInteger(Fraction t) {
 		t.canonicalize();
 		return reduction.divide(z.reduce(t.getNumerator(), prime), z.reduce(t.getDenominator(), prime));
 	}
@@ -163,7 +171,7 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Local
 	}
 
 	@Override
-	public Fraction lift(PFE s) {
+	public Fraction liftToInteger(PFE s) {
 		return q.getEmbedding(z.lift(s));
 	}
 
@@ -191,8 +199,28 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Local
 	}
 
 	@Override
-	public LocalField<Fraction, PFE> withAccuracy(int accuracy) {
+	public DiscreteValuationField<Fraction, PFE> withAccuracy(int accuracy) {
 		return this;
+	}
+
+	@Override
+	public DiscreteValuationFieldExtension<Fraction, PFE, Fraction, NFE, FFE, LocalizedNumberField> getUniqueExtension(
+			UnivariatePolynomial<Fraction> minimalPolynomial) {
+		Extension<Fraction, Fraction, NFE, NumberField> extension = q.getExtension(minimalPolynomial);
+		List<NumberFieldIdeal> ideals = extension.extension().maximalOrder()
+				.idealsOver(z.getIdeal(Collections.singletonList(z.getInteger(prime))));
+		if (ideals.size() != 1) {
+			throw new ArithmeticException("No unique extension! Extend numberfield, then localize!");
+		}
+		return new DiscreteValuationFieldExtension<>(this,
+				extension.extension().maximalOrder().localizeAndQuotient(ideals.get(0)), extension.embeddingMap(),
+				extension.asVectorMap());
+	}
+
+	@Override
+	public Extension<Fraction, Fraction, NFE, NumberField> getExtension(
+			UnivariatePolynomial<Fraction> minimalPolynomial) {
+		return q.getExtension(minimalPolynomial);
 	}
 
 	@Override
@@ -222,7 +250,7 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Local
 	}
 
 	@Override
-	public LocalRing<Fraction, PFE> ringOfIntegers() {
+	public DiscreteValuationRing<Fraction, PFE> ringOfIntegers() {
 		return localRing;
 	}
 

@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
 import fields.helper.FieldOfFractions.Fraction;
@@ -12,20 +14,25 @@ import fields.helper.TranscendentalFieldExtension.TExt;
 import fields.interfaces.Algebra;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.UnivariatePolynomial;
+import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.VectorSpace;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
+import varieties.SimpleFunctionField;
+import varieties.SimpleFunctionField.SimpleRationalFunction;
 
 public class TranscendentalFieldExtension<T extends Element<T>> extends AbstractField<TExt<T>>
 		implements Algebra<T, TExt<T>>, Field<TExt<T>>, VectorSpace<T, TExt<T>> {
 	public static class TExt<T extends Element<T>> extends AbstractElement<TExt<T>> {
 		private Fraction<Polynomial<T>> asFraction;
-
-		private TExt(Fraction<Polynomial<T>> asFraction) {
+		
+		private TExt( TranscendentalFieldExtension<T> extension, Fraction<Polynomial<T>> asFraction) {
 			this.asFraction = asFraction;
 		}
 
@@ -76,10 +83,34 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		this.baseField = baseField;
 		this.polynomialRing = polynomialRing;
 		this.asFieldOfFractions = new FieldOfFractions<>(polynomialRing);
-		this.zero = new TExt<>(asFieldOfFractions.zero());
-		this.one = new TExt<>(asFieldOfFractions.one());
+		this.zero = getElement(asFieldOfFractions.zero());
+		this.one = getElement(asFieldOfFractions.one());
 	}
 
+	@Override
+	public String toString() {
+		if (polynomialRing.numberOfVariables() == 1) {
+			return getRing().toString() + "(X)";
+		} else if (polynomialRing.numberOfVariables() == 2) {
+			return getRing().toString() + "(X,Y)";
+		} else if (polynomialRing.numberOfVariables() == 3) {
+			return getRing().toString() + "(X,Y,Z)";
+		}
+		StringBuilder buf = new StringBuilder();
+		buf.append(getRing().toString() + "(");
+		boolean first = true;
+		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+			if (first) {
+				first = false;
+			} else {
+				buf.append(",");
+			}
+			buf.append("X_" + i);
+		}
+		buf.append(")");
+		return buf.toString();
+	}
+	
 	@Override
 	public Field<T> getRing() {
 		return getField();
@@ -89,20 +120,28 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public TExt<T> zero() {
 		return zero;
 	}
-
+	
+	private TExt<T> getElement(Fraction<Polynomial<T>> asFraction) {
+		Polynomial<T> numerator = asFraction.getNumeratorDirect();
+		Polynomial<T> denominator = asFraction.getDenominatorDirect();
+		T lc = denominator.leadingCoefficient();
+		numerator = polynomialRing.divideScalar(numerator, lc);
+		denominator = polynomialRing.normalize(denominator);
+		return new TExt<>(this, asFieldOfFractions.getFraction(numerator, denominator));
+	}
 	@Override
 	public TExt<T> add(TExt<T> s1, TExt<T> s2) {
-		return new TExt<>(asFieldOfFractions.add(s1.asFraction, s2.asFraction));
+		return getElement(asFieldOfFractions.add(s1.asFraction, s2.asFraction));
 	}
 
 	@Override
 	public TExt<T> negative(TExt<T> s) {
-		return new TExt<>(asFieldOfFractions.negative(s.asFraction));
+		return getElement(asFieldOfFractions.negative(s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(T t, TExt<T> s) {
-		return new TExt<>(asFieldOfFractions.multiply(getEmbedding(t).asFraction, s.asFraction));
+		return getElement(asFieldOfFractions.multiply(getEmbedding(t).asFraction, s.asFraction));
 	}
 
 	@Override
@@ -112,39 +151,39 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 
 	@Override
 	public TExt<T> scalarMultiply(int n, TExt<T> s) {
-		return new TExt<>(asFieldOfFractions.multiply(getInteger(n).asFraction, s.asFraction));
+		return getElement(asFieldOfFractions.multiply(getInteger(n).asFraction, s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(BigInteger n, TExt<T> s) {
-		return new TExt<>(asFieldOfFractions.multiply(getInteger(n).asFraction, s.asFraction));
+		return getElement(asFieldOfFractions.multiply(getInteger(n).asFraction, s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(T t1, T t2, TExt<T> s) {
-		return new TExt<>(
+		return getElement(
 				asFieldOfFractions.multiply(getEmbedding(baseField.multiply(t1, t2)).asFraction, s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(int n, T t, TExt<T> s) {
-		return new TExt<>(asFieldOfFractions.multiply(getEmbedding(baseField.multiply(n, t)).asFraction, s.asFraction));
+		return getElement(asFieldOfFractions.multiply(getEmbedding(baseField.multiply(n, t)).asFraction, s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(BigInteger n, T t, TExt<T> s) {
-		return new TExt<>(asFieldOfFractions.multiply(getEmbedding(baseField.multiply(n, t)).asFraction, s.asFraction));
+		return getElement(asFieldOfFractions.multiply(getEmbedding(baseField.multiply(n, t)).asFraction, s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(int n, T t1, T t2, TExt<T> s) {
-		return new TExt<>(
+		return getElement(
 				asFieldOfFractions.multiply(getEmbedding(baseField.multiply(n, t1, t2)).asFraction, s.asFraction));
 	}
 
 	@Override
 	public TExt<T> scalarMultiply(BigInteger n, T t1, T t2, TExt<T> s) {
-		return new TExt<>(
+		return getElement(
 				asFieldOfFractions.multiply(getEmbedding(baseField.multiply(n, t1, t2)).asFraction, s.asFraction));
 	}
 
@@ -208,7 +247,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 
 	@Override
 	public TExt<T> getRandomElement() {
-		return new TExt<>(asFieldOfFractions.getRandomElement());
+		return getElement(asFieldOfFractions.getRandomElement());
 	}
 
 	@Override
@@ -238,21 +277,21 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 
 	@Override
 	public TExt<T> multiply(TExt<T> t1, TExt<T> t2) {
-		return new TExt<>(asFieldOfFractions.multiply(t1.asFraction, t2.asFraction));
+		return getElement(asFieldOfFractions.multiply(t1.asFraction, t2.asFraction));
 	}
 
 	@Override
 	public TExt<T> inverse(TExt<T> t) {
-		return new TExt<>(asFieldOfFractions.inverse(t.asFraction));
+		return getElement(asFieldOfFractions.inverse(t.asFraction));
 	}
 
 	@Override
 	public TExt<T> getEmbedding(T t) {
-		return new TExt<>(asFieldOfFractions.getEmbedding(polynomialRing.getEmbedding(t)));
+		return getElement(asFieldOfFractions.getEmbedding(polynomialRing.getEmbedding(t)));
 	}
 	
 	public TExt<T> getEmbedding(Polynomial<T> t) {
-		return new TExt<>(asFieldOfFractions.getEmbedding(t));
+		return getElement(asFieldOfFractions.getEmbedding(t));
 	}
 
 	@Override
@@ -291,5 +330,31 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	@Override
 	public MatrixAlgebra<T> matrixAlgebra() {
 		throw new InfinityException();
+	}
+	
+	@Override
+	public Extension<TExt<T>, TExt<T>, SimpleRationalFunction<T>, SimpleFunctionField<T>> getExtension(UnivariatePolynomial<TExt<T>> minimalPolynomial) {
+		SimpleFunctionField<T> extension = new SimpleFunctionField<>(minimalPolynomial, this);
+		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
+	}
+	
+	@Override
+	public FactorizationResult<Polynomial<TExt<T>>, TExt<T>> factorization(UnivariatePolynomial<TExt<T>> t) {
+		UnivariatePolynomialRing<Fraction<Polynomial<T>>> univariate = asFieldOfFractions.getUnivariatePolynomialRing();
+		UnivariatePolynomial<Fraction<Polynomial<T>>> polynomial = univariate.getEmbedding(t, new MathMap<>() {
+			@Override
+			public Fraction<Polynomial<T>> evaluate(TExt<T> t) {
+				return t.asFraction;
+			}});
+		FactorizationResult<Polynomial<Fraction<Polynomial<T>>>, Fraction<Polynomial<T>>> factorization = asFieldOfFractions.factorization(polynomial);
+		SortedMap<Polynomial<TExt<T>>, Integer> result = new TreeMap<>();
+		for (Polynomial<Fraction<Polynomial<T>>> factor : factorization.primeFactors()) {
+			result.put(getUnivariatePolynomialRing().getEmbedding(factor, new MathMap<>() {
+				@Override
+				public TExt<T> evaluate(Fraction<Polynomial<T>> t) {
+					return getElement(t);
+				}}), factorization.multiplicity(factor));
+		}
+		return new FactorizationResult<>(getElement(factorization.getUnit()), result);
 	}
 }

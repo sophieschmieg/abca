@@ -17,8 +17,11 @@ import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractAlgebra;
+import fields.helper.FieldEmbedding;
 import fields.helper.FieldOfFractions;
 import fields.helper.FieldOfFractions.Fraction;
+import fields.helper.TranscendentalFieldExtension;
+import fields.helper.TranscendentalFieldExtension.TExt;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.interfaces.AlgebraicExtensionElement;
@@ -36,8 +39,11 @@ import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.FormalPowerSeries;
 import fields.local.FormalPowerSeries.PowerSeries;
 import fields.local.Value;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
+import util.ConCatMap;
 import varieties.affine.AffinePoint;
 
 public abstract class AbstractPolynomialRing<T extends Element<T>> extends AbstractAlgebra<T, Polynomial<T>>
@@ -95,6 +101,66 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	@Override
 	public final boolean isFree() {
 		return true;
+	}
+
+	private <S extends Element<S>> FieldOfFractionsResult<Polynomial<T>, TExt<S>> fieldOfFractions(
+			FieldOfFractionsResult<T, S> baseFractions) {
+		PolynomialRing<S> polynomialRing = AbstractPolynomialRing.getPolynomialRing(baseFractions.getField(),
+				numberOfVariables(), getComparator());
+		TranscendentalFieldExtension<S> fieldOfFractions = new TranscendentalFieldExtension<>(baseFractions.getField(),
+				polynomialRing);
+		MathMap<TExt<S>, S> denominator = new MathMap<>() {
+
+			@Override
+			public S evaluate(TExt<S> t) {
+				Polynomial<S> numerator = t.getNumerator();
+				T denominator = getRing().one();
+				for (Monomial m : numerator.monomials()) {
+					denominator = getRing().lcm(denominator,
+							baseFractions.getDenominator().evaluate(numerator.coefficient(m)));
+				}
+				Polynomial<S> denom = t.getDenominator();
+				for (Monomial m : denom.monomials()) {
+					denominator = getRing().lcm(denominator,
+							baseFractions.getDenominator().evaluate(denom.coefficient(m)));
+				}
+				return baseFractions.getEmbedding().evaluate(denominator);
+			}
+		};
+		return new FieldOfFractionsResult<>(this, fieldOfFractions, new MathMap<>() {
+
+			@Override
+			public TExt<S> evaluate(Polynomial<T> t) {
+				return fieldOfFractions.getEmbedding(polynomialRing.getEmbedding(t, baseFractions.getEmbedding()));
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public Polynomial<T> evaluate(TExt<S> t) {
+				Polynomial<S> numerator = t.getNumerator();
+				return getEmbedding(polynomialRing.multiply(denominator.evaluate(t), numerator),
+						baseFractions.getAsInteger());
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public Polynomial<T> evaluate(TExt<S> t) {
+				Polynomial<S> denom = t.getDenominator();
+				return getEmbedding(polynomialRing.multiply(denominator.evaluate(t), denom),
+						baseFractions.getAsInteger());
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public Polynomial<T> evaluate(TExt<S> t) {
+				return getEmbedding(t.asInteger(), baseFractions.getAsInteger());
+			}
+		});
+	}
+
+	@Override
+	public FieldOfFractionsResult<Polynomial<T>, ?> fieldOfFractions() {
+		return fieldOfFractions(getRing().fieldOfFractions());
 	}
 
 	@Override
@@ -170,13 +236,15 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 				values.add(null);
 		return this.partiallyEvaluate(t, values);
 	}
-	
+
 	@Override
 	public PolynomialIdeal<T> homogenizeIdeal(Ideal<Polynomial<T>> ideal) {
 		List<Polynomial<T>> homogenousGenerators = new ArrayList<>();
-		PolynomialRing<T> homogenousPolynomialRing = AbstractPolynomialRing.getPolynomialRing(getRing(), numberOfVariables()+1, getComparator());
+		PolynomialRing<T> homogenousPolynomialRing = AbstractPolynomialRing.getPolynomialRing(getRing(),
+				numberOfVariables() + 1, getComparator());
 		for (Polynomial<T> generator : ideal.generators()) {
-			homogenousGenerators.add(homogenousPolynomialRing.homogenize(homogenousPolynomialRing.getEmbedding(generator), numberOfVariables()+1));
+			homogenousGenerators.add(homogenousPolynomialRing
+					.homogenize(homogenousPolynomialRing.getEmbedding(generator), numberOfVariables() + 1));
 		}
 		return homogenousPolynomialRing.getIdeal(homogenousGenerators);
 	}
@@ -197,20 +265,123 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
+	public List<Ideal<Polynomial<T>>> maximalPrimeIdealChain(Ideal<Polynomial<T>> start) {
+		PolynomialIdeal<T> ideal = start.isPrime() ? (PolynomialIdeal<T>) start
+				: primaryDecomposition(start).getRadicals().get(0);
+		Ideal<T> intersectToRing = ideal.intersectToRing();
+		List<Ideal<T>> ringChain = getRing().maximalPrimeIdealChain(intersectToRing);
+		List<Ideal<Polynomial<T>>> result = new ArrayList<>();
+		for (Ideal<T> ringIdeal : ringChain) {
+			ideal = add(ideal, getEmbeddingOfBaseIdeal(ringIdeal));
+			result.add(ideal);
+		}
+		Set<Integer> boundVariables = ideal.divideOut().boundVariables();
+		for (int i = 0; i < numberOfVariables(); i++) {
+			if (!boundVariables.contains(i + 1)) {
+				ideal = add(ideal, getIdeal(Collections.singletonList(getVar(i + 1))));
+				result.add(ideal);
+			}
+		}
+		return result;
+	}
+
+	@Override
+	public List<Ideal<Polynomial<T>>> maximalPrimeIdealChain(Ideal<Polynomial<T>> start, Ideal<Polynomial<T>> end) {
+		if (!end.contains(start) || !end.isPrime()) {
+			throw new ArithmeticException("Preconditions not met!");
+		}
+		PolynomialIdeal<T> ideal = primaryDecomposition(start).getRadicals().get(0);
+		Ideal<T> intersectToRing = ideal.intersectToRing();
+		List<Ideal<T>> ringChain = getRing().maximalPrimeIdealChain(intersectToRing);
+		List<Ideal<Polynomial<T>>> result = new ArrayList<>();
+		for (Ideal<T> ringIdeal : ringChain) {
+			ideal = add(ideal, getEmbeddingOfBaseIdeal(ringIdeal));
+			result.add(ideal);
+		}
+		for (Polynomial<T> generator : end.generators()) {
+			if (!ideal.contains(generator)) {
+				ideal = add(ideal, getIdeal(Collections.singletonList(generator)));
+				result.add(ideal);
+			}
+		}
+		return result;
+	}
+
+	@Override
 	public QuotientAndRemainderResult<Polynomial<T>> quotientAndRemainder(Polynomial<T> dividend,
 			Polynomial<T> divisor) {
-//		Pair<Polynomial<T>, Polynomial<T>> lookupKey = new Pair<>(dividend, divisor);
-//		Optional<QuotientAndRemainderResult<Polynomial<T>>> cached = quotientAndRemainderCache.lookup(lookupKey);
-//		if (cached.isPresent()) {
-//			return cached.get();
-//		}
 		GeneralQuotientAndRemainderResult<T> gqr = generalQuotientAndRemainder(dividend,
 				Collections.singletonList(divisor));
 		new QuotientAndRemainderResult<>(gqr.getQuotients().get(0), gqr.getRemainder());
 		QuotientAndRemainderResult<Polynomial<T>> result = new QuotientAndRemainderResult<>(gqr.getQuotients().get(0),
 				gqr.getRemainder());
-//		quotientAndRemainderCache.insert(new Pair<>(dividend, divisor), result);
 		return result;
+	}
+
+	public GeneralQuotientAndRemainderResult<T> generalQuotientAndRemainder(Polynomial<T> polynomial,
+			List<Polynomial<T>> basis) {
+		Ring<T> ring = getRing();
+		Comparator<Monomial> comparator = getComparator();
+		List<SortedMap<Monomial, T>> quotient = new ArrayList<>();
+		SortedMap<Monomial, T> remainder = new TreeMap<>();
+		SortedMap<Monomial, T> p = new TreeMap<>();
+		for (Monomial m : polynomial.monomials()) {
+			p.put(m, polynomial.coefficient(m));
+		}
+		for (int i = 0; i < basis.size(); i++) {
+			quotient.add(new TreeMap<>(comparator));
+		}
+		while (true) {
+			if (p.isEmpty()) {
+				List<Polynomial<T>> list = new ArrayList<>();
+				for (SortedMap<Monomial, T> q : quotient) {
+					list.add(this.getPolynomial(q));
+				}
+				return new GeneralQuotientAndRemainderResult<>(this.getPolynomial(remainder), list);
+			}
+			Monomial leadingmonomial = p.lastKey();
+			T leadingcoefficient = p.get(leadingmonomial);
+			boolean success = false;
+			boolean totalFailure = true;
+			for (int i = 0; i < basis.size(); i++) {
+				Polynomial<T> base = basis.get(i);
+				if (comparator.compare(leadingmonomial, base.leadingMonomial()) >= 0) {
+					totalFailure = false;
+				}
+				Monomial div = leadingmonomial.divide(base.leadingMonomial());
+				QuotientAndRemainderResult<T> qr = ring.quotientAndRemainder(leadingcoefficient,
+						base.leadingCoefficient());
+				if (div == null || qr.getQuotient().equals(ring.zero())) {
+					continue;
+				}
+				T factor = qr.getQuotient();
+				quotient.get(i).put(div, factor);
+				for (Monomial m : base.monomials()) {
+					T subtrahend = ring.multiply(factor, base.coefficient(m));
+					Monomial multiplied = m.multiply(div);
+					T newValue;
+					if (p.containsKey(multiplied)) {
+						newValue = ring.subtract(p.get(multiplied), subtrahend);
+					} else {
+						newValue = ring.negative(subtrahend);
+					}
+					if (newValue.equals(ring.zero())) {
+						p.remove(multiplied);
+					} else {
+						p.put(multiplied, newValue);
+					}
+				}
+				success = true;
+				break;
+			}
+			if (totalFailure) {
+				remainder.putAll(p);
+				p.clear();
+			} else if (!success) {
+				remainder.put(leadingmonomial, leadingcoefficient);
+				p.remove(leadingmonomial);
+			}
+		}
 	}
 
 	public static class ReduceAndExpressResult<T extends Element<T>> {
@@ -284,11 +455,78 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public PolynomialIdeal<T> getIdeal(List<Polynomial<T>> generators) {
-		return new PolynomialIdeal<>(this, generators);
+		return getIdealWithTransforms(generators).getIdeal();
+	}
+
+	@Override
+	public Polynomial<T> flattenPolynomial(Polynomial<Polynomial<T>> t) {
+		Polynomial<T> result = zero();
+		for (Monomial m : t.monomials()) {
+			Polynomial<T> coefficient = getEmbedding(t.coefficient(m));
+			int[] exponents = new int[numberOfVariables()];
+			for (int i = 0; i < m.exponents().length; i++) {
+				exponents[numberOfVariables() - m.exponents().length + i] = m.exponents()[i];
+			}
+			Monomial multiplier = getMonomial(exponents);
+			result = add(result, multiply(getRing().one(), multiplier, coefficient));
+		}
+		return result;
+	}
+
+	@Override
+	public Polynomial<Polynomial<T>> unflattenPolynomial(Polynomial<T> t, PolynomialRing<Polynomial<T>> polynomialRing,
+			PolynomialRing<T> baseRing) {
+		if (numberOfVariables() != baseRing.numberOfVariables() + polynomialRing.numberOfVariables()) {
+			throw new ArithmeticException("Variables do not add up");
+		}
+		Polynomial<Polynomial<T>> result = polynomialRing.zero();
+		for (Monomial m : t.monomials()) {
+			int[] baseExponents = Arrays.copyOf(m.exponents(), baseRing.numberOfVariables());
+			Monomial base = baseRing.getMonomial(baseExponents);
+			Polynomial<T> baseCoeff = baseRing.getPolynomial(Collections.singletonMap(base, t.coefficient(m)));
+			int[] exponents = new int[polynomialRing.numberOfVariables()];
+			for (int i = baseRing.numberOfVariables(); i < numberOfVariables(); i++) {
+				exponents[i - baseRing.numberOfVariables()] = m.exponents()[i];
+			}
+			result = polynomialRing.add(result,
+					polynomialRing.multiply(baseCoeff, polynomialRing.getMonomial(exponents), polynomialRing.one()));
+		}
+		return result;
+	}
+
+	@SuppressWarnings("unchecked")
+	private <S extends Element<S>> IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransformsOverPolynomialRing(
+			List<Polynomial<T>> generators, PolynomialRing<S> ring) {
+		PolynomialRing<S> combinedRing = AbstractPolynomialRing.getPolynomialRing(ring.getRing(),
+				ring.numberOfVariables() + numberOfVariables(),
+				new Monomial.EliminationOrder(ring.getComparator(), getComparator(), ring.numberOfVariables()));
+		List<Polynomial<S>> combinedGenerators = new ArrayList<>();
+		for (Polynomial<T> generator : generators) {
+			combinedGenerators.add(combinedRing.flattenPolynomial((Polynomial<Polynomial<S>>) generator));
+		}
+		IdealResult<Polynomial<S>, PolynomialIdeal<S>> ideal = combinedRing.getIdealWithTransforms(combinedGenerators);
+		List<Polynomial<T>> basis = new ArrayList<>();
+		for (Polynomial<S> generator : ideal.getIdeal().generators()) {
+			basis.add((Polynomial<T>) combinedRing.unflattenPolynomial(generator, (PolynomialRing<Polynomial<S>>) this,
+					ring));
+		}
+		List<List<Polynomial<T>>> transforms = new ArrayList<>();
+		for (List<Polynomial<S>> transform : ideal.getGeneratorExpressions()) {
+			List<Polynomial<T>> transformList = new ArrayList<>();
+			for (Polynomial<S> t : transform) {
+				transformList.add((Polynomial<T>) combinedRing.unflattenPolynomial(t,
+						(PolynomialRing<Polynomial<S>>) this, ring));
+			}
+			transforms.add(transformList);
+		}
+		return new IdealResult<>(transforms, generators, new PolynomialIdeal<>(this, basis));
 	}
 
 	@Override
 	public IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransforms(List<Polynomial<T>> generators) {
+		if (getRing() instanceof PolynomialRing<?>) {
+			return getIdealWithTransformsOverPolynomialRing(generators, (PolynomialRing<?>) getRing());
+		}
 		GroebnerBasis<T> basis = buchberger(generators);
 		return new IdealResult<>(basis.getExpression(), generators, new PolynomialIdeal<T>(this, basis.getBasis()));
 	}
@@ -362,8 +600,783 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
+	public Ideal<Polynomial<T>> getNilRadical() {
+		return getEmbeddingOfBaseIdeal(getRing().getNilRadical());
+	}
+
+	@Override
 	public PolynomialIdeal<T> getUnitIdeal() {
 		return getIdeal(Collections.singletonList(one()));
+	}
+
+	@Override
+	public FactorizationResult<Ideal<Polynomial<T>>, Ideal<Polynomial<T>>> idealFactorization(Ideal<Polynomial<T>> t) {
+		if (numberOfVariables() == 0) {
+			List<T> generators = new ArrayList<>();
+			for (Polynomial<T> generator : t.generators()) {
+				generators.add(generator.leadingCoefficient());
+			}
+			Ideal<T> ideal = getRing().getIdeal(generators);
+			FactorizationResult<Ideal<T>, Ideal<T>> idealFactors = getRing().idealFactorization(ideal);
+			SortedMap<Ideal<Polynomial<T>>, Integer> result = new TreeMap<>();
+			for (Ideal<T> primeFactor : idealFactors.primeFactors()) {
+				List<Polynomial<T>> factorGenerators = new ArrayList<>();
+				for (T generator : primeFactor.generators()) {
+					factorGenerators.add(getEmbedding(generator));
+				}
+				Ideal<Polynomial<T>> asPolynomialIdeal = getIdeal(factorGenerators);
+				result.put(asPolynomialIdeal, idealFactors.multiplicity(primeFactor));
+			}
+			return new FactorizationResult<>(getUnitIdeal(), result);
+		}
+		if (!getRing().isIntegral() || getRing().krullDimension() != 0 || numberOfVariables() != 1) {
+			return super.idealFactorization(t);
+		}
+		throw new ArithmeticException("Not a Dedekind ring!");
+	}
+
+	@Override
+	public PolynomialIdeal<T> getEmbeddingOfBaseIdeal(Ideal<T> t) {
+		List<Polynomial<T>> generators = new ArrayList<>();
+		for (T generator : t.generators()) {
+			generators.add(getEmbedding(generator));
+		}
+		return getIdeal(generators);
+	}
+
+	@Override
+	public PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<T>> t) {
+		List<Polynomial<T>> generators = new ArrayList<>();
+		for (Polynomial<T> generator : t.generators()) {
+			generators.add(getEmbedding(generator));
+		}
+		return getIdeal(generators);
+	}
+
+	@Override
+	public PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<T>> t, int[] map) {
+		List<Polynomial<T>> generators = new ArrayList<>();
+		for (Polynomial<T> generator : t.generators()) {
+			generators.add(getEmbedding(generator, map));
+		}
+		return getIdeal(generators);
+	}
+
+	@Override
+	public <S extends Element<S>> PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<S>> t, MathMap<S, T> map) {
+		List<Polynomial<T>> generators = new ArrayList<>();
+		for (Polynomial<S> generator : t.generators()) {
+			generators.add(getEmbedding(generator, map));
+		}
+		return getIdeal(generators);
+	}
+
+	private static <T extends Element<T>> Polynomial<Polynomial<T>> asPolynomialOverUnivariate(Polynomial<T> polynomial,
+			UnivariatePolynomialRing<T> univariate, PolynomialRing<Polynomial<T>> polynomialRing) {
+		Polynomial<Polynomial<T>> result = polynomialRing.zero();
+		for (Monomial m : polynomial.monomials()) {
+			int[] exp = Arrays.copyOf(m.exponents(), polynomialRing.numberOfVariables());
+			Monomial newM = polynomialRing.getMonomial(exp);
+			UnivariatePolynomial<T> univariateCoeff = univariate.multiply(polynomial.coefficient(m),
+					univariate.getVarPower(m.exponents()[polynomialRing.numberOfVariables()]));
+			Polynomial<Polynomial<T>> coeff = polynomialRing
+					.getPolynomial(Collections.singletonMap(newM, univariateCoeff));
+			result = polynomialRing.add(result, coeff);
+		}
+		return result;
+	}
+
+	private static <T extends Element<T>> Polynomial<T> fromPolynomialOverUnivariate(
+			Polynomial<Polynomial<T>> polynomial, UnivariatePolynomialRing<T> univariate,
+			PolynomialRing<T> polynomialRing) {
+		Polynomial<T> result = polynomialRing.zero();
+		for (Monomial m : polynomial.monomials()) {
+			int[] exp = Arrays.copyOf(m.exponents(), polynomialRing.numberOfVariables());
+			UnivariatePolynomial<T> coeff = univariate.toUnivariate(polynomial.coefficient(m));
+			Map<Monomial, T> coeffs = new TreeMap<>();
+			for (int i = 0; i <= coeff.degree(); i++) {
+				exp[polynomialRing.numberOfVariables() - 1] = i;
+				Monomial newM = polynomialRing.getMonomial(exp);
+				coeffs.put(newM, coeff.univariateCoefficient(i));
+			}
+			result = polynomialRing.add(result, polynomialRing.getPolynomial(coeffs));
+		}
+		return result;
+	}
+
+	private <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
+			PolynomialIdeal<T> ideal, Ext ringByMax, MathMap<T, E> embedding, MathMap<E, T> inverse, Ideal<T> maximal) {
+		if (ideal.dimension() != 0) {
+			throw new ArithmeticException("Not a zero dimensional ideal!");
+		}
+		if (numberOfVariables() == 0) {
+			List<Polynomial<T>> generators = new ArrayList<>();
+			for (T generator : maximal.generators()) {
+				generators.add(getEmbedding(generator));
+			}
+			return new PrimaryDecompositionResult<>(Collections.singletonList(ideal),
+					Collections.singletonList(getIdeal(generators)));
+		}
+		if (getComparator() != Monomial.LEX) {
+			AbstractPolynomialRing<T> revlexRing = (AbstractPolynomialRing<T>) AbstractPolynomialRing
+					.getPolynomialRing(getRing(), numberOfVariables(), Monomial.LEX);
+			PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> decomposition = revlexRing
+					.primaryDecompositionZeroDimensional(revlexRing.getEmbedding(ideal), ringByMax, embedding, inverse,
+							maximal);
+			List<PolynomialIdeal<T>> primaries = new ArrayList<>();
+			List<PolynomialIdeal<T>> radicals = new ArrayList<>();
+			for (PolynomialIdeal<T> primary : decomposition.getPrimaryIdeals()) {
+				primaries.add(getEmbedding(primary));
+			}
+			for (PolynomialIdeal<T> radical : decomposition.getRadicals()) {
+				radicals.add(getEmbedding(radical));
+			}
+			return new PrimaryDecompositionResult<>(primaries, radicals);
+		}
+		List<Polynomial<T>> intersectToUnivariate = new ArrayList<>();
+		generatorLoop: for (Polynomial<T> generator : ideal.generators()) {
+			for (int i = 1; i < numberOfVariables(); i++) {
+				if (generator.degree(i) != 0) {
+					continue generatorLoop;
+				}
+			}
+			intersectToUnivariate.add(generator);
+		}
+		PolynomialIdeal<T> intersectToUnivariateIdeal = getIdeal(intersectToUnivariate);
+		Polynomial<T> maximalDegree = null;
+		for (Polynomial<T> generator : intersectToUnivariateIdeal.generators()) {
+			if (maximalDegree == null || generator.degree() > maximalDegree.degree()) {
+				maximalDegree = generator;
+			}
+		}
+		UnivariatePolynomial<E> reduced = ringByMax.getUnivariatePolynomialRing().getEmbedding(
+				getRing().getUnivariatePolynomialRing().getEmbedding(maximalDegree, new int[numberOfVariables()]),
+				embedding);
+		UnivariatePolynomialRing<T> univariateRing = getRing().getUnivariatePolynomialRing();
+		AbstractPolynomialRing<Polynomial<T>> newRing = (AbstractPolynomialRing<Polynomial<T>>) AbstractPolynomialRing
+				.getPolynomialRing(univariateRing, numberOfVariables() - 1, Monomial.REVLEX);
+
+		FactorizationResult<Polynomial<E>, E> factorization = ringByMax.factorization(reduced);
+		Polynomial<T> product = one();
+		for (Polynomial<E> factor : factorization.primeFactors()) {
+			Polynomial<T> polynomial = getEmbedding(
+					getRing().getUnivariatePolynomialRing().getEmbedding(factor, inverse),
+					new int[] { numberOfVariables() - 1 });
+			product = multiply(product, power(polynomial, factorization.multiplicity(factor)));
+		}
+		int exponent = 1;
+		Polynomial<T> power = product;
+		while (true) {
+			if (intersectToUnivariateIdeal.contains(power)) {
+				break;
+			}
+			exponent++;
+			power = multiply(power, product);
+		}
+		List<PolynomialIdeal<T>> result = new ArrayList<>();
+		List<PolynomialIdeal<T>> radicals = new ArrayList<>();
+		for (Polynomial<E> factor : factorization.primeFactors()) {
+			UnivariatePolynomial<T> univariate = getRing().getUnivariatePolynomialRing().getEmbedding(factor, inverse);
+			Polynomial<T> polynomial = getEmbedding(univariate, new int[] { numberOfVariables() - 1 });
+			int multiplicity = exponent * factorization.multiplicity(factor);
+			List<Polynomial<T>> maximalGenerators = new ArrayList<>();
+			maximalGenerators.add(univariate);
+			for (T generator : maximal.generators()) {
+				maximalGenerators.add(getRing().getUnivariatePolynomialRing().getEmbedding(generator));
+			}
+			PolynomialIdeal<T> newMaximal = getRing().getUnivariatePolynomialRing().getIdeal(maximalGenerators);
+			FieldEmbedding<B, E, Ext> newExtension = ringByMax
+					.getEmbeddedExtension(ringByMax.getUnivariatePolynomialRing().toUnivariate(factor));
+			MathMap<Polynomial<T>, E> newEmbedding = new MathMap<>() {
+				@Override
+				public E evaluate(Polynomial<T> t) {
+					return newExtension
+							.fromPolynomial(ringByMax.getUnivariatePolynomialRing().getEmbedding(t, embedding));
+				}
+			};
+			MathMap<E, Polynomial<T>> newInverse = new MathMap<>() {
+				@Override
+				public Polynomial<T> evaluate(E t) {
+					return getRing().getUnivariatePolynomialRing().getEmbedding(newExtension.asPolynomial(t), inverse);
+				}
+			};
+			List<Polynomial<Polynomial<T>>> newGenerators = new ArrayList<>();
+			newGenerators.add(asPolynomialOverUnivariate(power(polynomial, multiplicity), univariateRing, newRing));
+			for (Polynomial<T> generator : ideal.generators()) {
+				newGenerators.add(asPolynomialOverUnivariate(generator, univariateRing, newRing));
+			}
+			PolynomialIdeal<Polynomial<T>> newIdeal = newRing.getIdeal(newGenerators);
+			PrimaryDecompositionResult<Polynomial<Polynomial<T>>, PolynomialIdeal<Polynomial<T>>> decomposition = newRing
+					.primaryDecompositionZeroDimensional(newIdeal, newExtension.getField(), newEmbedding, newInverse,
+							newMaximal);
+			for (PolynomialIdeal<Polynomial<T>> primary : decomposition.getPrimaryIdeals()) {
+				List<Polynomial<T>> generators = new ArrayList<>();
+				for (Polynomial<Polynomial<T>> generator : primary.generators()) {
+					generators.add(fromPolynomialOverUnivariate(generator, univariateRing, this));
+				}
+				result.add(getIdeal(generators));
+			}
+			for (PolynomialIdeal<Polynomial<T>> radical : decomposition.getRadicals()) {
+				List<Polynomial<T>> generators = new ArrayList<>();
+				for (Polynomial<Polynomial<T>> generator : radical.generators()) {
+					generators.add(fromPolynomialOverUnivariate(generator, univariateRing, this));
+				}
+				radicals.add(getIdeal(generators));
+			}
+		}
+		return new PrimaryDecompositionResult<>(result, radicals);
+	}
+
+	private <S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
+			PolynomialIdeal<T> t, Ideal<T> maximalIdeal, ModuloMaximalIdealResult<T, S> mod,
+			Extension<S, B, E, Ext> extension) {
+		return primaryDecompositionZeroDimensional(t, extension.extension(),
+				new ConCatMap<>(mod.getReduction(), extension.embeddingMap()),
+				new ConCatMap<>(extension.retractionMap(), mod.getLift()), maximalIdeal);
+	}
+
+	private <S extends Element<S>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
+			PolynomialIdeal<T> t, Ideal<T> maximalIdeal, ModuloMaximalIdealResult<T, S> mod) {
+		return primaryDecompositionZeroDimensional(t, maximalIdeal, mod,
+				mod.getField().getExtension(mod.getField().getUnivariatePolynomialRing().getVar()));
+	}
+
+	private PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
+			PolynomialIdeal<T> t, Ideal<T> maximalIdeal) {
+		return primaryDecompositionZeroDimensional(t, maximalIdeal, getRing().moduloMaximalIdeal(maximalIdeal));
+	}
+
+	private T findDenominator(PolynomialIdeal<T> ideal, T primeIdealGenerator) {
+		Ring<T> ring = getRing();
+		T s = ring.one();
+		if (primeIdealGenerator.equals(ring.zero())) {
+			for (Polynomial<T> generator : ideal.generators()) {
+				s = ring.multiply(s, generator.leadingCoefficient());
+			}
+			return s;
+		}
+		for (Polynomial<T> generator : ideal.generators()) {
+			T lc = generator.leadingCoefficient();
+			while (ring.isDivisible(lc, primeIdealGenerator)) {
+				lc = ring.divideChecked(lc, primeIdealGenerator);
+			}
+			s = ring.multiply(s, lc);
+		}
+		return s;
+	}
+
+	private <S extends Element<S>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensionalFieldOfFractions(
+			PolynomialIdeal<T> t, FieldOfFractionsResult<T, S> baseFractions) {
+		PolynomialRing<S> polynomialRing = AbstractPolynomialRing.getPolynomialRing(baseFractions.getField(),
+				numberOfVariables(), getComparator());
+		PolynomialIdeal<S> ideal = polynomialRing.getEmbedding(t, baseFractions.getEmbedding());
+		PrimaryDecompositionResult<Polynomial<S>, PolynomialIdeal<S>> decomposition = polynomialRing
+				.primaryDecomposition(ideal);
+		List<PolynomialIdeal<T>> primaries = new ArrayList<>();
+		List<PolynomialIdeal<T>> radicals = new ArrayList<>();
+		for (PolynomialIdeal<S> primary : decomposition.getPrimaryIdeals()) {
+			List<Polynomial<T>> generators = new ArrayList<>();
+			for (Polynomial<S> generator : primary.generators()) {
+				T denominator = getRing().one();
+				for (Monomial m : generator.monomials()) {
+					denominator = getRing().lcm(denominator,
+							baseFractions.getDenominator().evaluate(generator.coefficient(m)));
+				}
+				generators.add(contentFree(getEmbedding(
+						polynomialRing.multiply(baseFractions.getEmbedding().evaluate(denominator), generator),
+						baseFractions.getAsInteger())));
+			}
+			primaries.add(getIdeal(generators));
+		}
+		for (PolynomialIdeal<S> radical : decomposition.getRadicals()) {
+			List<Polynomial<T>> generators = new ArrayList<>();
+			for (Polynomial<S> generator : radical.generators()) {
+				T denominator = getRing().one();
+				for (Monomial m : generator.monomials()) {
+					denominator = getRing().lcm(denominator,
+							baseFractions.getDenominator().evaluate(generator.coefficient(m)));
+				}
+				generators.add(contentFree(getEmbedding(
+						polynomialRing.multiply(baseFractions.getEmbedding().evaluate(denominator), generator),
+						baseFractions.getAsInteger())));
+			}
+			radicals.add(getIdeal(generators));
+		}
+		return new PrimaryDecompositionResult<>(primaries, radicals);
+	}
+
+	private <S extends Element<S>, U extends Element<U>, R extends Element<R>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensionalLocalized(
+			PolynomialIdeal<T> t, T primeIdealGenerator, LocalizeResult<T, S, U, R> localized) {
+		//LocalRing<T, S> localized = new AbstractLocalizedRing<>(fieldOfFractions,
+		//		getRing().getIdeal(Collections.singletonList(primeIdealGenerator)));
+		PolynomialRing<S> localizedPolynomialRing = AbstractPolynomialRing.getPolynomialRing(localized.getLocalizedRing(),
+				numberOfVariables(), getComparator());
+		Ideal<Polynomial<S>> localizedIdeal = localizedPolynomialRing.getEmbedding(t, localized.getEmbedding());
+		PrimaryDecompositionResult<Polynomial<S>, PolynomialIdeal<S>> decomposition = localizedPolynomialRing
+				.primaryDecomposition(localizedIdeal);
+		List<PolynomialIdeal<T>> primaries = new ArrayList<>();
+		for (PolynomialIdeal<S> primary : decomposition.getPrimaryIdeals()) {
+			primaries.add(getEmbedding(primary, localized.getNumerator()));
+		}
+		List<PolynomialIdeal<T>> radicals = new ArrayList<>();
+		for (PolynomialIdeal<S> radical : decomposition.getRadicals()) {
+			radicals.add(getEmbedding(radical, localized.getNumerator()));
+		}
+		return new PrimaryDecompositionResult<>(primaries, radicals);
+	}
+
+	private PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionPrincipalIdealRing(
+			PolynomialIdeal<T> t, T primeIdealGenerator) {
+		if (t.dimension() == 0) {
+			if (primeIdealGenerator.equals(getRing().zero())) {
+				return primaryDecompositionZeroDimensionalFieldOfFractions(t, getRing().fieldOfFractions());
+			}
+			return primaryDecompositionZeroDimensionalLocalized(t, primeIdealGenerator, getRing().localizeAtIdeal(getRing().getIdeal(Collections.singletonList(primeIdealGenerator))));
+		}
+		Set<Integer> boundVariables = t.divideOut().boundVariables();
+		int variable = 1;
+		while (boundVariables.contains(variable)) {
+			variable++;
+		}
+		int[] map = new int[numberOfVariables()];
+		int[] inverseMap = new int[numberOfVariables()];
+		for (int i = 0; i < numberOfVariables(); i++) {
+			if (i < variable - 1) {
+				map[i] = i + 1;
+				inverseMap[i + 1] = i;
+			} else if (i == variable - 1) {
+				map[i] = 0;
+				inverseMap[0] = i;
+			} else {
+				map[i] = i;
+				inverseMap[i] = i;
+			}
+		}
+		UnivariatePolynomialRing<T> univariate = getRing().getUnivariatePolynomialRing();
+		PolynomialRing<Polynomial<T>> newPolynomialRing = AbstractPolynomialRing.getPolynomialRing(univariate,
+				numberOfVariables() - 1, getComparator());
+		List<Polynomial<Polynomial<T>>> newGenerators = new ArrayList<>();
+		for (Polynomial<T> generator : t.generators()) {
+			newGenerators.add(unflattenPolynomial(getEmbedding(generator, map), newPolynomialRing, univariate));
+		}
+		Ideal<Polynomial<T>> newIntersection = newPolynomialRing.getIdeal(newGenerators).intersectToRing();
+		PolynomialIdeal<T> saturatedIdeal = t;
+		Polynomial<T> newPrimeIdealGenerator = univariate.getEmbedding(primeIdealGenerator);
+		for (Polynomial<T> intersectionGenerator : newIntersection.generators()) {
+			if (!univariate.isDivisible(intersectionGenerator, newPrimeIdealGenerator)) {
+				saturatedIdeal = saturatedIdeal
+						.saturate(getEmbedding(intersectionGenerator, new int[] { variable - 1 }));
+			}
+		}
+		if (saturatedIdeal.contains(one())) {
+			return new PrimaryDecompositionResult<>(Collections.emptyList(), Collections.emptyList());
+		}
+		newGenerators.clear();
+		for (Polynomial<T> generator : saturatedIdeal.generators()) {
+			newGenerators.add(unflattenPolynomial(getEmbedding(generator, map), newPolynomialRing, univariate));
+		}
+		PolynomialIdeal<Polynomial<T>> newIdeal = newPolynomialRing.getIdeal(newGenerators);
+		if (!newIdeal.intersectToRing()
+				.equals(univariate.getIdeal(Collections.singletonList(newPrimeIdealGenerator)))) {
+			throw new ArithmeticException("Saturation did not work!");
+		}
+		PrimaryDecompositionResult<Polynomial<Polynomial<T>>, PolynomialIdeal<Polynomial<T>>> decomposition = ((AbstractPolynomialRing<Polynomial<T>>) newPolynomialRing)
+				.primaryDecompositionPrincipalIdealRing(newIdeal, newPrimeIdealGenerator);
+		List<PolynomialIdeal<T>> primaries = new ArrayList<>();
+		List<PolynomialIdeal<T>> radicals = new ArrayList<>();
+		for (PolynomialIdeal<Polynomial<T>> primary : decomposition.getPrimaryIdeals()) {
+			List<Polynomial<T>> generators = new ArrayList<>();
+			for (Polynomial<Polynomial<T>> generator : primary.generators()) {
+				generators.add(getEmbedding(flattenPolynomial(generator), inverseMap));
+			}
+			primaries.add(getIdeal(generators));
+		}
+		for (PolynomialIdeal<Polynomial<T>> radical : decomposition.getRadicals()) {
+			List<Polynomial<T>> generators = new ArrayList<>();
+			for (Polynomial<Polynomial<T>> generator : radical.generators()) {
+				generators.add(getEmbedding(flattenPolynomial(generator), inverseMap));
+			}
+			radicals.add(getIdeal(generators));
+		}
+		Polynomial<T> newDenominator = getEmbedding(((AbstractPolynomialRing<Polynomial<T>>) newPolynomialRing)
+				.findDenominator(newIdeal, newPrimeIdealGenerator), new int[] { variable - 1 });
+		PolynomialIdeal<T> combined = add(t, getIdeal(Collections.singletonList(newDenominator)));
+		if (!combined.contains(one())) {
+			PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> newDecomposition = primaryDecompositionPrincipalIdealRing(
+					combined, primeIdealGenerator);
+			primaries.addAll(newDecomposition.getPrimaryIdeals());
+			radicals.addAll(newDecomposition.getRadicals());
+		}
+		return new PrimaryDecompositionResult<>(primaries, radicals);
+	}
+
+	private PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionPrincipalIdealRing(
+			PolynomialIdeal<T> t) {
+		T denominator = findDenominator(t, getRing().zero());
+		PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> decomposition = primaryDecompositionPrincipalIdealRing(
+				t, getRing().zero());
+		Ideal<T> newDenominatorIdeal = add(t, getIdeal(Collections.singletonList(getEmbedding(denominator))))
+				.intersectToRing();
+		if (newDenominatorIdeal.generators().size() != 1) {
+			throw new ArithmeticException("Not a principal ideal domain");
+		}
+		T newDenominator = newDenominatorIdeal.generators().get(0);
+		if (getRing().isUnit(newDenominator)) {
+			return decomposition;
+		}
+		List<PolynomialIdeal<T>> primaries = new ArrayList<>();
+		List<PolynomialIdeal<T>> radicals = new ArrayList<>();
+		primaries.addAll(decomposition.getPrimaryIdeals());
+		radicals.addAll(decomposition.getRadicals());
+		FactorizationResult<T, T> factorization = getRing().uniqueFactorization(newDenominator);
+		for (T factor : factorization.primeFactors()) {
+			T power = getRing().power(factor, factorization.multiplicity(factor));
+			PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> localDecomposition = primaryDecompositionPrincipalIdealRing(
+					add(t, getIdeal(Collections.singletonList(getEmbedding(power)))), factor);
+			primaries.addAll(localDecomposition.getPrimaryIdeals());
+			primaries.addAll(localDecomposition.getRadicals());
+		}
+		return new PrimaryDecompositionResult<>(primaries, radicals);
+	}
+
+	@Override
+	public PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecomposition(Ideal<Polynomial<T>> t) {
+		PolynomialIdeal<T> ideal = (PolynomialIdeal<T>) t;
+		if (!getRing().isIntegral() || !getRing().isPrincipalIdealDomain()) {
+			throw new UnsupportedOperationException("Not implemented");
+		}
+		if (ideal.dimension() == 0) {
+			Ideal<T> intersectionIdeal = ideal.intersectToRing();
+			if (intersectionIdeal.isMaximal()) {
+				return primaryDecompositionZeroDimensional(ideal, intersectionIdeal);
+			}
+		}
+		return primaryDecompositionPrincipalIdealRing(ideal);
+	}
+
+	@Override
+	public ModuloMaximalIdealResult<Polynomial<T>, ?> moduloMaximalIdeal(Ideal<Polynomial<T>> ideal) {
+		PolynomialIdeal<T> t = (PolynomialIdeal<T>) ideal;
+		Ideal<T> intersectToRing = t.intersectToRing();
+		return moduloMaximalIdeal(t, getRing().moduloMaximalIdeal(intersectToRing));
+	}
+
+	private <S extends Element<S>> ModuloMaximalIdealResult<Polynomial<T>, ?> moduloMaximalIdeal(
+			PolynomialIdeal<T> ideal, ModuloMaximalIdealResult<T, S> ringByMaximal) {
+		PolynomialRing<S> polynomialRing = AbstractPolynomialRing.getPolynomialRing(ringByMaximal.getField(),
+				numberOfVariables(), Monomial.LEX);
+		List<Polynomial<S>> reducedGenerators = new ArrayList<>();
+		for (Polynomial<T> generator : ideal.generators()) {
+			reducedGenerators.add(polynomialRing.getEmbedding(generator, ringByMaximal.getReduction()));
+		}
+		PolynomialIdeal<S> reducedIdeal = polynomialRing.getIdeal(reducedGenerators);
+		return moduloMaximalIdeal(ideal, reducedIdeal, ringByMaximal, polynomialRing,
+				ringByMaximal.getField().getExtension(ringByMaximal.getField().getUnivariatePolynomialRing().getVar()));
+	}
+
+	private <S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> ModuloMaximalIdealResult<Polynomial<T>, E> moduloMaximalIdeal(
+			PolynomialIdeal<T> ideal, PolynomialIdeal<S> reducedIdeal, ModuloMaximalIdealResult<T, S> ringByMaximal,
+			PolynomialRing<S> ringByMaximalPolynomialRing, Extension<S, B, E, Ext> fieldAsExtension) {
+		PolynomialRing<E> polynomialRing = AbstractPolynomialRing.getPolynomialRing(fieldAsExtension.extension(),
+				numberOfVariables(), Monomial.LEX);
+		List<Polynomial<E>> reducedGenerators = new ArrayList<>();
+		for (Polynomial<S> generator : reducedIdeal.generators()) {
+			reducedGenerators.add(polynomialRing.getEmbedding(generator, fieldAsExtension.embeddingMap()));
+		}
+		PolynomialIdeal<E> extensionIdeal = polynomialRing.getIdeal(reducedGenerators);
+		int n = numberOfVariables();
+		Ext extension = fieldAsExtension.extension();
+		final PolynomialRing<E> originalPolynomialRing = polynomialRing;
+		MathMap<Polynomial<T>, Polynomial<E>> reduce = new MathMap<>() {
+			@Override
+			public Polynomial<E> evaluate(Polynomial<T> t) {
+				return originalPolynomialRing.getEmbedding(
+						ringByMaximalPolynomialRing.getEmbedding(t, ringByMaximal.getReduction()),
+						fieldAsExtension.embeddingMap());
+			}
+		};
+		MathMap<Polynomial<E>, Polynomial<T>> lift = new MathMap<>() {
+			@Override
+			public Polynomial<T> evaluate(Polynomial<E> t) {
+				return getEmbedding(ringByMaximalPolynomialRing.getEmbedding(t, fieldAsExtension.retractionMap()),
+						ringByMaximal.getLift());
+			}
+		};
+		while (n > 0) {
+			UnivariatePolynomialRing<E> univariateRing = extension.getUnivariatePolynomialRing();
+			List<Polynomial<E>> univariateGenerators = new ArrayList<>();
+			List<Polynomial<E>> otherGenerators = new ArrayList<>();
+			generatorLoop: for (Polynomial<E> generator : extensionIdeal.generators()) {
+				for (int i = 1; i < n; i++) {
+					if (generator.degree(i) != 0) {
+						otherGenerators.add(generator);
+						continue generatorLoop;
+					}
+				}
+				univariateGenerators.add(univariateRing.getEmbedding(generator, new int[n]));
+			}
+			PolynomialIdeal<E> univariateIdeal = univariateRing.getIdeal(univariateGenerators);
+			if (univariateIdeal.generators().size() != 1) {
+				throw new ArithmeticException("Buchberger failed!");
+			}
+			FieldEmbedding<B, E, Ext> nextExtension = extension
+					.getEmbeddedExtension(univariateRing.toUnivariate(univariateIdeal.generators().get(0)));
+			PolynomialRing<E> nextPolynomialRing = AbstractPolynomialRing.getPolynomialRing(nextExtension.getField(),
+					n - 1, Monomial.LEX);
+			final int nCopy = n;
+			MathMap<Polynomial<E>, Polynomial<E>> embedding = new MathMap<>() {
+				@Override
+				public Polynomial<E> evaluate(Polynomial<E> t) {
+					Map<Monomial, E> result = new TreeMap<>();
+					for (Monomial m : t.monomials()) {
+						int[] exp = Arrays.copyOf(m.exponents(), nCopy - 1);
+						E coeff = nextExtension.fromPolynomial(univariateRing.multiply(t.coefficient(m),
+								univariateRing.getVarPower(m.exponents()[nCopy - 1])));
+						result.put(nextPolynomialRing.getMonomial(exp), coeff);
+					}
+					return nextPolynomialRing.getPolynomial(result);
+				}
+			};
+			reduce = new ConCatMap<>(reduce, embedding);
+			final PolynomialRing<E> oldPolynomialRing = polynomialRing;
+			lift = new ConCatMap<Polynomial<E>, Polynomial<E>, Polynomial<T>>(new MathMap<>() {
+				@Override
+				public Polynomial<E> evaluate(Polynomial<E> t) {
+					Map<Monomial, E> result = new TreeMap<>();
+					for (Monomial m : t.monomials()) {
+						int[] exp = Arrays.copyOf(m.exponents(), nCopy);
+						UnivariatePolynomial<E> asPolynomial = nextExtension.asPolynomial(t.coefficient(m));
+						for (int i = 0; i <= asPolynomial.degree(); i++) {
+							E coeff = asPolynomial.univariateCoefficient(i);
+							exp[nCopy - 1] = i;
+							Monomial nextM = oldPolynomialRing.getMonomial(exp);
+							result.put(nextM, coeff);
+						}
+					}
+					return oldPolynomialRing.getPolynomial(result);
+				}
+			}, lift);
+			List<Polynomial<E>> nextGenerators = new ArrayList<>();
+			for (Polynomial<E> generator : otherGenerators) {
+				nextGenerators.add(embedding.evaluate(generator));
+			}
+			PolynomialIdeal<E> nextExtensionIdeal = nextPolynomialRing.getIdeal(nextGenerators);
+			polynomialRing = nextPolynomialRing;
+			extensionIdeal = nextExtensionIdeal;
+			extension = nextExtension.getField();
+			n--;
+		}
+		final MathMap<Polynomial<T>, Polynomial<E>> reduceCopy = reduce;
+		final MathMap<Polynomial<E>, Polynomial<T>> liftCopy = lift;
+		final PolynomialRing<E> polynomialRingCopy = polynomialRing;
+		return new ModuloMaximalIdealResult<>(this, ideal, extension, new MathMap<>() {
+			@Override
+			public E evaluate(Polynomial<T> t) {
+				Polynomial<E> result = reduceCopy.evaluate(t);
+				if (result.degree() > 0) {
+					throw new ArithmeticException("Not all variables eliminated!");
+				}
+				return result.leadingCoefficient();
+			}
+		}, new MathMap<>() {
+			@Override
+			public Polynomial<T> evaluate(E t) {
+				return liftCopy.evaluate(polynomialRingCopy.getEmbedding(t));
+			}
+		});
+	}
+//
+//	@Override
+//	public ModuloMaximalIdealResult<Polynomial<T>, ?> localizeAndModOutMaximalIdeal(Ideal<Polynomial<T>> ideal) {
+//		PolynomialIdeal<T> t = (PolynomialIdeal<T>) ideal;
+//		Ideal<T> intersected = t.intersectToRing();
+//		return localizeAndModOutMaximalIdeal(t, getRing().localizeAndModOutMaximalIdeal(intersected));
+//	}
+//
+//	private <S extends Element<S>> ModuloMaximalIdealResult<Polynomial<T>, ?> localizeAndModOutMaximalIdeal(
+//			PolynomialIdeal<T> ideal, ModuloMaximalIdealResult<T, S> ringLocalizedModIdeal) {
+//		if (ideal.dimension() == 0) {
+//			PolynomialRing<S> localModRing = AbstractPolynomialRing.getPolynomialRing(ringLocalizedModIdeal.getField(),
+//					numberOfVariables(), getComparator());
+//			PolynomialIdeal<S> t = localModRing.getEmbedding(ideal, ringLocalizedModIdeal.getReduction());
+//			return localizeAndModOutMaximalIdealZeroDimensional(ideal, ringLocalizedModIdeal,
+//					localModRing.moduloMaximalIdeal(t), localModRing);
+//		}
+//		int[] map = new int[numberOfVariables()];
+//		int[] inverseMap = new int[numberOfVariables()];
+//		Set<Integer> boundVariables = ideal.divideOut().boundVariables();
+//		int freeIndex = 0;
+//		int boundIndex = ideal.dimension();
+//		for (int i = 0; i < numberOfVariables(); i++) {
+//			if (boundVariables.contains(i + 1)) {
+//				map[i] = boundIndex;
+//				inverseMap[boundIndex] = i;
+//				boundIndex++;
+//			} else {
+//				map[i] = freeIndex;
+//				inverseMap[freeIndex] = freeIndex;
+//				freeIndex++;
+//			}
+//		}
+//		TranscendentalFieldExtension<S> transcendentalExtension = new TranscendentalFieldExtension<>(
+//				ringLocalizedModIdeal.getField(), ideal.dimension());
+//		PolynomialRing<TExt<S>> boundRing = AbstractPolynomialRing.getPolynomialRing(transcendentalExtension,
+//				boundVariables.size(), getComparator());
+//		PolynomialRing<S> freeRing = transcendentalExtension.polynomialRing();
+//		PolynomialRing<S> combinedRing = AbstractPolynomialRing.getPolynomialRing(ringLocalizedModIdeal.getField(),
+//				numberOfVariables(), getComparator());
+//		PolynomialRing<Polynomial<S>> unflattenRing = AbstractPolynomialRing.getPolynomialRing(freeRing,
+//				boundVariables.size(), getComparator());
+//		MathMap<Polynomial<T>, Polynomial<TExt<S>>> embedding = new MathMap<>() {
+//			@Override
+//			public Polynomial<TExt<S>> evaluate(Polynomial<T> t) {
+//				Polynomial<S> reordered = combinedRing.getEmbedding(getEmbedding(t, map),
+//						ringLocalizedModIdeal.getReduction());
+//				Polynomial<Polynomial<S>> unflattened = combinedRing.unflattenPolynomial(reordered, unflattenRing,
+//						freeRing);
+//				return boundRing.getEmbedding(unflattened, new MathMap<>() {
+//					@Override
+//					public TExt<S> evaluate(Polynomial<S> t) {
+//						return transcendentalExtension.getEmbedding(t);
+//					}
+//				});
+//			}
+//		};
+//		MathMap<Polynomial<TExt<S>>, Polynomial<T>> asInteger = new MathMap<>() {
+//			@Override
+//			public Polynomial<T> evaluate(Polynomial<TExt<S>> t) {
+//				Polynomial<Polynomial<S>> unflattened = unflattenRing.getEmbedding(t, new MathMap<>() {
+//					@Override
+//					public Polynomial<S> evaluate(TExt<S> t) {
+//						return t.asInteger();
+//					}
+//				});
+//				Polynomial<S> flattened = combinedRing.flattenPolynomial(unflattened);
+//				return getEmbedding(getEmbedding(flattened, ringLocalizedModIdeal.getLift()), inverseMap);
+//			}
+//		};
+//		Ideal<Polynomial<TExt<S>>> transcendentalIdeal = boundRing.getIdealEmbedding(ideal, embedding);
+//		return localizeAndModOutMaximalIdeal(ideal, embedding, asInteger,
+//				boundRing.moduloMaximalIdeal(transcendentalIdeal));
+//	}
+//
+//	private <S extends Element<S>, U extends Element<U>> ModuloMaximalIdealResult<Polynomial<T>, U> localizeAndModOutMaximalIdealZeroDimensional(
+//			PolynomialIdeal<T> ideal, ModuloMaximalIdealResult<T, S> ringLocalizedModIdeal,
+//			ModuloMaximalIdealResult<Polynomial<S>, U> polynomialRingModIdeal, PolynomialRing<S> polynomialRing) {
+//		return new ModuloMaximalIdealResult<>(this, ideal, polynomialRingModIdeal.getField(), new MathMap<>() {
+//			@Override
+//			public U evaluate(Polynomial<T> t) {
+//				return polynomialRingModIdeal.getReduction()
+//						.evaluate(polynomialRing.getEmbedding(t, ringLocalizedModIdeal.getReduction()));
+//			}
+//		}, new MathMap<>() {
+//			@Override
+//			public Polynomial<T> evaluate(U t) {
+//				return getEmbedding(polynomialRingModIdeal.getLift().evaluate(t), ringLocalizedModIdeal.getLift());
+//			}
+//		});
+//	}
+//
+//	private <S extends Element<S>, U extends Element<U>> ModuloMaximalIdealResult<Polynomial<T>, U> localizeAndModOutMaximalIdeal(
+//			PolynomialIdeal<T> ideal, MathMap<Polynomial<T>, Polynomial<TExt<S>>> embedding,
+//			MathMap<Polynomial<TExt<S>>, Polynomial<T>> asInteger,
+//			ModuloMaximalIdealResult<Polynomial<TExt<S>>, U> transcendentalMod) {
+//		return new ModuloMaximalIdealResult<>(this, ideal, transcendentalMod.getField(),
+//				new ConCatMap<>(embedding, transcendentalMod.getReduction()),
+//				new ConCatMap<>(transcendentalMod.getLift(), asInteger));
+//	}
+
+	@Override
+	public ModuloIdealResult<Polynomial<T>, ?> moduloIdeal(Ideal<Polynomial<T>> ideal) {
+		PolynomialIdeal<T> t = (PolynomialIdeal<T>) ideal;
+		return moduloIdeal(t, getRing().moduloIdeal(t.intersectToRing()));
+	}
+
+	private <S extends Element<S>> ModuloIdealResult<Polynomial<T>, CoordinateRingElement<S>> moduloIdeal(
+			PolynomialIdeal<T> ideal, ModuloIdealResult<T, S> moduloRing) {
+		PolynomialRing<S> moduloPolynomialRing = AbstractPolynomialRing.getPolynomialRing(moduloRing.getQuotientRing(),
+				numberOfVariables(), getComparator());
+		CoordinateRing<S> result = moduloPolynomialRing.getEmbedding(ideal, moduloRing.getReduction()).divideOut();
+		return new ModuloIdealResult<>(this, ideal, result, new MathMap<>() {
+
+			@Override
+			public CoordinateRingElement<S> evaluate(Polynomial<T> t) {
+				return result.getEmbedding(moduloPolynomialRing.getEmbedding(t, moduloRing.getReduction()));
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public Polynomial<T> evaluate(CoordinateRingElement<S> t) {
+				return getEmbedding(t.getElement(), moduloRing.getLift());
+			}
+		});
+	}
+
+	@Override
+	public LocalizeResult<Polynomial<T>, ?, ?, ?> localizeAtIdeal(Ideal<Polynomial<T>> primeIdeal) {
+		PolynomialIdeal<T> ideal = (PolynomialIdeal<T>) primeIdeal;
+		return localizeAtIdeal(ideal, getRing().localizeAtIdeal(ideal.intersectToRing()));
+	}
+
+	private <S extends Element<S>, U extends Element<U>, R extends Element<R>> LocalizeResult<Polynomial<T>, LocalizedElement<S>, LocalizedElement<S>, S> localizeAtIdeal(
+			PolynomialIdeal<T> primeIdeal, LocalizeResult<T, S, U, R> ringLocalization) {
+		PolynomialRing<S> polynomialRing = AbstractPolynomialRing.getPolynomialRing(ringLocalization.getLocalizedRing(),
+				numberOfVariables(), getComparator());
+		List<Polynomial<S>> generators = new ArrayList<>();
+		for (Polynomial<T> generator : primeIdeal.generators()) {
+			if (generator.degree() > 0) {
+				generators.add(polynomialRing.getEmbedding(generator, ringLocalization.getEmbedding()));
+			}
+		}
+		PolynomialIdeal<S> localizedIdeal = polynomialRing.getIdeal(generators);
+		CoordinateRing<S> coordinateRing = polynomialRing.getZeroIdeal().divideOut();
+		// TODO: Fix
+		LocalizedCoordinateRing<S> result = new LocalizedCoordinateRing<>(
+				(Field<S>) ringLocalization.getLocalizedRing(), coordinateRing,
+				coordinateRing.getIdeal(localizedIdeal));
+		MathMap<LocalizedElement<S>, S> denominator = new MathMap<>() {
+
+			@Override
+			public S evaluate(LocalizedElement<S> t) {
+				Polynomial<S> numerator = t.asPolynomialFraction().getNumerator();
+				T denominator = getRing().one();
+				for (Monomial m : numerator.monomials()) {
+					denominator = getRing().lcm(denominator,
+							ringLocalization.getDenominator().evaluate(numerator.coefficient(m)));
+				}
+				Polynomial<S> denom = t.asPolynomialFraction().getDenominator();
+				for (Monomial m : denom.monomials()) {
+					denominator = getRing().lcm(denominator,
+							ringLocalization.getDenominator().evaluate(denom.coefficient(m)));
+				}
+				return ringLocalization.getEmbedding().evaluate(denominator);
+			}
+		};
+		return new LocalizeResult<>(this, primeIdeal, result.ringOfIntegers(), new MathMap<>() {
+			@Override
+			public LocalizedElement<S> evaluate(Polynomial<T> t) {
+				return result.getEmbedding(polynomialRing.getEmbedding(t, ringLocalization.getEmbedding()));
+			}
+		}, new MathMap<>() {
+			@Override
+			public Polynomial<T> evaluate(LocalizedElement<S> t) {
+				Polynomial<S> numerator = t.asPolynomialFraction().getNumerator();
+				numerator = polynomialRing.multiply(denominator.evaluate(t), numerator);
+				return getEmbedding(numerator, ringLocalization.getAsInteger());
+			}
+		}, new MathMap<>() {
+			@Override
+			public Polynomial<T> evaluate(LocalizedElement<S> t) {
+				Polynomial<S> denom = t.asPolynomialFraction().getNumerator();
+				denom = polynomialRing.multiply(denominator.evaluate(t), denom);
+				return getEmbedding(denom, ringLocalization.getAsInteger());
+			}
+		}, new MathMap<>() {
+			@Override
+			public Polynomial<T> evaluate(LocalizedElement<S> t) {
+				return getEmbedding(t.asPolynomialFraction().asInteger(), ringLocalization.getAsInteger());
+			}
+		});
 	}
 
 //	@Override
@@ -490,37 +1503,29 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 					if (!getRing().isEuclidean() || getRing().krullDimension() == 0) {
 						continue;
 					}
-					Monomial libyj = li.divide(lj);
-					if (libyj != null) {
-						ExtendedEuclideanResult<T> extendedEuclid = getRing().extendedEuclidean(ci, cj);
-						if (!extendedEuclid.getGcd().equals(ci)) {
-							newGroebner.add(subtract(multiply(extendedEuclid.getCoeff1(), pi),
-									multiply(extendedEuclid.getCoeff2(), libyj, pj)));
-							newGeneratorExpression = new ArrayList<>();
-							for (int k = 0; k < generators.size(); k++) {
-								newGeneratorExpression.add(subtract(
-										multiply(extendedEuclid.getCoeff1(), expressions.get(i).get(k)),
-										this.multiply(extendedEuclid.getCoeff2(), libyj, expressions.get(j).get(k))));
-
-							}
-							newExpressions.add(newGeneratorExpression);
-						}
+					ExtendedEuclideanResult<T> extendedEuclid = getRing().extendedEuclidean(ci, cj);
+					if (getRing().isDivisible(extendedEuclid.getGcd(), ci)
+							|| getRing().isDivisible(extendedEuclid.getGcd(), cj)) {
+						continue;
 					}
-					Monomial ljbyi = lj.divide(li);
-					if (ljbyi != null) {
-						ExtendedEuclideanResult<T> extendedEuclid = getRing().extendedEuclidean(cj, ci);
-						if (!extendedEuclid.getGcd().equals(cj)) {
-							newGroebner.add(subtract(multiply(extendedEuclid.getCoeff1(), pj),
-									multiply(extendedEuclid.getCoeff2(), ljbyi, pi)));
-							newGeneratorExpression = new ArrayList<>();
-							for (int k = 0; k < generators.size(); k++) {
-								newGeneratorExpression.add(subtract(
-										multiply(extendedEuclid.getCoeff1(), expressions.get(j).get(k)),
-										this.multiply(extendedEuclid.getCoeff2(), ljbyi, expressions.get(i).get(k))));
+					newGenerator = add(multiply(extendedEuclid.getCoeff1(), li, pi),
+							multiply(extendedEuclid.getCoeff2(), lj, pj));
+					newGeneratorExpression = new ArrayList<>();
+					for (int k = 0; k < generators.size(); k++) {
+						newGeneratorExpression
+								.add(add(multiply(extendedEuclid.getCoeff1(), li, expressions.get(i).get(k)),
+										this.multiply(extendedEuclid.getCoeff2(), lj, expressions.get(j).get(k))));
 
-							}
-							newExpressions.add(newGeneratorExpression);
-						}
+					}
+					re = reduceAndExpress(newGenerator, newGeneratorExpression, groebner, expressions);
+					newGenerator = re.getReduced();
+					newGeneratorExpression = re.getExpression();
+					re = reduceAndExpress(newGenerator, newGeneratorExpression, newGroebner, newExpressions);
+					newGenerator = re.getReduced();
+					newGeneratorExpression = re.getExpression();
+					if (!newGenerator.equals(this.zero())) {
+						newGroebner.add(newGenerator);
+						newExpressions.add(newGeneratorExpression);
 					}
 				}
 			}
@@ -536,6 +1541,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			expressions = newExpressions;
 		}
 		return new GroebnerBasis<>(groebner, expressions);
+
 	}
 
 	@Override
@@ -904,6 +1910,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			return new FreeModule<>(r, dimension).iterator();
 		}
 		return new Iterator<>() {
+
 			private FreeModule<T> module = new FreeModule<>(r, dimension);
 
 			@Override
@@ -1072,7 +2079,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 				}
 				evaluationPoint.addAll(pointList.subList(i - 3, pointList.size()));
 				Polynomial<T> evaluated = bivariate.getEmbedding(partiallyEvaluate(t, evaluationPoint));
-				if (evaluated.degree(i) != t.degree(i)) {
+				if (evaluated.degree(1) != degreeX || evaluated.degree(2) != degreeY) {
 					continue mainLoop;
 				}
 			}
@@ -1081,9 +2088,6 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			evaluationPoint.add(null);
 			evaluationPoint.addAll(pointList);
 			Polynomial<T> evaluated = bivariate.getEmbedding(partiallyEvaluate(t, evaluationPoint));
-			if (evaluated.degree(1) != degreeX || evaluated.degree(2) != degreeY) {
-				continue;
-			}
 			if (!bivariate.squareFreeFactorization(evaluated).squareFree()) {
 				continue;
 			}
@@ -1111,6 +2115,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 				}
 				List<Polynomial<T>> gcdFreeBasis = gcdFreeBasis(squareFreeFactors);
 			}
+			throw new UnsupportedOperationException("Not yet further implemented");
 		}
 		// ran out of evaluation points, moving to field extension.
 		return factorizeOverExtension(t);

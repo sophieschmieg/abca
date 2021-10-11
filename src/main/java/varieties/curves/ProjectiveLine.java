@@ -7,12 +7,12 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
 import varieties.FunctionField;
 import varieties.RationalFunction;
@@ -33,7 +33,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 		this.field = field;
 		this.ring = asGenericProjectiveScheme().homogenousPolynomialRing();
 		PolynomialRing<T> r = field.getUnivariatePolynomialRing();
-		this.coordRing = new CoordinateRing<>(r, r.getIdeal(Collections.emptyList()));
+		this.coordRing = r.getZeroIdeal().divideOut();
 		this.pointAtInfinity = new ProjectivePoint<T>(this.field, this.field.one(), this.field.zero());
 		this.pointAtZero = new ProjectivePoint<T>(this.field, this.field.zero(), this.field.one());
 		}

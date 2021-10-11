@@ -6,12 +6,12 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
 import varieties.AbstractScheme;
 import varieties.Morphism;
 import varieties.SpectrumOfField;
@@ -21,7 +21,8 @@ import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
 import varieties.affine.AffineScheme;
 
-public class GenericProjectiveScheme<T extends Element<T>> extends AbstractScheme<T, ProjectivePoint<T>> {
+public class GenericProjectiveScheme<T extends Element<T>> extends AbstractScheme<T, ProjectivePoint<T>>
+		implements ProjectiveScheme<T> {
 	private PolynomialRing<T> polynomialRing;
 	private List<Polynomial<T>> generators;
 	private Field<T> field;
@@ -56,7 +57,7 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 			for (Polynomial<T> generator : generators) {
 				affineList.add(affineRing.getEmbedding(polynomialRing.dehomogenize(generator, i + 1), map));
 			}
-			CoordinateRing<T> cr = new CoordinateRing<>(affineRing, affineRing.getIdeal(affineList));
+			CoordinateRing<T> cr = affineRing.getIdeal(affineList).divideOut();
 			coverList.add(new AffineScheme<>(field, cr));
 			intersectionList.add(new ArrayList<>());
 			for (int j = 0; j < i; j++) {
@@ -67,8 +68,8 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 				for (Polynomial<T> generator : affineList) {
 					intersectionGenerators.add(polynomialRing.getEmbedding(generator));
 				}
-				CoordinateRing<T> intersectionCoordinateRing = new CoordinateRing<>(polynomialRing,
-						polynomialRing.getIdeal(intersectionGenerators));
+				CoordinateRing<T> intersectionCoordinateRing = polynomialRing.getIdeal(intersectionGenerators)
+						.divideOut();
 				AffineScheme<T> intersection = new AffineScheme<>(field, intersectionCoordinateRing);
 				List<Polynomial<T>> firstEmbeddingList = new ArrayList<>();
 				List<Polynomial<T>> secondEmbeddingList = new ArrayList<>();
@@ -97,14 +98,26 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 	}
 
 	public static <T extends Element<T>> GenericProjectiveScheme<T> fromAffineScheme(AffineScheme<T> affine) {
-		PolynomialRing<T> affinePolynomialRing = affine.getCoordinateRing().getPolynomialRing();
-		PolynomialRing<T> homogenousPolynomialRing = AbstractPolynomialRing.getPolynomialRing(affine.getField(),
-				affinePolynomialRing.numberOfVariables() + 1, affinePolynomialRing.getComparator());
+		return fromAffineCoordinateRing(affine.getCoordinateRing());
+	}
+
+	public static <T extends Element<T>> GenericProjectiveScheme<T> fromAffineCoordinateRing(CoordinateRing<T> affine) {
+		PolynomialRing<T> affinePolynomialRing = affine.getPolynomialRing();
+		PolynomialRing<T> homogenousPolynomialRing = AbstractPolynomialRing.getPolynomialRing(
+				affine.getPolynomialRing().getRing(), affinePolynomialRing.numberOfVariables() + 1,
+				affinePolynomialRing.getComparator());
 		List<Polynomial<T>> polynomials = new ArrayList<>();
-		for (Polynomial<T> polynominal : affine.getCoordinateRing().getIdeal().generators()) {
+		for (Polynomial<T> polynominal : affine.getIdeal().generators()) {
 			polynomials.add(affinePolynomialRing.homogenize(polynominal));
 		}
-		return new GenericProjectiveScheme<>(affine.getField(), homogenousPolynomialRing, polynomials);
+		return new GenericProjectiveScheme<>((Field<T>) affine.getPolynomialRing().getRing(), homogenousPolynomialRing,
+				polynomials);
+	}
+
+	public static <T extends Element<T>> GenericProjectiveScheme<T> fromProjectiveCoordinateRing(
+			CoordinateRing<T> projective) {
+		return new GenericProjectiveScheme<>((Field<T>) projective.getPolynomialRing().getRing(),
+				projective.getPolynomialRing(), projective.getIdeal().generators());
 	}
 
 	public PolynomialRing<T> homogenousPolynomialRing() {
@@ -275,5 +288,10 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 			result.add(fromAffineScheme(affine));
 		}
 		return result;
+	}
+
+	@Override
+	public GenericProjectiveScheme<T> asGenericProjectiveScheme() {
+		return this;
 	}
 }

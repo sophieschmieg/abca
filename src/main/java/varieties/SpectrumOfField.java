@@ -7,11 +7,11 @@ import java.util.List;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractElement;
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
 import varieties.SpectrumOfField.SingletonPoint;
 import varieties.affine.AffineCover;
@@ -29,7 +29,7 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 		public int compareTo(SingletonPoint o) {
 			return 0;
 		}
-		
+
 		@Override
 		public String toString() {
 			return "O";
@@ -43,7 +43,7 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 	public SpectrumOfField(Field<T> field) {
 		this.field = field;
 	}
-	
+
 	@Override
 	public String toString() {
 		return "Spec " + field;
@@ -53,7 +53,7 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 	public Exactness exactness() {
 		return Exactness.EXACT;
 	}
-	
+
 	@Override
 	public SingletonPoint getRandomElement() {
 		return POINT;
@@ -87,8 +87,7 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 	@Override
 	public AffineCover<T> getAffineCover() {
 		PolynomialRing<T> polynomials = AbstractPolynomialRing.getPolynomialRing(field, 0, Monomial.GREVLEX);
-		AffineScheme<T> asAffineVariety = new AffineScheme<>(field, new CoordinateRing<T>(polynomials,
-				polynomials.getZeroIdeal()));
+		AffineScheme<T> asAffineVariety = new AffineScheme<>(field, polynomials.getZeroIdeal().divideOut());
 		return new AffineCover<>(Collections.singletonList(asAffineVariety),
 				Collections.singletonList(Collections.singletonList(asAffineVariety.identityMorphism())));
 	}

@@ -5,13 +5,13 @@ import java.util.Iterator;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractField;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
-import fields.helper.LocalizedCoordinateRing.LocalizedElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
 import varieties.projective.ProjectiveScheme;

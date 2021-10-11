@@ -28,10 +28,10 @@ import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Field.Extension;
 import fields.interfaces.FieldExtension;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
-import fields.interfaces.LocalRing.OkutsuType;
-import fields.interfaces.LocalRing.TheMontesResult;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.DiscreteValuationRing.OkutsuType;
+import fields.interfaces.DiscreteValuationRing.TheMontesResult;
 import fields.interfaces.Polynomial;
 import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.UnivariatePolynomial;
@@ -41,13 +41,13 @@ import fields.local.PAdicField.PAdicNumber;
 class LocalRingImplementationTest {
 
 	@SuppressWarnings("unchecked")
-	private <T extends Element<T>, S extends Element<S>> void testHenselLift(LocalField<T, S> field) {
-		LocalRing<T, S> ints = field.ringOfIntegers();
+	private <T extends Element<T>, S extends Element<S>> void testHenselLift(DiscreteValuationField<T, S> field) {
+		DiscreteValuationRing<T, S> ints = field.ringOfIntegers();
 		UnivariatePolynomialRing<T> ring = field.getUnivariatePolynomialRing();
-		UnivariatePolynomialRing<S> reducedRing = field.reduction().getUnivariatePolynomialRing();
+		UnivariatePolynomialRing<S> reducedRing = field.residueField().getUnivariatePolynomialRing();
 		UnivariatePolynomial<T> xsqp1 = ring.getPolynomial(field.one(), field.zero(), field.one());
 		UnivariatePolynomial<S> xsqp1r = ints.reduceUnivariatePolynomial(xsqp1);
-		Map<S, Integer> roots = field.reduction().roots(xsqp1r);
+		Map<S, Integer> roots = field.residueField().roots(xsqp1r);
 		if (roots.size() == 2) {
 			Iterator<S> it = roots.keySet().iterator();
 			S root1 = it.next();
@@ -72,7 +72,7 @@ class LocalRingImplementationTest {
 
 	}
 
-	private <T extends Element<T>, S extends Element<S>> void testFactorizationOfLocalField(LocalField<T, S> field) {
+	private <T extends Element<T>, S extends Element<S>> void testFactorizationOfLocalField(DiscreteValuationField<T, S> field) {
 		UnivariatePolynomialRing<T> ring = field.ringOfIntegers().getUnivariatePolynomialRing();
 		List<UnivariatePolynomial<T>> polynomials = new ArrayList<>();
 		for (int i = 0; i < 8; i++) {
@@ -166,7 +166,7 @@ class LocalRingImplementationTest {
 		}
 	}
 
-	private <T extends Element<T>, S extends Element<S>> void testIntegralBasis(LocalRing<T, S> ring,
+	private <T extends Element<T>, S extends Element<S>> void testIntegralBasis(DiscreteValuationRing<T, S> ring,
 			UnivariatePolynomial<T> minimalPolynomial) {
 		Field<S> reduction = ring.reduction();
 		testIntegralBasis(ring, minimalPolynomial,
@@ -174,11 +174,11 @@ class LocalRingImplementationTest {
 	}
 
 	private <T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> void testIntegralBasis(
-			LocalRing<T, S> ring, UnivariatePolynomial<T> minimalPolynomial,
+			DiscreteValuationRing<T, S> ring, UnivariatePolynomial<T> minimalPolynomial,
 			Extension<S, R, RE, RFE> reductionExtension) {
 		TheMontesResult<T, S, R, RE, RFE> theMontes = ring.theMontesAlgorithm(minimalPolynomial, reductionExtension);
 		List<UnivariatePolynomial<T>> integralBasis = ring.triagonalizeIntegralBasis(minimalPolynomial, ring.integralBasis(minimalPolynomial, theMontes, false));
-		GenericExtensionField<T> extension = new GenericExtensionField<>(minimalPolynomial, ring.fieldOfFractions());
+		GenericExtensionField<T> extension = new GenericExtensionField<>(minimalPolynomial, ring.localField());
 		for (UnivariatePolynomial<T> b : integralBasis) {
 			UnivariatePolynomial<T> mipo = extension.minimalPolynomial(extension.fromPolynomial(b));
 			assertEquals(ring.one(), mipo.leadingCoefficient());
@@ -211,7 +211,7 @@ class LocalRingImplementationTest {
 		FactorizationResult<IntE, IntE> primes = z
 				.uniqueFactorization(polynomials.discriminant(minimalPolynomial).getNumerator());
 		for (IntE prime : primes.primeFactors()) {
-			LocalRing<Fraction, PFE> zp = z.localize(prime);
+			DiscreteValuationRing<Fraction, PFE> zp = z.localize(prime);
 			testIntegralBasis(zp, minimalPolynomial);
 		}
 	}
@@ -219,7 +219,7 @@ class LocalRingImplementationTest {
 	@Test
 	void testIntegralBasisLarge() {
 		Rationals q = Rationals.q();
-		LocalRing<Fraction, PFE> z2 = Integers.z().localize(new IntE(2));
+		DiscreteValuationRing<Fraction, PFE> z2 = Integers.z().localize(new IntE(2));
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		UnivariatePolynomial<Fraction> minimalPolynomial = polynomials.getPolynomial(
 				q.getInteger(BigInteger.valueOf(1125899906842816L)), q.getInteger(1600), q.getInteger(1728),

@@ -14,10 +14,14 @@ import java.util.TreeSet;
 import fields.exceptions.InfinityException;
 import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
+import fields.finitefields.ModularIntegerRing;
+import fields.finitefields.ModularIntegerRing.ModularIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractAlgebra;
 import fields.helper.AbstractIdeal;
+import fields.helper.GenericAlgebraicRingExtension;
+import fields.helper.GenericAlgebraicRingExtension.GenericAlgebraicExtensionElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
@@ -25,9 +29,9 @@ import fields.integers.Rationals.Fraction;
 import fields.interfaces.Algebra;
 import fields.interfaces.DedekindRing;
 import fields.interfaces.Ideal;
-import fields.interfaces.LocalRing;
-import fields.interfaces.LocalRing.OkutsuType;
-import fields.interfaces.LocalRing.TheMontesResult;
+import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.DiscreteValuationRing.OkutsuType;
+import fields.interfaces.DiscreteValuationRing.TheMontesResult;
 import fields.interfaces.MathMap;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
@@ -146,12 +150,12 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	public boolean isIntegral() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isReduced() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isIrreducible() {
 		return true;
@@ -281,7 +285,33 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 
 	@Override
 	public int krullDimension() {
-		return 0;
+		return 1;
+	}
+
+	@Override
+	public List<Ideal<NFE>> maximalPrimeIdealChain(Ideal<NFE> start) {
+		if (start.equals(getZeroIdeal())) {
+			return maximalPrimeIdealChain(start,
+					idealsOver(Integers.z().getIdeal(Collections.singletonList(Integers.z().getInteger(2)))).get(0));
+		}
+		return Collections.singletonList(primaryDecomposition(start).getRadicals().get(0));
+	}
+
+	@Override
+	public List<Ideal<NFE>> maximalPrimeIdealChain(Ideal<NFE> start, Ideal<NFE> end) {
+		if (!end.contains(start) || !end.isPrime()) {
+			throw new ArithmeticException("Invalid preconditions!");
+		}
+		if (start.equals(getZeroIdeal())) {
+			if (end.equals(getZeroIdeal())) {
+				return Collections.singletonList(getZeroIdeal());
+			}
+			List<Ideal<NFE>> result = new ArrayList<>();
+			result.add(start);
+			result.add(end);
+			return result;
+		}
+		return Collections.singletonList(end);
 	}
 
 	@Override
@@ -385,7 +415,8 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			}
 			factorizations.put(prime, new FactorizationResult<>(getUnitIdeal(), idealFactors));
 		}
-		FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = new FactorizationResult<>(getUnitIdeal(), allIdealFactors);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = new FactorizationResult<>(getUnitIdeal(),
+				allIdealFactors);
 		if (!idealsByFactorization.containsKey(factorization)) {
 			idealsByFactorization.put(factorization, new NumberFieldIdeal(factorizations));
 		}
@@ -469,7 +500,8 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			perPrimeFactorization.get(prime).put(ideal, factors.get(ideal));
 			cast.put(ideal, factors.get(ideal));
 		}
-		FactorizationResult<Ideal<NFE>, Ideal<NFE>> asFactorizationResult = new FactorizationResult<>(getUnitIdeal(), cast);
+		FactorizationResult<Ideal<NFE>, Ideal<NFE>> asFactorizationResult = new FactorizationResult<>(getUnitIdeal(),
+				cast);
 		if (!idealsByFactorization.containsKey(asFactorizationResult)) {
 			Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> perPrime = new TreeMap<>();
 			for (IntE prime : perPrimeFactorization.keySet()) {
@@ -484,6 +516,81 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	public FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactorization(Ideal<NFE> t) {
 		NumberFieldIdeal ideal = (NumberFieldIdeal) t;
 		return ideal.idealFactorization;
+	}
+
+	@Override
+	public DedekindRing<NFE, NFE, FFE> asDedekindRing() {
+		return this;
+	}
+
+	@Override
+	public PrimaryDecompositionResult<NFE, NumberFieldIdeal> primaryDecomposition(Ideal<NFE> t) {
+		NumberFieldIdeal ideal = (NumberFieldIdeal) t;
+		List<NumberFieldIdeal> primaries = new ArrayList<>();
+		List<NumberFieldIdeal> radicals = new ArrayList<>();
+		for (Ideal<NFE> prime : ideal.idealFactorization.primeFactors()) {
+			NumberFieldIdeal primeIdeal = (NumberFieldIdeal) prime;
+			primaries.add(power(prime, ideal.idealFactorization.multiplicity(prime)));
+			radicals.add(primeIdeal);
+		}
+		return new PrimaryDecompositionResult<>(primaries, radicals);
+	}
+
+	@Override
+	public ModuloMaximalIdealResult<NFE, FFE> moduloMaximalIdeal(Ideal<NFE> ideal) {
+		return new ModuloMaximalIdealResult<>(this, ideal, reduction(ideal), new MathMap<>() {
+			@Override
+			public FFE evaluate(NFE t) {
+				return reduce(t, ideal);
+			}
+		}, new MathMap<>() {
+			@Override
+			public NFE evaluate(FFE t) {
+				return lift(t, ideal);
+			}
+		});
+	}
+
+	@Override
+	public ModuloIdealResult<NFE, ?> moduloIdeal(Ideal<NFE> ideal) {
+		if (ideal.isMaximal()) {
+			ModuloMaximalIdealResult<NFE, FFE> result = moduloMaximalIdeal(ideal);
+			return new ModuloIdealResult<>(this, ideal, result.getField(), result.getReduction(), result.getLift());
+		}
+		if (ideal.isPrime()) {
+			return new ModuloIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
+		}
+		Rationals q = Rationals.q();
+		NumberFieldIdeal t = (NumberFieldIdeal) ideal;
+		ModularIntegerRing baseRing = new ModularIntegerRing(t.intGenerator.getValue());
+		UnivariatePolynomial<Fraction> minimalPolynomial = t.uniformizer.asPolynomial();
+		if (minimalPolynomial.degree() == 0) {
+			minimalPolynomial = field.minimalPolynomial();
+		}
+		MathMap<Fraction, ModularIntegerRingElement> reduction = new MathMap<>() {
+			@Override
+			public ModularIntegerRingElement evaluate(Fraction t) {
+				return baseRing.getInteger(t.asInteger());
+			}
+		};
+		UnivariatePolynomialRing<ModularIntegerRingElement> reducedPolynomials = baseRing.getUnivariatePolynomialRing();
+		UnivariatePolynomial<ModularIntegerRingElement> mipo = reducedPolynomials.getEmbedding(minimalPolynomial,
+				reduction);
+		GenericAlgebraicRingExtension<ModularIntegerRingElement> result = new GenericAlgebraicRingExtension<>(mipo,
+				baseRing);
+		return new ModuloIdealResult<>(this, ideal, result, new MathMap<>() {
+			@Override
+			public GenericAlgebraicExtensionElement<ModularIntegerRingElement> evaluate(NFE t) {
+				return result.fromPolynomial(reducedPolynomials.getEmbedding(t.asPolynomial(), reduction));
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public NFE evaluate(GenericAlgebraicExtensionElement<ModularIntegerRingElement> t) {
+				// TODO Auto-generated method stub
+				return null;
+			}
+		});
 	}
 
 	@Override
@@ -502,6 +609,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return zeroIdeal;
 	}
 
+	@Override
+	public NumberFieldIdeal getNilRadical() {
+		return getZeroIdeal();
+	}
+
 	public List<NumberFieldIdeal> idealsOver(Ideal<IntE> integerIdeal) {
 		IntE generator = integerIdeal.generators().get(0);
 		FactorizationResult<IntE, IntE> primes = Integers.z().uniqueFactorization(generator);
@@ -512,7 +624,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		if (idealsOverPrime.containsKey(prime)) {
 			return idealsOverPrime.get(prime);
 		}
-		LocalRing<Fraction, PFE> zp = Integers.z().localize(prime);
+		DiscreteValuationRing<Fraction, PFE> zp = Integers.z().localize(prime);
 		PrimeField fp = PrimeField.getPrimeField(prime);
 		Rationals q = Rationals.q();
 		UnivariatePolynomial<Fraction> zpMinimalPolynomial = q.getUnivariatePolynomialRing()
@@ -671,14 +783,14 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			for (IntE prime : primes) {
 				allPrimes = allPrimes.multiply(prime.getValue());
 				PrimeField fp = PrimeField.getPrimeField(prime.getValue());
-				LocalRing<Fraction, PFE> zp = z.localize(prime.getValue());
+				DiscreteValuationRing<Fraction, PFE> zp = z.localize(prime.getValue());
 				TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = zp.theMontesAlgorithm(
 						zpMinimalPolynomial, fp.getExtension(fp.getUnivariatePolynomialRing().getVar()));
 				List<UnivariatePolynomial<Fraction>> integral = zp.triagonalizeIntegralBasis(zpMinimalPolynomial,
 						zp.integralBasis(zpMinimalPolynomial, theMontes, false));
 				List<Integer> valueList = new ArrayList<>();
 				for (int i = 0; i < minimalPolynomial().degree(); i++) {
-					valueList.add(-zp.fieldOfFractions().valuation(integral.get(i).leadingCoefficient()).value());
+					valueList.add(-zp.localField().valuation(integral.get(i).leadingCoefficient()).value());
 				}
 				integralBasisPerPrime.put(prime, integral);
 				valuesPerPrime.put(prime, valueList);
@@ -768,14 +880,92 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return maximalIdeal.maximumPowerContains(t);
 	}
 
-	@Override
-	public NumberField fieldOfFractions() {
-		return field;
+	public NFE getNumerator(NFE t) {
+		if (isElement(t)) {
+			return t;
+		}
+		return field.multiply(t, getDenominator(t));
+	}
+
+	public NFE getDenominator(NFE t) {
+		if (isElement(t)) {
+			return one();
+		}
+		Integers z = Integers.z();
+		Vector<Fraction> asVector = field.asVector(t);
+		Matrix<Fraction> baseChange = toIntegralBasisBaseChange();
+		Vector<Fraction> asIntegralVector = field.asVectorSpace().matrixAlgebra().multiply(baseChange, asVector);
+		IntE denominator = z.one();
+		for (Fraction c : asIntegralVector.asList()) {
+			denominator = z.lcm(denominator, c.getDenominator());
+		}
+		return getEmbedding(denominator);
+	}
+
+	public NFE asInteger(NFE t) {
+		if (isElement(t)) {
+			return t;
+		}
+		throw new ArithmeticException("Not an integer!");
 	}
 
 	@Override
-	public MathMap<NFE, NFE> embedding() {
-		return new Identity<>();
+	public FieldOfFractionsResult<NFE, NFE> fieldOfFractions() {
+		return new FieldOfFractionsResult<>(this, field, new Identity<>(), new MathMap<>() {
+
+			@Override
+			public NFE evaluate(NFE t) {
+				return getNumerator(t);
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public NFE evaluate(NFE t) {
+				return getDenominator(t);
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public NFE evaluate(NFE t) {
+				return asInteger(t);
+			}
+		});
+	}
+
+	// TODO: Fix
+	@Override
+	public LocalizeResult<NFE, NFE, NFE, FFE> localizeAtIdeal(Ideal<NFE> primeIdeal) {
+		localize(primeIdeal);
+		LocalizedNumberField localized = localizations.get(primeIdeal);
+		return new LocalizeResult<>(this, primeIdeal, localized.ringOfIntegers(), new Identity<>(), new MathMap<>() {
+			@Override
+			public NFE evaluate(NFE t) {
+				Value v = localized.valuation(t);
+				if (v.compareTo(Value.ZERO) >= 0) {
+					return t;
+				}
+				return field.multiply(t, power(localized.uniformizer(), -v.value()));
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public NFE evaluate(NFE t) {
+				Value v = localized.valuation(t);
+				if (v.compareTo(Value.ZERO) >= 0) {
+					return one();
+				}
+				return power(localized.uniformizer(), -v.value());
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public NFE evaluate(NFE t) {
+				if (!isElement(t)) {
+					throw new ArithmeticException("Not an integer!");
+				}
+				return t;
+			}
+		});
 	}
 
 	@Override
@@ -783,18 +973,14 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return isElement(t);
 	}
 
-	@Override
-	public NFE asInteger(NFE t) {
-		if (!isElement(t)) {
-			throw new ArithmeticException("Not an integer!");
-		}
-		return t;
+	public NumberField numberField() {
+		return field;
 	}
 
 	@Override
 	public FiniteField reduction(Ideal<NFE> maximalIdeal) {
 		localize(maximalIdeal);
-		return localizations.get(maximalIdeal).reduction();
+		return localizations.get(maximalIdeal).residueField();
 	}
 
 	@Override
@@ -808,13 +994,18 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	@Override
-	public LocalRing<NFE, FFE> localize(Ideal<NFE> maximalIdeal) {
+	public DiscreteValuationRing<NFE, FFE> localize(Ideal<NFE> maximalIdeal) {
 		if (!localizations.containsKey(maximalIdeal)) {
 			NumberFieldIdeal ideal = (NumberFieldIdeal) maximalIdeal;
 			localizations.put(maximalIdeal,
 					new LocalizedNumberField(field, ideal, Integers.z().localize(ideal.prime().getValue())));
 		}
 		return localizations.get(maximalIdeal).ringOfIntegers();
+	}
+	
+	public LocalizedNumberField localizeAndQuotient(Ideal<NFE> maximalIdeal) {
+		localize(maximalIdeal);
+		return localizations.get(maximalIdeal);
 	}
 
 	@Override
@@ -848,7 +1039,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		private FreeSubModule<IntE, NFE> asSubModule;
 		private MatrixModule<IntE> matrixModule;
 		private List<NFE> generators;
-		private LocalRing<Fraction, PFE> localized;
+		private DiscreteValuationRing<Fraction, PFE> localized;
 		private OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type;
 		private boolean maximal;
 		private Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> idealFactorsPerPrime;
@@ -870,7 +1061,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			this.idealFactorization = new FactorizationResult<>(this, Collections.emptySortedMap());
 		}
 
-		private NumberFieldIdeal(LocalRing<Fraction, PFE> localized,
+		private NumberFieldIdeal(DiscreteValuationRing<Fraction, PFE> localized,
 				List<OkutsuType<Fraction, PFE, PFE, FFE, FiniteField>> types, int index,
 				List<List<UnivariatePolynomial<Fraction>>> integral) {
 			super(NumberFieldIntegers.this);
@@ -1096,6 +1287,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		@Override
 		public BigInteger getNumberOfElements() throws InfinityException {
 			throw new InfinityException();
+		}
+
+		@Override
+		public boolean isPrimary() {
+			return isPrime() || idealFactorization.primeFactors().size() == 1;
 		}
 
 		@Override

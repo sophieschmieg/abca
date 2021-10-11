@@ -13,21 +13,31 @@ import java.util.TreeMap;
 import fields.exceptions.InfinityException;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
+import fields.interfaces.DedekindRing;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Group;
 import fields.interfaces.Ideal;
+import fields.interfaces.LocalRing;
+import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.local.LocalRingImplementation;
+import fields.local.TrivialDiscreteValuationField;
 import fields.local.Value;
 import fields.polynomials.GenericUnivariatePolynomialRing;
 import fields.polynomials.Monomial;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.TrivialPivotStrategy;
+import util.ConstantMap;
+import util.Identity;
+import util.Pair;
+import util.SingletonSortedMap;
 
-public abstract class AbstractField<T extends Element<T>> implements Field<T>, Ring<T> {
+public abstract class AbstractField<T extends Element<T>> implements Field<T>, Ring<T>, DedekindRing<T, T, T>, LocalRing<T, T, T> {
 	private GenericUnivariatePolynomialRing<T> ring = new GenericUnivariatePolynomialRing<T>(this);
 
 	@Override
@@ -415,6 +425,76 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
+	public Value valuation(T t, Ideal<T> maximalIdeal) {
+		return t.equals(zero()) ? Value.INFINITY : Value.ZERO;
+	}
+
+	@Override
+	public FieldOfFractionsResult<T, T> fieldOfFractions() {
+		return new FieldOfFractionsResult<>(this, this, new Identity<>(), new Identity<>(), new ConstantMap<>(one()),
+				new Identity<>());
+	}
+
+	@Override
+	public LocalizeResult<T, T, T, T> localizeAtIdeal(Ideal<T> primeIdeal) {
+		if (!primeIdeal.isPrime()) {
+			throw new ArithmeticException("Not a prime ideal!");
+		}
+		return new LocalizeResult<>(this, primeIdeal, this, new Identity<>(), new Identity<>(),
+				new ConstantMap<>(one()), new Identity<>());
+	}
+	
+	@Override
+	public FieldIdeal<T> maximalIdeal() {
+		return getZeroIdeal();
+	}
+	
+	@Override
+	public Field<T> reduction() {
+		return this;
+	}
+	
+	@Override
+	public T reduce(T t) {
+		return t;
+	}
+	
+	@Override
+	public T lift(T t) {
+		return t;
+	}
+
+	@Override
+	public boolean isInteger(T t) {
+		return true;
+	}
+
+	@Override
+	public T asInteger(T t) {
+		return t;
+	}
+
+	@Override
+	public Field<T> reduction(Ideal<T> maximalIdeal) {
+		return this;
+	}
+
+	@Override
+	public T reduce(T t, Ideal<T> maximalIdeal) {
+		return t;
+	}
+
+	@Override
+	public T lift(T s, Ideal<T> maximalIdeal) {
+		return s;
+	}
+
+	@Override
+	public DiscreteValuationRing<T, T> localize(Ideal<T> maximalIdeal) {
+		return new LocalRingImplementation<>(new TrivialDiscreteValuationField<>(this), toString());
+	}
+
+	@Override
 	public boolean isZeroDivisor(T t) {
 		return t.equals(zero());
 	}
@@ -528,20 +608,34 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		T oneHalf = inverse(getInteger(2));
 		return new BezoutIdentityResult<>(Collections.singletonList(oneHalf), Collections.singletonList(oneHalf));
 	}
-	
+
+	@Override
+	public Pair<T, T> bezoutIdentity(T t1, T t2) {
+		if (t1.equals(zero()) && t2.equals(zero())) {
+			throw new ArithmeticException("Elements not coprime!");
+		}
+		if (t1.equals(zero())) {
+			return new Pair<>(zero(), inverse(t2));
+		}
+		if (t2.equals(zero()) || characteristic().equals(BigInteger.TWO)) {
+			return new Pair<>(inverse(t1), zero());
+		}
+		return new Pair<>(inverse(multiply(2, t1)), inverse(multiply(2, t2)));
+	}
+
 	@Override
 	public boolean coprime(Ideal<T> t1, Ideal<T> t2) {
 		return t1.contains(one()) || t2.contains(one());
 	}
-	
+
 	@Override
 	public boolean coprime(T t1, T t2) {
 		return !t1.equals(zero()) || !t2.equals(zero());
 	}
-	
+
 	@Override
 	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals) {
-		if (ideals.size() > 1){
+		if (ideals.size() > 1) {
 			throw new ArithmeticException("Not coprime proper ideals!");
 		}
 		if (ideals.size() == 1 && ideals.get(0).contains(one())) {
@@ -552,7 +646,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		}
 		return new ChineseRemainderPreparation<>(ideals, getZeroIdeal(), Collections.emptyList());
 	}
-	
+
 	@Override
 	public T chineseRemainderTheorem(List<T> elements, ChineseRemainderPreparation<T> preparation) {
 		if (elements.size() != preparation.getMultipliers().size()) {
@@ -563,7 +657,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		}
 		return elements.get(0);
 	}
-	
+
 	@Override
 	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals) {
 		if (elements.size() != ideals.size()) {
@@ -619,6 +713,21 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain() {
+		return Collections.singletonList(getZeroIdeal());
+	}
+
+	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start) {
+		return Collections.singletonList(getZeroIdeal());
+	}
+
+	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end) {
+		return Collections.singletonList(getZeroIdeal());
+	}
+
+	@Override
 	public boolean isUniqueFactorizationDomain() {
 		return true;
 	}
@@ -665,7 +774,19 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 
 	@Override
 	public FactorizationResult<Ideal<T>, Ideal<T>> idealFactorization(Ideal<T> t) {
-		throw new ArithmeticException("Ideal not proper and non zero (it's a field!)");
+		if (t.equals(getZeroIdeal())) {
+			return new FactorizationResult<>(getUnitIdeal(), SingletonSortedMap.map(getZeroIdeal(), 1));
+		}
+		return new FactorizationResult<>(getUnitIdeal(), new TreeMap<>());
+	}
+
+	@Override
+	public PrimaryDecompositionResult<T, FieldIdeal<T>> primaryDecomposition(Ideal<T> t) {
+		if (t.equals(getZeroIdeal())) {
+			return new PrimaryDecompositionResult<>(Collections.singletonList(getZeroIdeal()),
+					Collections.singletonList(getZeroIdeal()));
+		}
+		return new PrimaryDecompositionResult<>(Collections.emptyList(), Collections.emptyList());
 	}
 
 	@Override
@@ -691,52 +812,82 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public Ideal<T> getIdeal(List<T> generators) {
+	public FieldIdeal<T> getIdeal(List<T> generators) {
 		return getIdealWithTransforms(generators).getIdeal();
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public Ideal<T> getIdeal(T... generators) {
+	public FieldIdeal<T> getIdeal(T... generators) {
 		return getIdeal(Arrays.asList(generators));
 	}
 
 	@Override
-	public Ideal<T> getUnitIdeal() {
+	public FieldIdeal<T> getUnitIdeal() {
 		return getIdeal(Collections.singletonList(one()));
 	}
 
 	@Override
-	public Ideal<T> getZeroIdeal() {
+	public FieldIdeal<T> getZeroIdeal() {
 		return getIdeal(Collections.emptyList());
 	}
 
-	public Ideal<T> add(Ideal<T> t1, Ideal<T> t2) {
+	public FieldIdeal<T> getNilRadical() {
+		return getZeroIdeal();
+	}
+
+	public FieldIdeal<T> add(Ideal<T> t1, Ideal<T> t2) {
 		return getIdeal(Collections.singletonList(
 				t1.generators().get(0).equals(zero()) && t2.generators().get(0).equals(zero()) ? zero() : one()));
 	}
 
-	public Ideal<T> multiply(Ideal<T> t1, Ideal<T> t2) {
+	public FieldIdeal<T> multiply(Ideal<T> t1, Ideal<T> t2) {
 		return getIdeal(Collections.singletonList(
 				t1.generators().get(0).equals(zero()) || t2.generators().get(0).equals(zero()) ? zero() : one()));
 	}
 
-	public Ideal<T> intersect(Ideal<T> t1, Ideal<T> t2) {
+	public FieldIdeal<T> intersect(Ideal<T> t1, Ideal<T> t2) {
 		return getIdeal(Collections.singletonList(
 				t1.generators().get(0).equals(zero()) || t2.generators().get(0).equals(zero()) ? zero() : one()));
 	}
 
 	@Override
-	public Ideal<T> radical(Ideal<T> t) {
-		return t;
+	public FieldIdeal<T> radical(Ideal<T> t) {
+		return (FieldIdeal<T>) t;
 	}
 
 	@Override
-	public Ideal<T> power(Ideal<T> t, int power) {
+	public FieldIdeal<T> power(Ideal<T> t, int power) {
 		if (power == 0) {
 			return getUnitIdeal();
 		}
-		return t;
+		return (FieldIdeal<T>) t;
+	}
+
+	@Override
+	public ModuloMaximalIdealResult<T, T> moduloMaximalIdeal(Ideal<T> ideal) {
+		if (!ideal.equals(getZeroIdeal())) {
+			throw new ArithmeticException("Not a maximal ideal!");
+		}
+		return new ModuloMaximalIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
+	}
+
+	@Override
+	public ModuloIdealResult<T, T> moduloIdeal(Ideal<T> ideal) {
+		if (ideal.contains(one())) {
+			throw new ArithmeticException("Not a proper ideal!");
+		}
+		return new ModuloIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
+	}
+
+	@Override
+	public <S extends Element<S>> Ideal<T> getIdealEmbedding(Ideal<S> t, MathMap<S, T> map) {
+		for (S generator : t.generators()) {
+			if (!map.evaluate(generator).equals(zero())) {
+				return getUnitIdeal();
+			}
+		}
+		return getZeroIdeal();
 	}
 
 	public static class FieldIdeal<T extends Element<T>> extends AbstractIdeal<T> {
@@ -756,8 +907,13 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		}
 
 		@Override
+		public boolean isPrimary() {
+			return isZero;
+		}
+
+		@Override
 		public boolean isPrime() {
-			return true;
+			return isZero;
 		}
 
 		@Override

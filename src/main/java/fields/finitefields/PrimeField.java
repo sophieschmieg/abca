@@ -371,16 +371,16 @@ public class PrimeField extends AbstractField<PFE> {
 		return divide(reduce(t.getNumerator()), reduce(t.getDenominator()));
 	}
 
-	public IntE lift(PFE t) {
+	public IntE liftToInteger(PFE t) {
 		return Integers.z().getInteger(t.value);
 	}
 
 	public Optional<Fraction> rationalReconstruction(PFE t, BigInteger numeratorBound, BigInteger denominatorBound) {
-		return Rationals.q().rationalReconstruction(lift(t), new IntE(p), numeratorBound, denominatorBound);
+		return Rationals.q().rationalReconstruction(liftToInteger(t), new IntE(p), numeratorBound, denominatorBound);
 	}
 
 	public Optional<Fraction> rationalReconstruction(PFE t) {
-		return Rationals.q().rationalReconstruction(lift(t), new IntE(p));
+		return Rationals.q().rationalReconstruction(liftToInteger(t), new IntE(p));
 	}
 
 	@Override

@@ -20,24 +20,24 @@ import fields.integers.Integers.IntE;
 import fields.integers.LocalizedFractions;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Field;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
-import fields.local.CompleteLocalFieldExtension.Ext;
+import fields.local.CompleteDVRExtension.Ext;
 import fields.local.PAdicField.PAdicNumber;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
 import util.Identity;
 
-public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdicNumber>, LocalField<PAdicNumber, PFE> {
+public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdicNumber>, DiscreteValuationField<PAdicNumber, PFE> {
 	private BigInteger prime;
 	private PrimeField reduced;
 	private int accuracy;
 	private BigInteger modulus;
-	private LocalRing<PAdicNumber, PFE> localRing;
+	private DiscreteValuationRing<PAdicNumber, PFE> localRing;
 	private Reals r = Reals.r(1024);
 
 	public class PAdicNumber extends AbstractElement<PAdicNumber> {
@@ -147,11 +147,19 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	}
 
 	@Override
-	public Extension<PAdicNumber, PAdicNumber, Ext<PAdicNumber>, CompleteLocalFieldExtension<PAdicNumber, PFE, FFE, FiniteField>> getExtension(
+	public Extension<PAdicNumber, PAdicNumber, Ext<PAdicNumber>, CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField>> getExtension(
 			UnivariatePolynomial<PAdicNumber> minimalPolynomial) {
-		CompleteLocalFieldExtension<PAdicNumber, PFE, FFE, FiniteField> extension = new CompleteLocalFieldExtension<>(
-				minimalPolynomial, this, FiniteField.getFiniteField(prime));
+		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension.getCompleteDVRExtension(
+				minimalPolynomial, this, residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
 		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
+	}
+
+	@Override
+	public DiscreteValuationFieldExtension<PAdicNumber, PFE, PAdicNumber, Ext<PAdicNumber>, FFE, CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField>> getUniqueExtension(
+			UnivariatePolynomial<PAdicNumber> minimalPolynomial) {
+		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension.getCompleteDVRExtension(
+				minimalPolynomial, this, residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
+		return new DiscreteValuationFieldExtension<>(this, extension, extension.getEmbeddingMap(), extension.asVectorMap());
 	}
 
 	@Override
@@ -174,7 +182,7 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 		return new OtherVersion<>(withAccuracy(accuracy), new Identity<>(), new Identity<>());
 	}
 
-	public PrimeField reduction() {
+	public PrimeField residueField() {
 		return reduced;
 	}
 	
@@ -281,7 +289,7 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	}
 
 	@Override
-	public PFE reduce(PAdicNumber p) {
+	public PFE reduceInteger(PAdicNumber p) {
 		PAdicNumber t = (PAdicNumber) p;
 		if (t.lowestPower < 0) {
 			throw new ArithmeticException("Not an integer");
@@ -307,7 +315,7 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	}
 
 	@Override
-	public PAdicNumber lift(PFE t) {
+	public PAdicNumber liftToInteger(PFE t) {
 		return new PAdicNumber(0, t.getValue());
 	}
 
@@ -423,12 +431,19 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	}
 
 	@Override
+	public boolean equals(Object obj) {
+	if (!(obj instanceof PAdicField)) {
+		return false;}
+		return prime.equals(((PAdicField)obj).prime);
+	}
+	
+	@Override
 	public PAdicNumber uniformizer() {
 		return new PAdicNumber(1, BigInteger.ONE);
 	}
 
 	@Override
-	public LocalRing<PAdicNumber, PFE> ringOfIntegers() {
+	public DiscreteValuationRing<PAdicNumber, PFE> ringOfIntegers() {
 		return localRing;
 	}
 

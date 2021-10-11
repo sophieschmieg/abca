@@ -6,13 +6,13 @@ import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
-import fields.helper.LocalizedCoordinateRing;
-import fields.helper.LocalizedCoordinateRing.LocalizedElement;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.FormalPowerSeries.PowerSeries;
+import fields.polynomials.LocalizedCoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 
 class PowerSeriesTest {
 

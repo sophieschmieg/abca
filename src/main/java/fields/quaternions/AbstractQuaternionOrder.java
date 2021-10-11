@@ -20,6 +20,7 @@ import fields.vectors.Vector;
 public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends Element<I>, R extends Element<R>>
 		extends AbstractAlgebra<I, Quaternion<T>> implements QuaternionOrder<T, I, R> {
 	private DedekindRing<I, T, R> ring;
+	private FieldOfFractionsResult<I, T> fieldOfFractions;
 	private Field<T> field;
 	private Quaternions<T> quaternions;
 	private FreeModule<I> asFreeModule;
@@ -32,7 +33,8 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 			Quaternion<T> t2, Quaternion<T> t3) {
 		this.ring = ring;
 		this.quaternions = quaternions;
-		this.field = ring.fieldOfFractions();
+		this.fieldOfFractions = ring.fieldOfFractions();
+		this.field = fieldOfFractions.getField();
 		if (!this.field.equals(quaternions.getField())) {
 			throw new ArithmeticException("Fields do not match!");
 		}
@@ -60,7 +62,7 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 
 	@Override
 	public Quaternion<T> getEmbedding(I t) {
-		return quaternions.getEmbedding(ring.embedding().evaluate(t));
+		return quaternions.getEmbedding(fieldOfFractions.getEmbedding().evaluate(t));
 	}
 
 	@Override
@@ -338,6 +340,6 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 
 	@Override
 	public boolean isMaximal() {
-		return quaternions.discriminant().equals(ring.embedding().evaluate(reducedDiscriminant()));
+		return quaternions.discriminant().equals(fieldOfFractions.getEmbedding().evaluate(reducedDiscriminant()));
 	}
 }

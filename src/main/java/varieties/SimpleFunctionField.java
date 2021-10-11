@@ -9,7 +9,6 @@ import java.util.TreeMap;
 
 import fields.helper.AbstractElement;
 import fields.helper.AbstractFieldExtension;
-import fields.helper.CoordinateRing;
 import fields.helper.TranscendentalFieldExtension;
 import fields.helper.TranscendentalFieldExtension.TExt;
 import fields.integers.Integers;
@@ -23,22 +22,30 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
 import fields.vectors.FiniteVectorSpace;
-import fields.vectors.FreeModule;
 import fields.vectors.Vector;
 import varieties.SimpleFunctionField.SimpleRationalFunction;
 import varieties.affine.AffineScheme;
+import varieties.projective.GenericProjectiveScheme;
 import varieties.projective.ProjectiveScheme;
 
 public class SimpleFunctionField<T extends Element<T>>
 		extends AbstractFieldExtension<TExt<T>, SimpleRationalFunction<T>, SimpleFunctionField<T>> {
 	public static class SimpleRationalFunction<T extends Element<T>> extends AbstractElement<SimpleRationalFunction<T>>
 			implements AlgebraicExtensionElement<TExt<T>, SimpleRationalFunction<T>> {
+		private SimpleFunctionField<T> functionField;
 		private UnivariatePolynomial<TExt<T>> asPolynomial;
+		private Polynomial<T> lcm = null;
+		private Polynomial<T> numerator = null;
+		private Polynomial<T> denominator = null;
 
-		private SimpleRationalFunction(UnivariatePolynomial<TExt<T>> asPolynomial) {
+		private SimpleRationalFunction(SimpleFunctionField<T> functionField,
+				UnivariatePolynomial<TExt<T>> asPolynomial) {
+			this.functionField = functionField;
 			this.asPolynomial = asPolynomial;
 		}
 
@@ -51,33 +58,155 @@ public class SimpleFunctionField<T extends Element<T>>
 		public UnivariatePolynomial<TExt<T>> asPolynomial() {
 			return asPolynomial;
 		}
+
+		@Override
+		public String toString() {
+			return asPolynomial.toString("α", true);
+		}
+
+		public Polynomial<T> getDenominatorLcm() {
+			if (lcm == null) {
+				PolynomialRing<T> polynomialRing = functionField.getBaseField().polynomialRing();
+				lcm = polynomialRing.one();
+				for (int i = 0; i <= asPolynomial.degree(); i++) {
+					lcm = polynomialRing.lcm(lcm, asPolynomial.univariateCoefficient(i).getDenominator());
+				}
+			}
+			return lcm;
+		}
+
+		public Polynomial<T> getNumerator() {
+			if (numerator != null) {
+				Polynomial<T> denominatorLcm = getDenominatorLcm();
+				PolynomialRing<T> polynomialRing = functionField.getBaseField().polynomialRing();
+				numerator = polynomialRing.zero();
+				for (int i = 0; i <= asPolynomial.degree(); i++) {
+					numerator = polynomialRing.add(numerator,
+							polynomialRing.multiply(asPolynomial.univariateCoefficient(i).getNumerator(),
+									polynomialRing.divideChecked(denominatorLcm,
+											asPolynomial.univariateCoefficient(i).getDenominator())));
+				}
+			}
+			return numerator;
+		}
+
+		public Polynomial<T> getDenominator() {
+			if (denominator != null) {
+				denominator = getDenominatorLcm();
+			}
+			return denominator;
+		}
 	}
 
 	private TranscendentalFieldExtension<T> transcendentalExtension;
-	
-	public static <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> SimpleFunctionField<B> forProjectiveVarietyOverExtensionField(
+	private PolynomialRing<T> polynomialRing;
+
+	public static <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> SimpleFunctionFieldFromCoordinateRingOverExtension<B, E> forProjectiveVarietyOverExtensionField(
 			Ext extension, ProjectiveScheme<E> domain) {
 		int affineCoverIndex = domain.asGenericProjectiveScheme().homogenousPolynomialRing().numberOfVariables() - 1;
 		AffineScheme<E> affineSlice = domain.getAffineCover().getCover().get(affineCoverIndex);
 		return fromCoordinateRingOverExtensionField(extension, affineSlice.getCoordinateRing());
 	}
 
-	public static <T extends Element<T>> SimpleFunctionField<T> forProjectiveVariety(
+	public static <T extends Element<T>> SimpleFunctionFieldFromCoordinateRing<T> forProjectiveVariety(
 			ProjectiveScheme<T> domain) {
 		int affineCoverIndex = domain.asGenericProjectiveScheme().homogenousPolynomialRing().numberOfVariables() - 1;
 		AffineScheme<T> affineSlice = domain.getAffineCover().getCover().get(affineCoverIndex);
 		return fromCoordinateRing(affineSlice.getCoordinateRing());
 	}
 
-	public static <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> SimpleFunctionField<B> fromCoordinateRingOverExtensionField(
-			Ext extension, CoordinateRing<E> coordinateRing) {
-		return fromCoordinateRing(extension.asCoordinateRing(coordinateRing).getBaseCoordinateRing());
+	public static class SimpleFunctionFieldFromCoordinateRingOverExtension<B extends Element<B>, E extends AlgebraicExtensionElement<B, E>> {
+		private SimpleFunctionField<B> simpleFunctionField;
+		private MathMap<RationalFunction<E>, SimpleRationalFunction<B>> isomorphism;
+		private MathMap<SimpleRationalFunction<B>, RationalFunction<E>> inverseIsomorphism;
+
+		private SimpleFunctionFieldFromCoordinateRingOverExtension(SimpleFunctionField<B> simpleFunctionField,
+				MathMap<RationalFunction<E>, SimpleRationalFunction<B>> isomorphism,
+				MathMap<SimpleRationalFunction<B>, RationalFunction<E>> inverseIsomorphism) {
+			this.simpleFunctionField = simpleFunctionField;
+			this.isomorphism = isomorphism;
+			this.inverseIsomorphism = inverseIsomorphism;
+		}
+
+		public SimpleFunctionField<B> getSimpleFunctionField() {
+			return simpleFunctionField;
+		}
+
+		public MathMap<RationalFunction<E>, SimpleRationalFunction<B>> getIsomorphism() {
+			return isomorphism;
+		}
+
+		public MathMap<SimpleRationalFunction<B>, RationalFunction<E>> getInverseIsomorphism() {
+			return inverseIsomorphism;
+		}
+
 	}
 
-	public static <T extends Element<T>> SimpleFunctionField<T> fromCoordinateRing(CoordinateRing<T> coordinateRing) {
-		if (!coordinateRing.isIntegral()) {
-			throw new ArithmeticException("Not an integral coordinate ring!");
+	public static <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> SimpleFunctionFieldFromCoordinateRingOverExtension<B, E> fromCoordinateRingOverExtensionField(
+			Ext extension, CoordinateRing<E> coordinateRing) {
+		ExtensionCoordinateRing<B, E> extensionCoordinateRing = extension.asCoordinateRing(coordinateRing);
+		SimpleFunctionFieldFromCoordinateRing<B> fromBaseRing = fromCoordinateRing(
+				extensionCoordinateRing.getBaseCoordinateRing());
+		GenericProjectiveScheme<B> domainOverBase = GenericProjectiveScheme
+				.fromAffineCoordinateRing(extensionCoordinateRing.getBaseCoordinateRing());
+		FunctionField<B> functionField = new FunctionField<>(domainOverBase);
+		return new SimpleFunctionFieldFromCoordinateRingOverExtension<>(fromBaseRing.getSimpleFunctionField(),
+				new MathMap<>() {
+
+					@Override
+					public SimpleRationalFunction<B> evaluate(RationalFunction<E> t) {
+						Polynomial<B> numerator = extensionCoordinateRing.getIsomorphism()
+								.evaluate(coordinateRing.getEmbedding(t.getNumerator())).getElement();
+						Polynomial<B> denominator = extensionCoordinateRing.getIsomorphism()
+								.evaluate(coordinateRing.getEmbedding(t.getDenominator())).getElement();
+						return fromBaseRing.isomorphism.evaluate(functionField.getFunction(numerator, denominator));
+					}
+				}, new MathMap<>() {
+
+					@Override
+					public RationalFunction<E> evaluate(SimpleRationalFunction<B> t) {
+//						Polynomial<B> numerator = extensionCoordinateRing.getIsomorphism()
+//								.evaluate(coordinateRing.getEmbedding(t.getNumerator())).getElement();
+//						Polynomial<B> denominator = extensionCoordinateRing.getIsomorphism()
+//								.evaluate(coordinateRing.getEmbedding(t.getDenominator())).getElement();
+//						return fromBaseRing.isomorphism.evaluate(functionField.getFunction(numerator, denominator));
+						// TODO Auto-generated method stub
+						return null;
+					}
+				});
+	}
+
+	public static class SimpleFunctionFieldFromCoordinateRing<T extends Element<T>> {
+		private SimpleFunctionField<T> simpleFunctionField;
+		private MathMap<RationalFunction<T>, SimpleRationalFunction<T>> isomorphism;
+		private MathMap<SimpleRationalFunction<T>, RationalFunction<T>> inverseIsomorphism;
+
+		private SimpleFunctionFieldFromCoordinateRing(SimpleFunctionField<T> simpleFunctionField,
+				MathMap<RationalFunction<T>, SimpleRationalFunction<T>> isomorphism,
+				MathMap<SimpleRationalFunction<T>, RationalFunction<T>> inverseIsomorphism) {
+			this.simpleFunctionField = simpleFunctionField;
+			this.isomorphism = isomorphism;
+			this.inverseIsomorphism = inverseIsomorphism;
 		}
+
+		public SimpleFunctionField<T> getSimpleFunctionField() {
+			return simpleFunctionField;
+		}
+
+		public MathMap<RationalFunction<T>, SimpleRationalFunction<T>> getIsomorphism() {
+			return isomorphism;
+		}
+
+		public MathMap<SimpleRationalFunction<T>, RationalFunction<T>> getInverseIsomorphism() {
+			return inverseIsomorphism;
+		}
+	}
+
+	public static <T extends Element<T>> SimpleFunctionFieldFromCoordinateRing<T> fromCoordinateRing(
+			CoordinateRing<T> coordinateRing) {
+//		if (!coordinateRing.isIntegral()) {
+//			throw new ArithmeticException("Not an integral coordinate ring!");
+//		}
 		if (!(coordinateRing.getPolynomialRing().getRing() instanceof Field<?>)) {
 			throw new ArithmeticException("Not a coordinate ring over a field!");
 		}
@@ -126,12 +255,12 @@ public class SimpleFunctionField<T extends Element<T>>
 		for (Polynomial<TExt<T>> generator : ideal.generators()) {
 			for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
 				int degreeGenerator = generator.degree(i + 1);
-				if (degrees[i] < degreeGenerator) {
-					degrees[i] = degreeGenerator;
+				if (degrees[i] <= degreeGenerator) {
+					degrees[i] = degreeGenerator + 1;
 				}
 			}
 		}
-		CoordinateRing<TExt<T>> transcendentalCoordinateRing = new CoordinateRing<>(polynomialRing, ideal);
+		CoordinateRing<TExt<T>> transcendentalCoordinateRing = ideal.divideOut();
 		if (transcendentalCoordinateRing.krullDimension() != 0) {
 			throw new ArithmeticException("Algorithm wrong");
 		}
@@ -139,8 +268,12 @@ public class SimpleFunctionField<T extends Element<T>>
 		Integers z = Integers.z();
 		UnivariatePolynomial<TExt<T>> minimalPolynomial = null;
 		if (field.characteristic().equals(BigInteger.ZERO)) {
-			FreeModule<IntE> intModule = new FreeModule<>(z, polynomialRing.numberOfVariables());
-			for (Vector<IntE> vector : intModule) {
+			// Ugly hack!
+			Iterable<UnivariatePolynomial<IntE>> intIterator = z.getUnivariatePolynomialRing()
+					.polynomialSet(polynomialRing.numberOfVariables() - 1);
+			for (Polynomial<IntE> it : intIterator) {
+				Vector<IntE> vector = z.getUnivariatePolynomialRing().asVector(it,
+						polynomialRing.numberOfVariables() - 1);
 				Polynomial<TExt<T>> candidate = polynomialRing.zero();
 				int i = 0;
 				for (IntE coefficient : vector.asList()) {
@@ -148,11 +281,12 @@ public class SimpleFunctionField<T extends Element<T>>
 							polynomialRing.multiply(coefficient, polynomialRing.getVar(i + 1)));
 					i++;
 				}
-				minimalPolynomial = AbstractFieldExtension.minimalPolynomial(candidate, degree, polynomialRing,
+				minimalPolynomial = AbstractFieldExtension.minimalPolynomial(
+						transcendentalCoordinateRing.getEmbedding(candidate), degree, transcendentalCoordinateRing,
 						transcendental, new MathMap<>() {
 							@Override
-							public Vector<TExt<T>> evaluate(Polynomial<TExt<T>> t) {
-								return polynomialRing.asVector(t, degrees);
+							public Vector<TExt<T>> evaluate(CoordinateRingElement<TExt<T>> t) {
+								return polynomialRing.asVector(t.getElement(), degrees);
 							}
 						});
 				if (minimalPolynomial.degree() == degree) {
@@ -183,7 +317,22 @@ public class SimpleFunctionField<T extends Element<T>>
 				}
 			}
 		}
-		return new SimpleFunctionField<>(minimalPolynomial, transcendental);
+		return new SimpleFunctionFieldFromCoordinateRing<>(new SimpleFunctionField<>(minimalPolynomial, transcendental),
+				new MathMap<>() {
+
+					@Override
+					public SimpleRationalFunction<T> evaluate(RationalFunction<T> t) {
+						// TODO Auto-generated method stub
+						return null;
+					}
+				}, new MathMap<>() {
+
+					@Override
+					public RationalFunction<T> evaluate(SimpleRationalFunction<T> t) {
+						// TODO Auto-generated method stub
+						return null;
+					}
+				});
 	}
 
 	public SimpleFunctionField<T> getSimpleFunctionField(Field<T> field, PolynomialRing<T> polynomialRing,
@@ -191,6 +340,7 @@ public class SimpleFunctionField<T extends Element<T>>
 		if (polynomial.degree(variable) == 0) {
 			throw new ArithmeticException("Polynomial is trivial in variable " + variable);
 		}
+		this.polynomialRing = polynomialRing;
 		TranscendentalFieldExtension<T> transcendental = new TranscendentalFieldExtension<>(field,
 				polynomialRing.eliminateVariable());
 		UnivariatePolynomial<Polynomial<T>> asUnivariate = polynomialRing.asUnivariatePolynomial(polynomial, variable);
@@ -211,7 +361,7 @@ public class SimpleFunctionField<T extends Element<T>>
 
 	@Override
 	protected SimpleRationalFunction<T> fromSmallDegreePolynomial(UnivariatePolynomial<TExt<T>> polynomial) {
-		return new SimpleRationalFunction<>(polynomial);
+		return new SimpleRationalFunction<>(this, polynomial);
 	}
 
 	@Override
@@ -222,5 +372,10 @@ public class SimpleFunctionField<T extends Element<T>>
 	@Override
 	protected SimpleFunctionField<T> asExtensionType() {
 		return this;
+	}
+
+	@Override
+	public TranscendentalFieldExtension<T> getBaseField() {
+		return transcendentalExtension;
 	}
 }

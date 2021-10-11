@@ -47,13 +47,13 @@ public class IdealClassGroup implements Group<IdealClassGroupElement> {
 	IdealClassGroup(NumberFieldIntegers order) {
 		Integers z = Integers.z();
 		this.order = order;
-		this.idealGroup = order.fieldOfFractions().idealGroup();
+		this.idealGroup = order.numberField().idealGroup();
 		this.elements = new ArrayList<>();
 		addElement(order.getUnitIdeal());
 		this.neutralIndex = 0;
 		this.multiplicationMap = new TreeMap<>();
 		this.inverseMap = new TreeMap<>();
-		IntE minkowskiLimit = order.fieldOfFractions().minkowskiBound().roundDown();
+		IntE minkowskiLimit = order.numberField().minkowskiBound().roundDown();
 		for (IntE prime : z.setOfPrimes()) {
 			if (prime.compareTo(minkowskiLimit) > 0) {
 				break;

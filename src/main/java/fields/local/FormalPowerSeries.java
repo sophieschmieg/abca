@@ -12,38 +12,37 @@ import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractField;
-import fields.helper.CoordinateRing;
 import fields.helper.FieldOfFractions.Fraction;
-import fields.helper.LocalizedCoordinateRing;
-import fields.helper.LocalizedCoordinateRing.LocalizedElement;
 import fields.interfaces.AlgebraicExtensionElement;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.FieldExtension;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.local.CompleteLocalFieldExtension.Ext;
+import fields.local.CompleteDVRExtension.Ext;
 import fields.local.FormalPowerSeries.PowerSeries;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
-import util.ConCatMap;
 import util.Identity;
 import util.MiscAlgorithms;
 
 public class FormalPowerSeries<T extends Element<T>> extends AbstractField<PowerSeries<T>>
-		implements LocalField<PowerSeries<T>, T> {
+		implements DiscreteValuationField<PowerSeries<T>, T> {
 	private Field<T> field;
 	private UnivariatePolynomialRing<T> ring;
 	private int accuracy;
 	Reals r = Reals.r(1024);
-	private LocalRing<PowerSeries<T>, T> localRing;
+	private DiscreteValuationRing<PowerSeries<T>, T> localRing;
 	private CoordinateRing<T> coordinateRing;
 	private LocalizedCoordinateRing<T> localizedCoordinateRing;
 
@@ -149,7 +148,7 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 		this.field = field;
 		this.ring = field.getUnivariatePolynomialRing();
 		this.localRing = new LocalRingImplementation<>(this, field.toString() + "[[ξ]]");
-		this.coordinateRing = new CoordinateRing<>(ring, ring.getZeroIdeal());
+		this.coordinateRing = ring.getZeroIdeal().divideOut();
 		this.localizedCoordinateRing = new LocalizedCoordinateRing<>(field, coordinateRing,
 				coordinateRing.getIdeal(Collections.singletonList(coordinateRing.getVar(1))));
 	}
@@ -165,86 +164,110 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
+	public DiscreteValuationFieldExtension<PowerSeries<T>, T, ?, ?, ?, ?> getUniqueExtension(
+			UnivariatePolynomial<PowerSeries<T>> minimalPolynomial) {
+		return getUniqueExtension(minimalPolynomial,
+				residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
+	}
+
+	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> DiscreteValuationFieldExtension<PowerSeries<T>, T, PowerSeries<T>, Ext<PowerSeries<T>>, RE, CompleteDVRExtension<PowerSeries<T>, T, R, RE, RFE>> getUniqueExtension(
+			UnivariatePolynomial<PowerSeries<T>> minimalPolynomial,
+			Extension<T, R, RE, RFE> trivialReductionExtension) {
+		CompleteDVRExtension<PowerSeries<T>, T, R, RE, RFE> extension = CompleteDVRExtension
+				.getCompleteDVRExtension(minimalPolynomial, this, trivialReductionExtension);
+		return new DiscreteValuationFieldExtension<>(this, extension, extension.getEmbeddingMap(),
+				extension.asVectorMap());
+	}
+
+	@Override
 	public Extension<PowerSeries<T>, ?, ?, ?> getExtension(UnivariatePolynomial<PowerSeries<T>> minimalPolynomial) {
 		return getExtension(minimalPolynomial,
-				asExtension(reduction().getExtension(reduction().getUnivariatePolynomialRing().getVar())));
+				residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
 	}
 
-	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> Extension<PowerSeries<T>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> asExtension(
-			Extension<T, R, RE, RFE> reductionAsExtension) {
-		FormalPowerSeries<R> base = new FormalPowerSeries<>(reductionAsExtension.extension().getBaseField(), accuracy);
-		UnivariatePolynomialRing<PowerSeries<R>> polynomials = base.getUnivariatePolynomialRing();
-		CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE> asExtension = new CompleteLocalFieldExtension<>(
-				polynomials.getEmbedding(reductionAsExtension.extension().minimalPolynomial(), new MathMap<>() {
-					@Override
-					public PowerSeries<R> evaluate(R t) {
-						return base.getEmbedding(t);
-					}
-				}), base, reductionAsExtension.extension());
-		return new Extension<>(asExtension, this, new MathMap<PowerSeries<T>, Ext<PowerSeries<R>>>() {
-
-			@Override
-			public Ext<PowerSeries<R>> evaluate(PowerSeries<T> t) {
-				List<PowerSeries<R>> coefficients = new ArrayList<>();
-				for (int i = 0; i < reductionAsExtension.extension().degree(); i++) {
-					coefficients.add(base.zero());
-				}
-				for (int j = 0; j <= t.value.degree(); j++) {
-					RE e = reductionAsExtension.embeddingMap().evaluate(t.value.univariateCoefficient(j));
-					Vector<R> asVector = reductionAsExtension.extension().asVector(e);
-					for (int i = 0; i < asVector.dimension(); i++) {
-						coefficients.set(i,
-								base.add(coefficients.get(i),
-										new PowerSeries<R>(base, t.lowestPower,
-												reductionAsExtension.extension().getBaseField()
-														.getUnivariatePolynomialRing()
-														.getEmbedding(asVector.get(i + 1), j))));
-					}
-				}
-				return asExtension.fromPolynomial(polynomials.getPolynomial(coefficients));
-			}
-		}, new MathMap<Ext<PowerSeries<R>>, Vector<PowerSeries<T>>>() {
-
-			@Override
-			public Vector<PowerSeries<T>> evaluate(Ext<PowerSeries<R>> t) {
-				Vector<PowerSeries<R>> asVector = asExtension.asVector(t);
-				PowerSeries<T> result = zero();
-				for (int i = 0; i < asVector.dimension(); i++) {
-					PowerSeries<R> powerSeries = asVector.get(i + 1);
-					for (int j = 0; j <= powerSeries.value.degree(); j++) {
-						R element = powerSeries.value.univariateCoefficient(j);
-						RE embeddedElement = reductionAsExtension.extension().fromPolynomial(reductionAsExtension
-								.extension().getBaseField().getUnivariatePolynomialRing().getEmbedding(element, i));
-						T asT = reductionAsExtension.asVectorMap().evaluate(embeddedElement).get(1);
-						PowerSeries<T> asPowerSeries = new PowerSeries<>(FormalPowerSeries.this,
-								powerSeries.lowestPower, ring.getEmbedding(asT, j));
-						result = add(result, asPowerSeries);
-					}
-				}
-				return new Vector<>(Collections.singletonList(result));
-			}
-		});
-	}
-
-	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> Extension<PowerSeries<T>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> getExtension(
+	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> Extension<PowerSeries<T>, PowerSeries<T>, Ext<PowerSeries<T>>, CompleteDVRExtension<PowerSeries<T>, T, R, RE, RFE>> getExtension(
 			UnivariatePolynomial<PowerSeries<T>> minimalPolynomial,
-			Extension<PowerSeries<T>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> asTrivialExtension) {
-		UnivariatePolynomialRing<Ext<PowerSeries<R>>> basePolynomials = asTrivialExtension.extension()
-				.getUnivariatePolynomialRing();
-		Extension<Ext<PowerSeries<R>>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> extension = asTrivialExtension
-				.extension()
-				.getExtension(basePolynomials.getEmbedding(minimalPolynomial, asTrivialExtension.embeddingMap()));
-		return new Extension<>(extension.extension(), this,
-				new ConCatMap<>(asTrivialExtension.embeddingMap(), extension.embeddingMap()),
-				new ConCatMap<Ext<PowerSeries<R>>, Vector<Ext<PowerSeries<R>>>, Vector<PowerSeries<T>>>(
-						extension.asVectorMap(), new MathMap<>() {
-							@Override
-							public Vector<PowerSeries<T>> evaluate(Vector<Ext<PowerSeries<R>>> t) {
-								return asTrivialExtension.asVectorMap().evaluate(t.get(1));
-							}
-						}));
-
+			Extension<T, R, RE, RFE> trivialReductionExtension) {
+		CompleteDVRExtension<PowerSeries<T>, T, R, RE, RFE> extension = CompleteDVRExtension
+				.getCompleteDVRExtension(minimalPolynomial, this, trivialReductionExtension);
+		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
 	}
+
+//	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> Extension<PowerSeries<T>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> asExtension(
+//			Extension<T, R, RE, RFE> reductionAsExtension) {
+//		FormalPowerSeries<R> base = new FormalPowerSeries<>(reductionAsExtension.extension().getBaseField(), accuracy);
+//		UnivariatePolynomialRing<PowerSeries<R>> polynomials = base.getUnivariatePolynomialRing();
+//		CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE> asExtension = new CompleteLocalFieldExtension<>(
+//				polynomials.getEmbedding(reductionAsExtension.extension().minimalPolynomial(), new MathMap<>() {
+//					@Override
+//					public PowerSeries<R> evaluate(R t) {
+//						return base.getEmbedding(t);
+//					}
+//				}), base, reductionAsExtension.extension());
+//		return new Extension<>(asExtension, this, new MathMap<PowerSeries<T>, Ext<PowerSeries<R>>>() {
+//
+//			@Override
+//			public Ext<PowerSeries<R>> evaluate(PowerSeries<T> t) {
+//				List<PowerSeries<R>> coefficients = new ArrayList<>();
+//				for (int i = 0; i < reductionAsExtension.extension().degree(); i++) {
+//					coefficients.add(base.zero());
+//				}
+//				for (int j = 0; j <= t.value.degree(); j++) {
+//					RE e = reductionAsExtension.embeddingMap().evaluate(t.value.univariateCoefficient(j));
+//					Vector<R> asVector = reductionAsExtension.extension().asVector(e);
+//					for (int i = 0; i < asVector.dimension(); i++) {
+//						coefficients.set(i,
+//								base.add(coefficients.get(i),
+//										new PowerSeries<R>(base, t.lowestPower,
+//												reductionAsExtension.extension().getBaseField()
+//														.getUnivariatePolynomialRing()
+//														.getEmbedding(asVector.get(i + 1), j))));
+//					}
+//				}
+//				return asExtension.fromPolynomial(polynomials.getPolynomial(coefficients));
+//			}
+//		}, new MathMap<Ext<PowerSeries<R>>, Vector<PowerSeries<T>>>() {
+//
+//			@Override
+//			public Vector<PowerSeries<T>> evaluate(Ext<PowerSeries<R>> t) {
+//				Vector<PowerSeries<R>> asVector = asExtension.asVector(t);
+//				PowerSeries<T> result = zero();
+//				for (int i = 0; i < asVector.dimension(); i++) {
+//					PowerSeries<R> powerSeries = asVector.get(i + 1);
+//					for (int j = 0; j <= powerSeries.value.degree(); j++) {
+//						R element = powerSeries.value.univariateCoefficient(j);
+//						RE embeddedElement = reductionAsExtension.extension().fromPolynomial(reductionAsExtension
+//								.extension().getBaseField().getUnivariatePolynomialRing().getEmbedding(element, i));
+//						T asT = reductionAsExtension.asVectorMap().evaluate(embeddedElement).get(1);
+//						PowerSeries<T> asPowerSeries = new PowerSeries<>(FormalPowerSeries.this,
+//								powerSeries.lowestPower, ring.getEmbedding(asT, j));
+//						result = add(result, asPowerSeries);
+//					}
+//				}
+//				return new Vector<>(Collections.singletonList(result));
+//			}
+//		});
+//	}
+//
+//	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> Extension<PowerSeries<T>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> getExtension(
+//			UnivariatePolynomial<PowerSeries<T>> minimalPolynomial,
+//			Extension<PowerSeries<T>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> asTrivialExtension) {
+//		UnivariatePolynomialRing<Ext<PowerSeries<R>>> basePolynomials = asTrivialExtension.extension()
+//				.getUnivariatePolynomialRing();
+//		Extension<Ext<PowerSeries<R>>, PowerSeries<R>, Ext<PowerSeries<R>>, CompleteLocalFieldExtension<PowerSeries<R>, R, RE, RFE>> extension = asTrivialExtension
+//				.extension()
+//				.getExtension(basePolynomials.getEmbedding(minimalPolynomial, asTrivialExtension.embeddingMap()));
+//		return new Extension<>(extension.extension(), this,
+//				new ConCatMap<>(asTrivialExtension.embeddingMap(), extension.embeddingMap()),
+//				new ConCatMap<Ext<PowerSeries<R>>, Vector<Ext<PowerSeries<R>>>, Vector<PowerSeries<T>>>(
+//						extension.asVectorMap(), new MathMap<>() {
+//							@Override
+//							public Vector<PowerSeries<T>> evaluate(Vector<Ext<PowerSeries<R>>> t) {
+//								return asTrivialExtension.asVectorMap().evaluate(t.get(1));
+//							}
+//						}));
+//
+//	}
 
 	public int getAccuracy() {
 		return accuracy;
@@ -413,12 +436,12 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
-	public Field<T> reduction() {
+	public Field<T> residueField() {
 		return field;
 	}
 
 	@Override
-	public T reduce(PowerSeries<T> t) {
+	public T reduceInteger(PowerSeries<T> t) {
 		if (t.lowestPower < 0) {
 			throw new ArithmeticException("not integer");
 		}
@@ -434,7 +457,7 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
-	public PowerSeries<T> lift(T s) {
+	public PowerSeries<T> liftToInteger(T s) {
 		return getEmbedding(ring.getEmbedding(s));
 	}
 
@@ -556,7 +579,7 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
-	public LocalRing<PowerSeries<T>, T> ringOfIntegers() {
+	public DiscreteValuationRing<PowerSeries<T>, T> ringOfIntegers() {
 		return localRing;
 	}
 
@@ -578,7 +601,8 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<PowerSeries<T>>, PowerSeries<T>> factorization(UnivariatePolynomial<PowerSeries<T>> t) {
+	public FactorizationResult<Polynomial<PowerSeries<T>>, PowerSeries<T>> factorization(
+			UnivariatePolynomial<PowerSeries<T>> t) {
 		return ringOfIntegers().factorization(t, true, getAccuracy());
 	}
 }

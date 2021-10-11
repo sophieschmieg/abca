@@ -1,7 +1,7 @@
 package varieties;
 
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
+import fields.polynomials.CoordinateRing;
 import varieties.affine.AffineCover;
 import varieties.affine.AffineScheme;
 

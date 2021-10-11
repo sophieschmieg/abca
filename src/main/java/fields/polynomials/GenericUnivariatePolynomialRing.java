@@ -15,8 +15,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import fields.interfaces.Element;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
@@ -25,6 +25,7 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
+import util.Pair;
 
 public class GenericUnivariatePolynomialRing<T extends Element<T>> extends AbstractPolynomialRing<T> implements
 		PolynomialRing<T>/* , DedekindRing<Polynomial<T>, RationalFunction<T>, T> */, UnivariatePolynomialRing<T> {
@@ -353,39 +354,42 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public boolean isDivisible(Polynomial<T> dividend, Polynomial<T> divisor) {
+		if (divisor.equals(zero)) {
+			return false;
+		}
 		return remainder(dividend, divisor).equals(zero());
 	}
 
-	@Override
-	public GeneralQuotientAndRemainderResult<T> generalQuotientAndRemainder(Polynomial<T> dividend,
-			List<Polynomial<T>> divisors) {
-		List<Polynomial<T>> result = new ArrayList<>();
-		GenericUnivariatePolynomial<T> remainder = toUnivariate(dividend);
-		for (Polynomial<T> p : divisors) {
-			GenericUnivariatePolynomial<T> quotient = zero();
-			while (remainder.degree() >= p.degree()
-					&& ring.isDivisible(remainder.leadingCoefficient(), p.leadingCoefficient())) {
-				int exponent = remainder.degree() - p.degree();
-				Ring<T> ringForDivision = ring;
-				if (ring.exactness() == Exactness.FIXED_POINT && ring instanceof LocalField<?, ?>) {
-					@SuppressWarnings("unchecked")
-					LocalField<T, ?> field = (LocalField<T, ?>) ring;
-					int divisorValuation = field.valuation(p.leadingCoefficient()).value();
-					ringForDivision = field.withAccuracy(field.getAccuracy() + Math.abs(divisorValuation));
-				}
-				T factor = ringForDivision.divide(remainder.leadingCoefficient(), p.leadingCoefficient());
-				int deg = remainder.degree();
-				Polynomial<T> approximation = multiplyPower(exponent, factor, p);
-				remainder = toUnivariate(subtract(remainder, approximation));
-				if (remainder.degree() == deg) {
-					throw new ArithmeticException("a * (b / a) != b: " + dividend + "/" + p);
-				}
-				quotient = add(quotient, getEmbedding(factor, exponent));
-			}
-			result.add(quotient);
-		}
-		return new GeneralQuotientAndRemainderResult<>(remainder, result);
-	}
+//	@Override
+//	public GeneralQuotientAndRemainderResult<T> generalQuotientAndRemainder(Polynomial<T> dividend,
+//			List<Polynomial<T>> divisors) {
+//		List<Polynomial<T>> result = new ArrayList<>();
+//		GenericUnivariatePolynomial<T> remainder = toUnivariate(dividend);
+//		for (Polynomial<T> p : divisors) {
+//			GenericUnivariatePolynomial<T> quotient = zero();
+//			while (remainder.degree() >= p.degree()
+//					&& ring.isDivisible(remainder.leadingCoefficient(), p.leadingCoefficient())) {
+//				int exponent = remainder.degree() - p.degree();
+//				Ring<T> ringForDivision = ring;
+//				if (ring.exactness() == Exactness.FIXED_POINT && ring instanceof LocalField<?, ?>) {
+//					@SuppressWarnings("unchecked")
+//					LocalField<T, ?> field = (LocalField<T, ?>) ring;
+//					int divisorValuation = field.valuation(p.leadingCoefficient()).value();
+//					ringForDivision = field.withAccuracy(field.getAccuracy() + Math.abs(divisorValuation));
+//				}
+//				T factor = ringForDivision.divide(remainder.leadingCoefficient(), p.leadingCoefficient());
+//				int deg = remainder.degree();
+//				Polynomial<T> approximation = multiplyPower(exponent, factor, p);
+//				remainder = toUnivariate(subtract(remainder, approximation));
+//				if (remainder.degree() == deg) {
+//					throw new ArithmeticException("a * (b / a) != b: " + dividend + "/" + p);
+//				}
+//				quotient = add(quotient, getEmbedding(factor, exponent));
+//			}
+//			result.add(quotient);
+//		}
+//		return new GeneralQuotientAndRemainderResult<>(remainder, result);
+//	}
 
 	@Override
 	public UnivariatePolynomial<T> pseudoRemainder(Polynomial<T> dividend, Polynomial<T> divisor) {
@@ -473,7 +477,8 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		if (!isUnit(degreeMinusI)) {
 			throw new ArithmeticException("Polynomial was not content free!");
 		}
-		FactorizationResult<Polynomial<T>, T> factors = new FactorizationResult<>(ring.multiply(unit, degreeMinusI.leadingCoefficient(), linearFactors.leadingCoefficient()), result);
+		FactorizationResult<Polynomial<T>, T> factors = new FactorizationResult<>(
+				ring.multiply(unit, degreeMinusI.leadingCoefficient(), linearFactors.leadingCoefficient()), result);
 		this.squareFreeFactorizatonCache.put(f, factors);
 		return factors;
 	}
@@ -505,12 +510,12 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	public GenericUnivariatePolynomial<T> fromVector(Vector<T> vector) {
 		return getPolynomial(vector.asList());
 	}
-	
+
 	@Override
 	public Vector<T> asVector(Polynomial<T> t, int[] degrees) {
 		return asVector(t, degrees[0]);
 	}
-	
+
 	@Override
 	public Polynomial<T> fromVector(Vector<T> t, int[] degrees) {
 		return fromVector(t);
@@ -877,10 +882,10 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		if (t2.equals(zero())) {
 			return toUnivariate(t1);
 		}
-		if (ring.exactness() == Exactness.FIXED_POINT && ring instanceof LocalRing<?, ?>) {
-			return gcdLocalRing(t1, t2, (LocalRing<T, ?>) ring);
+		if (ring.exactness() == Exactness.FIXED_POINT && ring instanceof DiscreteValuationRing<?, ?>) {
+			return gcdLocalRing(t1, t2, (DiscreteValuationRing<T, ?>) ring);
 		}
-		if (ring.exactness() == Exactness.FIXED_POINT && ring instanceof LocalField<?, ?>) {
+		if (ring.exactness() == Exactness.FIXED_POINT && ring instanceof DiscreteValuationField<?, ?>) {
 			return toUnivariate(super.gcd(t1, t2));
 		}
 		T content1 = content(t1);
@@ -891,12 +896,12 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	private <S extends Element<S>> GenericUnivariatePolynomial<T> gcdLocalRing(Polynomial<T> t1, Polynomial<T> t2,
-			LocalRing<T, S> ring) {
+			DiscreteValuationRing<T, S> ring) {
 		T content1 = content(t1);
 		T content2 = content(t2);
 		T content = ring.gcd(content1, content2);
 		Polynomial<T> contentFree = contentFree(
-				ring.fieldOfFractions().getUnivariatePolynomialRing().gcd(contentFree(t1), contentFree(t2)));
+				ring.localField().getUnivariatePolynomialRing().gcd(contentFree(t1), contentFree(t2)));
 		return multiply(content, contentFree);
 	}
 
@@ -921,19 +926,22 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	public ExtendedResultantResult<T> extendedResultant(Polynomial<T> t1, Polynomial<T> t2) {
 		if (t1.degree() < t2.degree()) {
 			ExtendedResultantResult<T> swapped = extendedResultant(t2, t1);
-			ExtendedResultantResult<T> result = new ExtendedResultantResult<>(swapped.getResultant(), swapped.getGcd(),
-					swapped.getCoeff2(), swapped.getCoeff1());
+			ExtendedResultantResult<T> result = new ExtendedResultantResult<>(swapped.getResultant(),
+					swapped.getResultantCoeff2(), swapped.getResultantCoeff1(), swapped.getGcd(), swapped.getCoeff2(),
+					swapped.getCoeff1());
 			return result;
 		}
 		if (t2.degree() == 0) {
 			if (t1.degree() == 0) {
-				return new ExtendedResultantResult<>(t2.leadingCoefficient(), getEmbedding(t2.leadingCoefficient()),
-						zero(), one());
+				Pair<T, T> bezout = ring.bezoutIdentity(t1.leadingCoefficient(), t2.leadingCoefficient());
+				return new ExtendedResultantResult<>(ring.one(), getEmbedding(bezout.getFirst()),
+						getEmbedding(bezout.getSecond()), one(), getEmbedding(bezout.getFirst()),
+						getEmbedding(bezout.getSecond()));
 			}
 			T power = ring.power(t2.leadingCoefficient(), t1.degree() - 1);
 			T resultant = ring.multiply(power, t2.leadingCoefficient());
-			ExtendedResultantResult<T> result = new ExtendedResultantResult<>(resultant, getEmbedding(resultant),
-					zero(), getEmbedding(power));
+			ExtendedResultantResult<T> result = new ExtendedResultantResult<>(resultant, zero(), getEmbedding(power),
+					getEmbedding(resultant), zero(), getEmbedding(power));
 			return result;
 		}
 		Polynomial<T> rPrevPrev = null;
@@ -989,14 +997,20 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		}
 		UnivariatePolynomial<T> gcd = toUnivariate(rPrev);
 		T resultant;
+		UnivariatePolynomial<T> resultantCoeff1;
+		UnivariatePolynomial<T> resultantCoeff2;
 		if (rPrevPrev != null && rPrev.degree() == 0) {
-			resultant = ring.multiply(ring.power(rPrev.leadingCoefficient(), rPrevPrev.degree() - 1),
-					gcd.univariateCoefficient(0));
+			T powerM1 = ring.power(rPrev.leadingCoefficient(), rPrevPrev.degree() - 1);
+			resultant = ring.multiply(powerM1, rPrev.leadingCoefficient());
+			resultantCoeff1 = multiply(powerM1, coeff1Prev);
+			resultantCoeff2 = multiply(powerM1, coeff2Prev);
 		} else {
 			resultant = ring.zero();
+			resultantCoeff1 = toUnivariate(t2);
+			resultantCoeff2 = negative(t1);
 		}
-		ExtendedResultantResult<T> result = new ExtendedResultantResult<>(resultant, gcd, toUnivariate(coeff1Prev),
-				toUnivariate(coeff2Prev));
+		ExtendedResultantResult<T> result = new ExtendedResultantResult<>(resultant, resultantCoeff1, resultantCoeff2,
+				gcd, toUnivariate(coeff1Prev), toUnivariate(coeff2Prev));
 		return result;
 	}
 

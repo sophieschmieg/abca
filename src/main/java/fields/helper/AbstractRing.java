@@ -7,14 +7,19 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
+import fields.helper.FieldOfFractions.Fraction;
 import fields.integers.Integers.IntE;
+import fields.interfaces.DedekindRing;
 import fields.interfaces.Element;
 import fields.interfaces.Group;
 import fields.interfaces.Ideal;
+import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
@@ -24,6 +29,7 @@ import fields.polynomials.Monomial;
 import fields.vectors.pivot.DivisionPivotStrategy;
 import fields.vectors.pivot.EuclidPivotStrategy;
 import fields.vectors.pivot.PivotStrategy;
+import util.Pair;
 
 public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	private UnivariatePolynomialRing<T> polynomialRing;
@@ -265,7 +271,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	public T divideChecked(T dividend, T divisor) {
 		QuotientAndRemainderResult<T> result = quotientAndRemainder(dividend, divisor);
 		if (!result.getRemainder().equals(zero())) {
-			throw new ArithmeticException("not divisble!");
+			throw new ArithmeticException(dividend + " not divisble by " + divisor + " in " + this + "!");
 		}
 		return result.getQuotient();
 	}
@@ -320,6 +326,29 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			}
 		}
 		return new BezoutIdentityResult<>(bezout1, bezout2);
+	}
+
+	@Override
+	public Pair<T, T> bezoutIdentity(T t1, T t2) {
+		if (isEuclidean()) {
+			ExtendedEuclideanResult<T> ee = extendedEuclidean(t1, t2);
+			if (!isUnit(ee.getGcd())) {
+				throw new ArithmeticException("Not coprime");
+			}
+			return new Pair<>(divideChecked(ee.getCoeff1(), ee.getGcd()), divideChecked(ee.getCoeff2(), ee.getGcd()));
+		}
+		IdealResult<T, ?> i1 = getIdealWithTransforms(Collections.singletonList(t1));
+		IdealResult<T, ?> i2 = getIdealWithTransforms(Collections.singletonList(t2));
+		BezoutIdentityResult<T> bezout = bezoutIdentity(i1.getIdeal(), i2.getIdeal());
+		T coeff1 = zero();
+		for (int i = 0; i < bezout.getCoeff1().size(); i++) {
+			coeff1 = add(coeff1, multiply(i1.getGeneratorExpressions().get(i).get(0), bezout.getCoeff1().get(i)));
+		}
+		T coeff2 = zero();
+		for (int i = 0; i < bezout.getCoeff2().size(); i++) {
+			coeff2 = add(coeff2, multiply(i2.getGeneratorExpressions().get(i).get(0), bezout.getCoeff2().get(i)));
+		}
+		return new Pair<>(coeff1, coeff2);
 	}
 
 	@Override
@@ -378,6 +407,11 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
+	public DedekindRing<T, ?, ?> asDedekindRing() {
+		throw new ArithmeticException("Not a Dedekind ring!");
+	}
+
+	@Override
 	public PivotStrategy<T> preferredPivotStrategy() {
 		if (isEuclidean()) {
 			return new EuclidPivotStrategy<>(this);
@@ -386,13 +420,62 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	public T gcd(T t1, T t2) {
-		if (!this.isEuclidean())
-			throw new RuntimeException("Not possible");
-		return this.extendedEuclidean(t1, t2).getGcd();
+		if (this.isEuclidean()) {
+			return this.extendedEuclidean(t1, t2).getGcd();
+		}
+		if (this.isUniqueFactorizationDomain()) {
+			FactorizationResult<T, T> factorization1 = uniqueFactorization(t1);
+			FactorizationResult<T, T> factorization2 = uniqueFactorization(t2);
+			T gcd = one();
+			Set<T> primes = new TreeSet<>();
+			primes.addAll(factorization1.primeFactors());
+			primes.addAll(factorization2.primeFactors());
+			for (T prime : primes) {
+				gcd = multiply(gcd,
+						power(prime, factorization1.multiplicity(prime) + factorization2.multiplicity(prime)));
+			}
+			return gcd;
+		}
+		throw new RuntimeException("Not possible");
 	}
 
 	public T lcm(T t1, T t2) {
 		return divideChecked(multiply(t1, t2), gcd(t1, t2));
+	}
+
+	@Override
+	public FieldOfFractionsResult<T, ?> fieldOfFractions() {
+		FieldOfFractions<T> fieldOfFractions = new FieldOfFractions<>(this);
+		return new FieldOfFractionsResult<>(this, fieldOfFractions, new MathMap<>() {
+
+			@Override
+			public Fraction<T> evaluate(T t) {
+				return fieldOfFractions.getEmbedding(t);
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public T evaluate(Fraction<T> t) {
+				return t.getNumerator();
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public T evaluate(Fraction<T> t) {
+				return t.getDenominator();
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public T evaluate(Fraction<T> t) {
+				return t.asInteger();
+			}
+		});
+	}
+	
+	@Override
+	public LocalizeResult<T, ?, ?, ?> localizeAtIdeal(Ideal<T> primeIdeal) {
+		throw new UnsupportedOperationException("Not implemented!");
 	}
 
 	public ExtendedEuclideanResult<T> extendedEuclidean(T t1, T t2) {
@@ -496,6 +579,21 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 		return new FactorizationResult<>(getIdeal(Collections.singletonList(one())), result);
 	}
 
+	@Override
+	public PrimaryDecompositionResult<T, ? extends Ideal<T>> primaryDecomposition(Ideal<T> t) {
+		throw new UnsupportedOperationException("Not implemented!");
+	}
+
+	@Override
+	public ModuloMaximalIdealResult<T, ?> moduloMaximalIdeal(Ideal<T> ideal) {
+		throw new UnsupportedOperationException("Not implemented!");
+	}
+
+	@Override
+	public ModuloIdealResult<T, ?> moduloIdeal(Ideal<T> ideal) {
+		throw new UnsupportedOperationException("Not implemented!");
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public IdealResult<T, ?> getIdealWithTransforms(T... generators) {
@@ -514,6 +612,15 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
+	public <S extends Element<S>> Ideal<T> getIdealEmbedding(Ideal<S> t, MathMap<S, T> map) {
+		List<T> generators = new ArrayList<>();
+		for (S generator : t.generators()) {
+			generators.add(map.evaluate(generator));
+		}
+		return getIdeal(generators);
+	}
+
+	@Override
 	public Ideal<T> getUnitIdeal() {
 		return getIdeal(Collections.singletonList(one()));
 	}
@@ -521,6 +628,11 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	@Override
 	public Ideal<T> getZeroIdeal() {
 		return getIdeal(Collections.emptyList());
+	}
+
+	@Override
+	public Ideal<T> getNilRadical() {
+		throw new UnsupportedOperationException("Not implemented!");
 	}
 
 	@Override
@@ -587,6 +699,21 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			square = multiply(square, square);
 		}
 		return result;
+	}
+
+	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain() {
+		return maximalPrimeIdealChain(getNilRadical());
+	}
+
+	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start) {
+		throw new UnsupportedOperationException("Not implemented!");
+	}
+
+	@Override
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end) {
+		throw new UnsupportedOperationException("Not implemented!");
 	}
 
 	public UnivariatePolynomialRing<T> getUnivariatePolynomialRing() {

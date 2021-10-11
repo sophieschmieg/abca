@@ -1,7 +1,7 @@
 package fields.local;
 
 import fields.interfaces.Element;
-import fields.interfaces.LocalField.Valuation;
+import fields.interfaces.DiscreteValuationField.Valuation;
 import fields.interfaces.Ring;
 
 public class TrivialValuation<T extends Element<T>> implements Valuation<T> {

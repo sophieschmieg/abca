@@ -362,7 +362,7 @@ public class Rationals extends AbstractField<Fraction> {
 			List<IntE> lifts = new ArrayList<>();
 			for (int i = 0; i < perPrime.size(); i++) {
 				PrimeField fp = fields.get(i);
-				lifts.add(fp.lift(perPrime.get(i).coefficient(m)));
+				lifts.add(fp.liftToInteger(perPrime.get(i).coefficient(m)));
 			}
 			IntE crt = z.chineseRemainderTheorem(lifts, preparation);
 			Optional<Fraction> reconstruction = rationalReconstruction(crt, modulus);

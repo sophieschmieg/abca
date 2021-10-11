@@ -27,9 +27,9 @@ import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.FieldExtension;
 import fields.interfaces.Ideal;
-import fields.interfaces.LocalRing;
-import fields.interfaces.LocalRing.OkutsuType;
-import fields.interfaces.LocalRing.TheMontesResult;
+import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.DiscreteValuationRing.OkutsuType;
+import fields.interfaces.DiscreteValuationRing.TheMontesResult;
 import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
@@ -44,7 +44,7 @@ import util.MiscAlgorithms;
 class NumberFieldTest {
 
 	private <T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> boolean checkUniformizer(
-			LocalRing<T, S> ring, OkutsuType<T, S, R, RE, RFE> type) {
+			DiscreteValuationRing<T, S> ring, OkutsuType<T, S, R, RE, RFE> type) {
 		int[] logUniformizer = type.uniformizer();
 		OkutsuType<T, S, R, RE, RFE> it = type;
 		int value = 0;
@@ -66,7 +66,7 @@ class NumberFieldTest {
 				q.getInteger(BigInteger.valueOf(1125899906842816L)), q.getInteger(1600), q.getInteger(1728),
 				q.getInteger(2080), q.getInteger(1328), q.getInteger(992), q.getInteger(544), q.getInteger(240),
 				q.getInteger(100), q.getInteger(36), q.getInteger(12), q.getInteger(2), q.one());
-		LocalRing<Fraction, PFE> z2 = Integers.z().localize(BigInteger.TWO);
+		DiscreteValuationRing<Fraction, PFE> z2 = Integers.z().localize(BigInteger.TWO);
 		PrimeField f2 = PrimeField.getPrimeField(2);
 		UnivariatePolynomialRing<PFE> reductionRing = f2.getUnivariatePolynomialRing();
 		FiniteField f2e = f2.getExtension(reductionRing.getVar()).extension();
@@ -176,7 +176,7 @@ class NumberFieldTest {
 	}
 
 	private <T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> boolean testType(
-			OkutsuType<T, S, R, RE, RFE> type, LocalRing<T, S> ring) {
+			OkutsuType<T, S, R, RE, RFE> type, DiscreteValuationRing<T, S> ring) {
 		for (int tc = 0; tc < 10; tc++) {
 			RFE reduction = type.reduction().extension();
 			RE rng;
@@ -201,7 +201,7 @@ class NumberFieldTest {
 				q.getInteger(BigInteger.valueOf(1125899906842816L)), q.getInteger(1600), q.getInteger(1728),
 				q.getInteger(2080), q.getInteger(1328), q.getInteger(992), q.getInteger(544), q.getInteger(240),
 				q.getInteger(100), q.getInteger(36), q.getInteger(12), q.getInteger(2), q.one());
-		LocalRing<Fraction, PFE> z2 = Integers.z().localize(BigInteger.TWO);
+		DiscreteValuationRing<Fraction, PFE> z2 = Integers.z().localize(BigInteger.TWO);
 		PrimeField f2 = PrimeField.getPrimeField(2);
 		UnivariatePolynomialRing<PFE> reductionRing = f2.getUnivariatePolynomialRing();
 		TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> result = z2.theMontesAlgorithm(minimalPolynomial,
@@ -413,10 +413,10 @@ class NumberFieldTest {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
 		FiniteField field = FiniteField.getFiniteField(125);
-		LocalRing<Fraction, PFE> z5 = z.localize(field.characteristic());
+		DiscreteValuationRing<Fraction, PFE> z5 = z.localize(field.characteristic());
 		NumberField nf = new NumberField(z5.liftUnivariatePolynomial(field.minimalPolynomial()));
 		NumberFieldIntegers order = nf.maximalOrder();
-		LocalRing<NFE, FFE> localized = order
+		DiscreteValuationRing<NFE, FFE> localized = order
 				.localize(order.idealsOver(z.getIdeal(new IntE(field.characteristic()))).get(0));
 		Set<IntE> primes = new TreeSet<>();
 		Iterator<IntE> primeIt = z.primes();

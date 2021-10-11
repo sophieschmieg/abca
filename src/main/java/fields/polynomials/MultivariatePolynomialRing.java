@@ -446,68 +446,6 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		return comparator;
 	}
 
-	public GeneralQuotientAndRemainderResult<T> generalQuotientAndRemainder(Polynomial<T> polynomial,
-			List<Polynomial<T>> basis) {
-		List<SortedMap<Monomial, T>> quotient = new ArrayList<>();
-		SortedMap<Monomial, T> remainder = new TreeMap<>();
-		SortedMap<Monomial, T> p = new TreeMap<>();
-		for (Monomial m : polynomial.monomials()) {
-			p.put(m, polynomial.coefficient(m));
-		}
-		for (int i = 0; i < basis.size(); i++)
-			quotient.add(new TreeMap<>(this.comparator));
-		while (true) {
-			if (p.isEmpty()) {
-				List<Polynomial<T>> list = new ArrayList<>();
-				for (SortedMap<Monomial, T> q : quotient) {
-					list.add(this.getPolynomial(q));
-				}
-				return new GeneralQuotientAndRemainderResult<>(this.getPolynomial(remainder), list);
-			}
-			Monomial leadingmonomial = p.lastKey();
-			T leadingcoefficient = p.get(leadingmonomial);
-			boolean success = false;
-			boolean totalFailure = true;
-			for (int i = 0; i < basis.size(); i++) {
-				Polynomial<T> base = basis.get(i);
-				if (this.comparator.compare(leadingmonomial, base.leadingMonomial()) >= 0) {
-					totalFailure = false;
-				}
-				Monomial div = leadingmonomial.divide(base.leadingMonomial());
-				QuotientAndRemainderResult<T> qr = ring.quotientAndRemainder(leadingcoefficient,
-						base.leadingCoefficient());
-				if (div == null || !qr.getRemainder().equals(ring.zero()))
-					continue;
-				T factor = qr.getQuotient();
-				quotient.get(i).put(div, factor);
-				for (Monomial m : base.monomials()) {
-					T subtrahend = this.ring.multiply(factor, base.coefficient(m));
-					Monomial multiplied = m.multiply(div);
-					T newValue;
-					if (p.containsKey(multiplied)) {
-						newValue = this.ring.subtract(p.get(multiplied), subtrahend);
-					} else {
-						newValue = this.ring.negative(subtrahend);
-					}
-					if (newValue.equals(this.ring.zero())) {
-						p.remove(multiplied);
-					} else {
-						p.put(multiplied, newValue);
-					}
-				}
-				success = true;
-				break;
-			}
-			if (totalFailure) {
-				remainder.putAll(p);
-				p.clear();
-			} else if (!success) {
-				remainder.put(leadingmonomial, leadingcoefficient);
-				p.remove(leadingmonomial);
-			}
-		}
-	}
-
 	@Override
 	public Monomial getMonomial(int[] exponents) {
 		return new Monomial(comparator, exponents);

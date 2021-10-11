@@ -10,6 +10,7 @@ import java.util.TreeSet;
 
 import fields.integers.Integers.IntE;
 import fields.vectors.pivot.PivotStrategy;
+import util.Pair;
 
 public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public T zero();
@@ -43,6 +44,145 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public boolean isEuclidean();
 
 	public boolean isUniqueFactorizationDomain();
+
+	public class FieldOfFractionsResult<T extends Element<T>, S extends Element<S>> {
+		private Ring<T> ring;
+		private Field<S> field;
+		private MathMap<T, S> embedding;
+		private MathMap<S, T> numerator;
+		private MathMap<S, T> denominator;
+		private MathMap<S, T> asInteger;
+
+		public FieldOfFractionsResult(Ring<T> ring, Field<S> field, MathMap<T, S> embedding, MathMap<S, T> numerator,
+				MathMap<S, T> denominator, MathMap<S, T> asInteger) {
+			this.ring = ring;
+			this.field = field;
+			this.embedding = embedding;
+			this.numerator = numerator;
+			this.denominator = denominator;
+			this.asInteger = asInteger;
+		}
+
+		public Ring<T> getRing() {
+			return ring;
+		}
+
+		public Field<S> getField() {
+			return field;
+		}
+
+		public MathMap<T, S> getEmbedding() {
+			return embedding;
+		}
+		
+		public S embedding(T t) {
+			return embedding.evaluate(t);
+		}
+
+		public MathMap<S, T> getNumerator() {
+			return numerator;
+		}
+		
+		public T numerator(S t) {
+			return numerator.evaluate(t);
+		}
+
+		public MathMap<S, T> getDenominator() {
+			return denominator;
+		}
+		
+		public T denominator(S t) {
+			return denominator.evaluate(t);
+		}
+
+		public MathMap<S, T> getAsInteger() {
+			return asInteger;
+		}
+		
+		public T asInteger(S t) {
+			return asInteger.evaluate(t);
+		}
+		
+		public String toString() {
+			return "Q(" + ring + ")";
+		}
+
+	}
+
+	public FieldOfFractionsResult<T, ?> fieldOfFractions();
+
+
+	public class LocalizeResult<T extends Element<T>, S extends Element<S>, U extends Element<U>, R extends Element<R>> {
+		private Ring<T> ring;
+		private Ideal<T> ideal;
+		private LocalRing<S, U, R> localizedRing;
+		private MathMap<T, S> embedding;
+		private MathMap<S, T> numerator;
+		private MathMap<S, T> denominator;
+		private MathMap<S, T> asInteger;
+
+		public LocalizeResult(Ring<T> ring, Ideal<T> ideal, LocalRing<S, U, R> localizedRing, MathMap<T, S> embedding, MathMap<S, T> numerator,
+				MathMap<S, T> denominator, MathMap<S, T> asInteger) {
+			this.ring = ring;
+			this.ideal = ideal;
+			this.localizedRing = localizedRing;
+			this.embedding = embedding;
+			this.numerator = numerator;
+			this.denominator = denominator;
+			this.asInteger = asInteger;
+		}
+
+		public Ring<T> getRing() {
+			return ring;
+		}
+		
+		public Ideal<T> getIdeal() {
+			return ideal;
+		}
+
+		public LocalRing<S, U, R> getLocalizedRing() {
+			return localizedRing;
+		}
+
+		public MathMap<T, S> getEmbedding() {
+			return embedding;
+		}
+		
+		public S embedding(T t) {
+			return embedding.evaluate(t);
+		}
+
+		public MathMap<S, T> getNumerator() {
+			return numerator;
+		}
+		
+		public T numerator(S t) {
+			return numerator.evaluate(t);
+		}
+
+		public MathMap<S, T> getDenominator() {
+			return denominator;
+		}
+		
+		public T denominator(S t) {
+			return denominator.evaluate(t);
+		}
+
+		public MathMap<S, T> getAsInteger() {
+			return asInteger;
+		}
+		
+		public T asInteger(S t) {
+			return asInteger.evaluate(t);
+		}
+		
+		public String toString() {
+			return ideal + "^-1*" + ring;
+		}
+
+	}
+
+	public LocalizeResult<T, ?, ?, ?> localizeAtIdeal(Ideal<T> primeIdeal);
 
 	public static class FactorizationResult<T extends Element<? super T>, U extends Element<? super U>>
 			implements Comparable<FactorizationResult<T, U>> {
@@ -150,6 +290,30 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public FactorizationResult<Ideal<T>, Ideal<T>> idealFactorization(Ideal<T> t);
 
+	public static class PrimaryDecompositionResult<T extends Element<T>, I extends Ideal<T>> {
+		private List<I> primaryIdeals;
+		private List<I> radicals;
+
+		public PrimaryDecompositionResult(List<I> primaryIdeals, List<I> radicals) {
+			this.primaryIdeals = primaryIdeals;
+			this.radicals = radicals;
+		}
+
+		public List<I> getPrimaryIdeals() {
+			return primaryIdeals;
+		}
+
+		public List<I> getRadicals() {
+			return radicals;
+		}
+		
+		public String toString() {
+			return primaryIdeals.toString();
+		}
+	}
+
+	public PrimaryDecompositionResult<T, ? extends Ideal<T>> primaryDecomposition(Ideal<T> t);
+
 	public boolean isDivisible(T dividend, T divisor);
 
 	public static class QuotientAndRemainderResult<T extends Element<T>> {
@@ -229,6 +393,8 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public T projectToUnit(T t);
 
 	public T upToUnit(T t);
+
+	DedekindRing<T, ?, ?> asDedekindRing();
 
 	public T numerator(T t);
 
@@ -320,6 +486,8 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	 */
 	public BezoutIdentityResult<T> bezoutIdentity(Ideal<T> t1, Ideal<T> t2);
 
+	public Pair<T, T> bezoutIdentity(T t1, T t2);
+
 	public static class ChineseRemainderPreparation<T extends Element<T>> {
 		private List<Ideal<T>> ideals;
 		private Ideal<T> product;
@@ -358,6 +526,12 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public Iterable<T> getUnits();
 
 	public int krullDimension();
+	
+	public List<Ideal<T>> maximalPrimeIdealChain();
+
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start);
+
+	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end);
 
 	public class IdealResult<T extends Element<T>, I extends Ideal<T>> {
 		private List<List<T>> generatorExpressions;
@@ -381,6 +555,10 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		public I getIdeal() {
 			return ideal;
 		}
+		
+		public String toString() {
+			return ideal.toString();
+		}
 
 	}
 
@@ -397,6 +575,8 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public Ideal<T> getUnitIdeal();
 
 	public Ideal<T> getZeroIdeal();
+	
+	public Ideal<T> getNilRadical();
 
 	public Ideal<T> add(Ideal<T> t1, Ideal<T> t2);
 
@@ -407,6 +587,113 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public Ideal<T> radical(Ideal<T> t);
 
 	public Ideal<T> power(Ideal<T> t, int power);
+
+	public <S extends Element<S>> Ideal<T> getIdealEmbedding(Ideal<S> t, MathMap<S, T> map);
+
+	public static class ModuloMaximalIdealResult<T extends Element<T>, S extends Element<S>> {
+		private Ring<T> ring;
+		private Ideal<T> ideal;
+		private Field<S> field;
+		private MathMap<T, S> reduction;
+		private MathMap<S, T> lift;
+
+		public ModuloMaximalIdealResult(Ring<T> ring, Ideal<T> ideal, Field<S> field, MathMap<T, S> reduction,
+				MathMap<S, T> lift) {
+			this.ring = ring;
+			this.ideal = ideal;
+			this.field = field;
+			this.reduction = reduction;
+			this.lift = lift;
+		}
+
+		public Ring<T> getRing() {
+			return ring;
+		}
+
+		public Ideal<T> getIdeal() {
+			return ideal;
+		}
+
+		public Field<S> getField() {
+			return field;
+		}
+
+		public MathMap<T, S> getReduction() {
+			return reduction;
+		}
+		
+		public S reduce(T t) {
+			return reduction.evaluate(t);
+		}
+
+		public MathMap<S, T> getLift() {
+			return lift;
+		}
+
+		public T lift(S t) {
+			return lift.evaluate(t);
+		}
+
+		@Override
+		public String toString() {
+			return ring + "/" + ideal;
+		}
+	}
+
+	public ModuloMaximalIdealResult<T, ?> moduloMaximalIdeal(Ideal<T> ideal);
+
+
+	public static class ModuloIdealResult<T extends Element<T>, S extends Element<S>> {
+		private Ring<T> ring;
+		private Ideal<T> ideal;
+		private Ring<S> quotientRing;
+		private MathMap<T, S> reduction;
+		private MathMap<S, T> lift;
+
+		public ModuloIdealResult(Ring<T> ring, Ideal<T> ideal, Ring<S> quotientRing, MathMap<T, S> reduction,
+				MathMap<S, T> lift) {
+			this.ring = ring;
+			this.ideal = ideal;
+			this.quotientRing = quotientRing;
+			this.reduction = reduction;
+			this.lift = lift;
+		}
+
+		public Ring<T> getRing() {
+			return ring;
+		}
+
+		public Ideal<T> getIdeal() {
+			return ideal;
+		}
+
+		public Ring<S> getQuotientRing() {
+			return quotientRing;
+		}
+
+		public MathMap<T, S> getReduction() {
+			return reduction;
+		}
+		
+		public S reduce(T t) {
+			return reduction.evaluate(t);
+		}
+
+		public MathMap<S, T> getLift() {
+			return lift;
+		}
+		
+		public T lift(S t) {
+			return lift.evaluate(t);
+		}
+
+		@Override
+		public String toString() {
+			return ring + "/" + ideal;
+		}
+	}
+
+	public ModuloIdealResult<T, ?> moduloIdeal(Ideal<T> ideal);
 
 	public UnivariatePolynomialRing<T> getUnivariatePolynomialRing();
 
@@ -433,4 +720,5 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public T characteristicRoot(T t, int power);
 
 	public List<T> adicDevelopment(T t, T base);
+
 }

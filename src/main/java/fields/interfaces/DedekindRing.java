@@ -5,9 +5,7 @@ import fields.local.Value;
 public interface DedekindRing<T extends Element<T>, U extends Element<U>, S extends Element<S>> extends Ring<T> {
 	Value valuation(T t, Ideal<T> maximalIdeal);
 
-	Field<U> fieldOfFractions();
-
-	MathMap<T, U> embedding();
+	FieldOfFractionsResult<T, U> fieldOfFractions();
 
 	boolean isInteger(U t);
 	
@@ -30,8 +28,16 @@ public interface DedekindRing<T extends Element<T>, U extends Element<U>, S exte
 	default boolean isDedekindDomain() {
 		return true;
 	}
+	
+	default DedekindRing<T, U, S> asDedekindRing() {
+		return this;
+	}
 
 	T asInteger(U t);
+	
+	default T uniformizer(Ideal<T> maximalIdeal) {
+		return asInteger(localize(maximalIdeal).uniformizer());
+	}
 
 	Field<S> reduction(Ideal<T> maximalIdeal);
 
@@ -39,5 +45,5 @@ public interface DedekindRing<T extends Element<T>, U extends Element<U>, S exte
 
 	T lift(S s, Ideal<T> maximalIdeal);
 
-	LocalRing<U, S> localize(Ideal<T> maximalIdeal);
+	DiscreteValuationRing<U, S> localize(Ideal<T> maximalIdeal);
 }

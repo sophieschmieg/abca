@@ -3,10 +3,10 @@ package varieties;
 import java.util.ArrayList;
 import java.util.List;
 
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.polynomials.CoordinateRing;
 import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
 import varieties.projective.ProjectiveMorphism;

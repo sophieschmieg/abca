@@ -4,14 +4,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateIdeal;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
+import fields.polynomials.CoordinateRing.CoordinateIdeal;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import varieties.Morphism;
 import varieties.SpectrumOfField;
 
@@ -133,7 +133,7 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 			additionalEquations.add(tensorProduct.getEmbedding(equation));
 		}
 		CoordinateIdeal<T> ideal = tensorProduct.getIdeal(additionalEquations);
-		CoordinateRing<T> pushout = new CoordinateRing<T>(tensorProduct, ideal);
+		CoordinateRing<T> pushout = ideal.divideOut();
 		result.product = new AffineScheme<>(result.factor1.getField(), pushout);
 		List<CoordinateRingElement<T>> projection1List = new ArrayList<>();
 		for (int i = 0; i < polynomialRing1.numberOfVariables(); i++) {
@@ -198,7 +198,7 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 				return false;
 			}
 		}
-		return new CoordinateRing<>(domainRing.getPolynomialRing(), ideal.asPolynomialIdeal()).krullDimension() <= 0;
+		return ideal.divideOut().krullDimension() <= 0;
 	}
 
 	public boolean hasDenseImage() {
@@ -255,11 +255,13 @@ public class AffineMorphism<T extends Element<T>> implements Morphism<T, AffineP
 					.add(rangeCoordinateRing.getEmbedding(rangePolynomialRing.getEmbedding(graphGenerator, map)));
 		}
 		AffineScheme<T> image = new AffineScheme<>(range.getField(),
-				new CoordinateRing<>(rangeCoordinateRing, rangeCoordinateRing.getIdeal(imageGenerators)));
+				rangeCoordinateRing.getIdeal(imageGenerators).divideOut());
 		return new AffineMorphism<>(image, range, embedding);
 	}
+
 	/**
 	 * Returns the closure of the preimage given by an injection into the range.
+	 * 
 	 * @return
 	 */
 

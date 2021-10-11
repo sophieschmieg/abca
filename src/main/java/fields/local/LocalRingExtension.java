@@ -8,22 +8,22 @@ import fields.interfaces.Algebra;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.FieldExtension;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.Vector;
 
-public class LocalRingExtension<B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE> & LocalField<E, RE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
-		extends LocalRingImplementation<E, RE> implements Algebra<B, E>, LocalRing<E, RE> {
-	private LocalField<B, R> base;
+public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE> & DiscreteValuationField<E, RE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
+		extends LocalRingImplementation<E, RE> implements Algebra<B, E>, DiscreteValuationRing<E, RE> {
+	private DiscreteValuationField<B, S> base;
 	private FE extension;
 	private RFE reductionExtension;
 	private List<E> integralBasis;
 	private Matrix<B> fromPowerToIntegralBaseChange;
 	private FreeModule<B> asFreeModule;
 
-	public LocalRingExtension(FE extension, LocalField<B, R> base, OkutsuType<B, R, R, RE, RFE> type,
+	public LocalRingExtension(FE extension, DiscreteValuationField<B, S> base, OkutsuType<B, S, R, RE, RFE> type,
 			List<E> integralBasis, Matrix<B> fromPowerToIntegralBaseChange) {
 		super(extension, base.ringOfIntegers().toString() + "[X]/(" + extension.minimalPolynomial() + ")");
 		this.base = base;
@@ -32,7 +32,7 @@ public class LocalRingExtension<B extends Element<B>, E extends AlgebraicExtensi
 		this.integralBasis = integralBasis;
 		this.fromPowerToIntegralBaseChange = fromPowerToIntegralBaseChange;
 		this.asFreeModule = new FreeModule<>(base, extension.degree());
-		if (this.extension.reduction() != this.reductionExtension) {
+		if (this.extension.residueField() != this.reductionExtension) {
 			throw new ArithmeticException("Not the reduction of the extension!");
 		}
 		if (this.extension.getBaseField() != this.base) {
@@ -42,7 +42,7 @@ public class LocalRingExtension<B extends Element<B>, E extends AlgebraicExtensi
 	}
 
 	@Override
-	public LocalRing<B, R> getRing() {
+	public DiscreteValuationRing<B, S> getRing() {
 		return base.ringOfIntegers();
 	}
 

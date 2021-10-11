@@ -200,9 +200,10 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 				this.numerator = this.ring.divideChecked(this.numerator, gcd);
 				this.denominator = this.ring.divideChecked(this.denominator, gcd);
 			}
-			if (this.denominator.compareTo(this.ring.zero()) < 0) {
-				this.numerator = this.ring.negative(this.numerator);
-				this.denominator = this.ring.negative(this.denominator);
+			T unit = this.ring.projectToUnit(this.denominator);
+			if (!unit.equals(this.ring.one())) {
+				this.numerator = this.ring.divide(this.numerator, unit);
+				this.denominator = this.ring.divide(this.denominator, unit);
 			}
 
 		}
@@ -214,6 +215,14 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 
 		public T getDenominator() {
 			canonicalize();
+			return this.denominator;
+		}
+		
+		public T getNumeratorDirect() {
+			return this.numerator;
+		}
+		
+		public T getDenominatorDirect() {
 			return this.denominator;
 		}
 

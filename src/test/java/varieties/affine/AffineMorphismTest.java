@@ -7,14 +7,13 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 
 class AffineMorphismTest {
@@ -24,8 +23,8 @@ class AffineMorphismTest {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> one = q.getUnivariatePolynomialRing();
 		PolynomialRing<Fraction> two = AbstractPolynomialRing.getPolynomialRing(q, 2, Monomial.GREVLEX);
-		AffineScheme<Fraction> line = new AffineScheme<>(q, new CoordinateRing<>(one, one.getZeroIdeal()));
-		AffineScheme<Fraction> plane = new AffineScheme<>(q, new CoordinateRing<>(two, two.getZeroIdeal()));
+		AffineScheme<Fraction> line = new AffineScheme<>(q, one.getZeroIdeal().divideOut());
+		AffineScheme<Fraction> plane = new AffineScheme<>(q, two.getZeroIdeal().divideOut());
 		List<Polynomial<Fraction>> nodalMapList = new ArrayList<>();
 		nodalMapList.add(one.subtract(one.getVarPower(2), one.one()));
 		nodalMapList.add(one.multiply(nodalMapList.get(0), one.getVar()));
@@ -48,7 +47,7 @@ class AffineMorphismTest {
 		System.out.println(morphism.image().getDomain());
 		List<Polynomial<Fraction>> lineList = new ArrayList<>();
 		lineList.add(one.getVar());
-		lineList.add(one.multiply(2, one.getVar()));//subtract(one.getVar(), one.one()));
+		lineList.add(one.multiply(2, one.getVar()));// subtract(one.getVar(), one.one()));
 		AffineMorphism<Fraction> lineMorphism = AffineMorphism.fromPolynomials(line, plane, lineList);
 		System.out.println(lineMorphism.image().getDomain());
 		pre = morphism.preimage(lineMorphism);

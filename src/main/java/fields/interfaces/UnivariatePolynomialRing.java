@@ -170,13 +170,17 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	public static class ExtendedResultantResult<T extends Element<T>> {
 		private final T resultant;
-		private final UnivariatePolynomial<T> gcd;
+		private final UnivariatePolynomial<T> resultantCoeff1;
+		private final UnivariatePolynomial<T> resultantCoeff2;
+private final UnivariatePolynomial<T> gcd;
 		private final UnivariatePolynomial<T> coeff1;
 		private final UnivariatePolynomial<T> coeff2;
 
-		public ExtendedResultantResult(T resultant, UnivariatePolynomial<T> gcd, UnivariatePolynomial<T> coeff1,
+		public ExtendedResultantResult(T resultant, UnivariatePolynomial<T> resultantCoeff1, UnivariatePolynomial<T> resultantCoeff2, UnivariatePolynomial<T> gcd, UnivariatePolynomial<T> coeff1,
 				UnivariatePolynomial<T> coeff2) {
 			this.resultant = resultant;
+			this.resultantCoeff1 = resultantCoeff1;
+			this.resultantCoeff2 = resultantCoeff2;
 			this.gcd = gcd;
 			this.coeff1 = coeff1;
 			this.coeff2 = coeff2;
@@ -186,6 +190,16 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 		public T getResultant() {
 			return resultant;
 		}
+
+		public UnivariatePolynomial<T> getResultantCoeff1() {
+			return resultantCoeff1;
+		}
+
+
+		public UnivariatePolynomial<T> getResultantCoeff2() {
+			return resultantCoeff2;
+		}
+
 
 		public UnivariatePolynomial<T> getGcd() {
 			return gcd;

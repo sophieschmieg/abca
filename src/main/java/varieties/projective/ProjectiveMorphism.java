@@ -3,18 +3,18 @@ package varieties.projective;
 import java.util.ArrayList;
 import java.util.List;
 
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.helper.FieldOfFractions.Fraction;
-import fields.helper.LocalizedCoordinateRing;
-import fields.helper.LocalizedCoordinateRing.LocalizedElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.local.Value;
 import fields.local.ValueGroup;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing;
 import fields.polynomials.PolynomialIdeal;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import varieties.Morphism;
 import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
@@ -106,7 +106,7 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 		List<T> coords = new ArrayList<>();
 		for (int i = 0; i < result.values.size(); i++) {
 			if (result.values.get(i).equals(result.minimumValue)) {
-				coords.add(localizedRing.reduce(result.upToUniformizer.get(i)));
+				coords.add(localizedRing.reduceInteger(result.upToUniformizer.get(i)));
 			} else {
 				coords.add(field.zero());
 			}
@@ -172,7 +172,7 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 			inverseList.add(polynomials.getEmbedding(generator));
 		}
 		PolynomialIdeal<T> inverseIdeal = polynomials.getIdeal(inverseList);
-		CoordinateRing<T> domainSubsetRing = new CoordinateRing<>(polynomials, inverseIdeal);
+		CoordinateRing<T> domainSubsetRing = inverseIdeal.divideOut();
 		AffineScheme<T> domainSubset = new AffineScheme<>(field, domainSubsetRing);
 		List<CoordinateRingElement<T>> embeddingPolynomials = new ArrayList<>();
 		for (int i = 0; i < affineRing.numberOfVariables(); i++) {

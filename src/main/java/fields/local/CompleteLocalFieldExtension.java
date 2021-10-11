@@ -17,11 +17,13 @@ import fields.helper.GaloisGroup;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.FieldExtension;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.interfaces.DiscreteValuationField.DiscreteValuationFieldExtension;
+import fields.interfaces.Field.Extension;
 import fields.local.CompleteLocalFieldExtension.Ext;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
@@ -34,9 +36,9 @@ import util.Pair;
 
 public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
 		extends AbstractFieldExtension<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>>
-		implements LocalField<Ext<B>, RE> {
-	private LocalField<B, R> base;
-	private LocalRingExtension<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>, R, RE, RFE> localRing;
+		implements DiscreteValuationField<Ext<B>, RE> {
+	private DiscreteValuationField<B, R> base;
+	private LocalRingExtension<B, R, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>, R, RE, RFE> localRing;
 	private FieldEmbedding<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>> maximalUnramifiedExtension;
 	private RFE reduction;
 	private Ext<B> reductionGenerator;
@@ -45,7 +47,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 	private int ramificationIndex;
 	private Matrix<B> alphaToReductionGeneratorUniformizerBaseChange;
 	private Map<Ext<B>, List<Ext<B>>> conjugates;
-	private LocalField<B, R> highAccuracyBase;
+	private DiscreteValuationField<B, R> highAccuracyBase;
 	private UnivariatePolynomialRing<B> highAccuracyPolynomials;
 	private MatrixAlgebra<B> highAccuracyAlgebra;
 	private Reals r = Reals.r(1024);
@@ -74,7 +76,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 		}
 	}
 
-	public CompleteLocalFieldExtension(UnivariatePolynomial<B> minimalPolynomial, LocalField<B, R> base,
+	public CompleteLocalFieldExtension(UnivariatePolynomial<B> minimalPolynomial, DiscreteValuationField<B, R> base,
 			RFE reductionExtensionSample) {
 		super(minimalPolynomial, base);
 		this.base = base;
@@ -98,22 +100,22 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 		this.reductionGenerator = alpha();
 		this.uniformizer = getEmbedding(base.uniformizer());
 		this.alphaToReductionGeneratorUniformizerBaseChange = matrixAlgebra().one();
-		this.localRing = null;//new LocalRingExtension<>(this, base, reduction);
+		this.localRing = null;// new LocalRingExtension<>(this, base, reduction);
 	}
 
 	@SuppressWarnings("unchecked")
 	private void initGeneric(RFE reductionExtensionSample) {
 		UnivariatePolynomialRing<Ext<B>> polynomials = getUnivariatePolynomialRing();
-		LocalRing<B, R> baseRing = base.ringOfIntegers();
+		DiscreteValuationRing<B, R> baseRing = base.ringOfIntegers();
 
 		this.reduction = reductionExtensionSample
-				.makeExtension(base.reduction().getUnivariatePolynomialRing().getVar());
+				.makeExtension(base.residueField().getUnivariatePolynomialRing().getVar());
 		this.maximalUnramifiedExtension = new FieldEmbedding<>(this,
 				makeExtension(base.getUnivariatePolynomialRing().getVar()), zero());
 		this.reductionGenerator = maximalUnramifiedExtension.getEmbeddedAlpha();
-		this.localRing = null;//new LocalRingExtension<>(this, base, reduction);
+		this.localRing = null;// new LocalRingExtension<>(this, base, reduction);
 		CompleteLocalFieldExtension<B, R, RE, RFE> unramified = maximalUnramifiedExtension.getEmbeddedField();
-		LocalRingExtension<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>, R, RE, RFE> unramifiedRing = unramified
+		LocalRingExtension<B, R, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>, R, RE, RFE> unramifiedRing = unramified
 				.ringOfIntegers();
 		UnivariatePolynomial<Ext<B>> minimalPolynomialOverUnramified = polynomials.getEmbedding(minimalPolynomial(),
 				getEmbeddingMap());
@@ -161,12 +163,12 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 //			}
 			UnivariatePolynomial<RE> reducedMinimalPolynomialOverUnramified = unramifiedRing
 					.reduceUnivariatePolynomial(minimalPolynomialOverUnramified);
-			FactorizationResult<Polynomial<RE>, RE> reducedFactors = unramified.reduction()
+			FactorizationResult<Polynomial<RE>, RE> reducedFactors = unramified.residueField()
 					.factorization(reducedMinimalPolynomialOverUnramified);
 			if (!reducedFactors.isIrreducible()) {
 				throw new ArithmeticException("minimal polynomial not irreducible");
 			}
-			UnivariatePolynomial<RE> reduced = unramified.reduction().getUnivariatePolynomialRing()
+			UnivariatePolynomial<RE> reduced = unramified.residueField().getUnivariatePolynomialRing()
 					.toUnivariate(reducedFactors.firstPrimeFactor());
 			Value constantValuation = unramified.valuation(minimalPolynomialOverUnramified.univariateCoefficient(0));
 			if (reduced.degree() != 1) {
@@ -174,15 +176,15 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 				this.reduction = reductionExtension.extension();
 				this.residueDegree = reduction.degree();
 				this.ramificationIndex = degree() / residueDegree;
-				this.localRing = null;//new LocalRingExtension<>(this, base, reduction);
+				this.localRing = null;// new LocalRingExtension<>(this, base, reduction);
 				UnivariatePolynomial<B> lifted = baseRing.liftUnivariatePolynomial(reduction.minimalPolynomial());
 				unramified = makeExtension(lifted);
 				Vector<RE> asReducedVector = reductionExtension.asVectorMap().evaluate(reduction.alpha());
 				Ext<B> power = one();
 				Ext<B> initial = zero();
 				for (int i = 0; i < asReducedVector.dimension(); i++) {
-					initial = add(initial, multiply(power,
-							maximalUnramifiedExtension.getEmbedding(unramified.lift(asReducedVector.get(i + 1)))));
+					initial = add(initial, multiply(power, maximalUnramifiedExtension
+							.getEmbedding(unramified.liftToInteger(asReducedVector.get(i + 1)))));
 					power = multiply(power, alpha);
 				}
 				this.reductionGenerator = localRing.henselLiftWithInitialLift(
@@ -217,26 +219,26 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 	}
 
 	@Override
-	public LocalRingExtension<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>, R, RE, RFE> ringOfIntegers() {
+	public LocalRingExtension<B, R, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>, R, RE, RFE> ringOfIntegers() {
 		return localRing;
 	}
 
 	@Override
-	public RFE reduction() {
+	public RFE residueField() {
 		return reduction;
 	}
 
 	@Override
-	public RE reduce(Ext<B> t) {
+	public RE reduceInteger(Ext<B> t) {
 		Vector<B> reductionGeneratorUniformizer = matrixAlgebra()
 				.multiply(alphaToReductionGeneratorUniformizerBaseChange, asVector(t));
 		List<R> reduced = new ArrayList<>();
 		for (int i = 0; i < residueDegree; i++) {
-			reduced.add(base.reduce(reductionGeneratorUniformizer.get(i + 1)));
+			reduced.add(base.reduceInteger(reductionGeneratorUniformizer.get(i + 1)));
 		}
 		return reduction.fromVector(new Vector<>(reduced));
 	}
-	
+
 	@Override
 	public Ext<B> upToUniformizerPower(Ext<B> t) {
 		if (t.equals(zero())) {
@@ -249,7 +251,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public Ext<B> lift(RE s) {
+	public Ext<B> liftToInteger(RE s) {
 		UnivariatePolynomialRing<Ext<B>> ring = getUnivariatePolynomialRing();
 		return ring.evaluate(
 				ring.getEmbedding(base.ringOfIntegers().liftUnivariatePolynomial(s.asPolynomial()), getEmbeddingMap()),
@@ -372,7 +374,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 				getEmbeddingMap());
 		if (ramificationIndex == 1) {
 			List<Ext<B>> conjugates = new ArrayList<>();
-			for (RE c : reduction().conjugates(reduce(s))) {
+			for (RE c : residueField().conjugates(reduceInteger(s))) {
 				conjugates.add(localRing.henselLift(mipo, c));
 			}
 			this.conjugates.put(s, conjugates);
@@ -388,7 +390,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 	public GaloisGroup<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>> galoisGroup() {
 		if (ramificationIndex == 1) {
 			List<FieldAutomorphism<B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>>> elements = new ArrayList<>();
-			for (FieldAutomorphism<R, RE, RFE> reduced : reduction().galoisGroup()) {
+			for (FieldAutomorphism<R, RE, RFE> reduced : residueField().galoisGroup()) {
 				elements.add(new FieldAutomorphism<>(this, reduced.asArray()));
 			}
 			return new GaloisGroup<>(this, elements);
@@ -423,18 +425,16 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 	public CompleteLocalFieldExtension<B, R, RE, RFE> withAccuracy(int accuracy) {
 		return new CompleteLocalFieldExtension<>(minimalPolynomial(), base.withAccuracy(accuracy), reduction);
 	}
-	
 
 	@Override
 	public OtherVersion<Ext<B>, ?, RE, ?> exact() {
 		return null;
 	}
-		
+
 	@Override
 	public OtherVersion<Ext<B>, Ext<B>, RE, CompleteLocalFieldExtension<B, R, RE, RFE>> complete(int accuracy) {
 		return new OtherVersion<>(withAccuracy(accuracy), new Identity<>(), new Identity<>());
 	}
-
 
 	@Override
 	public Ext<B> getRandomInteger() {
@@ -451,7 +451,7 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 		}
 		return result;
 	}
-	
+
 	@Override
 	public FactorizationResult<Polynomial<Ext<B>>, Ext<B>> factorization(UnivariatePolynomial<Ext<B>> t) {
 		return ringOfIntegers().factorization(t, true, getAccuracy());
@@ -465,6 +465,15 @@ public class CompleteLocalFieldExtension<B extends Element<B>, R extends Element
 	@Override
 	public CompleteLocalFieldExtension<B, R, RE, RFE> makeExtension(UnivariatePolynomial<B> minimalPolynomial) {
 		return new CompleteLocalFieldExtension<>(minimalPolynomial, base, reduction);
+	}
+
+	@Override
+	public DiscreteValuationFieldExtension<Ext<B>, RE, B, Ext<B>, RE, CompleteLocalFieldExtension<B, R, RE, RFE>> getUniqueExtension(
+			UnivariatePolynomial<Ext<B>> minimalPolynomial) {
+		Extension<Ext<B>, B, Ext<B>, CompleteLocalFieldExtension<B, R, RE, RFE>> extension = getExtension(
+				minimalPolynomial);
+		return new DiscreteValuationFieldExtension<>(this, extension.extension(), extension.embeddingMap(),
+				extension.asVectorMap());
 	}
 
 	@Override

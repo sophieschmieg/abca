@@ -3,7 +3,7 @@ package fields.vectors.pivot;
 import java.util.List;
 
 import fields.interfaces.Element;
-import fields.interfaces.LocalField.Valuation;
+import fields.interfaces.DiscreteValuationField.Valuation;
 import fields.local.Value;
 
 public class ValuationPivotStrategy<T extends Element<T>> implements PivotStrategy<T> {

@@ -9,7 +9,7 @@ import fields.integers.Rationals.Fraction;
 import fields.vectors.Vector;
 import util.ConCatMap;
 
-public interface Field<T extends Element<T>> extends MathSet<T>, Ring<T> {
+public interface Field<T extends Element<T>> extends MathSet<T>, Ring<T>, DedekindRing<T, T, T>, LocalRing<T, T, T> {
 	public T zero();
 
 	public T one();

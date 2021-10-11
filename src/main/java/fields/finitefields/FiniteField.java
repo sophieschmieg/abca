@@ -14,8 +14,6 @@ import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractFieldExtension;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.helper.FieldAutomorphism;
 import fields.helper.FieldEmbedding;
 import fields.helper.GaloisGroup;
@@ -33,7 +31,9 @@ import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import util.Pair;
 
 public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
@@ -213,14 +213,14 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	public boolean isIrreducible(UnivariatePolynomial<FFE> t) {
 		BigInteger q = getNumberOfElements();
 		UnivariatePolynomialRing<FFE> ring = getUnivariatePolynomialRing();
-		CoordinateRing<FFE> cr = new CoordinateRing<>(ring, ring.getIdeal(Collections.singletonList(t)));
-		CoordinateRingElement<FFE> x = cr.getEmbedding(ring.getVar());
-		CoordinateRingElement<FFE> xqi = x;
+		GenericAlgebraicRingExtension<FFE> cr = new GenericAlgebraicRingExtension<>(t,this);
+		GenericAlgebraicExtensionElement<FFE> x = cr.fromPolynomial(ring.getVar());
+		GenericAlgebraicExtensionElement<FFE> xqi = x;
 		int degree = t.degree();
 		for (int i = 1; i < degree; i++) {
 			xqi = cr.power(xqi, q);
-			CoordinateRingElement<FFE> xqimx = cr.subtract(xqi, x);
-			if (ring.gcd(xqimx.getElement(), t).degree() != 0) {
+			GenericAlgebraicExtensionElement<FFE> xqimx = cr.subtract(xqi, x);
+			if (ring.gcd(xqimx.asPolynomial(), t).degree() != 0) {
 				return false;
 			}
 		}
@@ -383,11 +383,11 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		if (t.numberOfVariables() != 1) {
 			throw new RuntimeException("Not implemented.");
 		}
-		PolynomialRing<FFE> ring = this.getUnivariatePolynomialRing();
-		CoordinateRing<FFE> cr = new CoordinateRing<>(ring, ring.getIdeal(Collections.singletonList(t)));
-		CoordinateRingElement<FFE> x = cr.getEmbedding(ring.getVar(1));
-		CoordinateRingElement<FFE> xq = cr.power(x, this.getNumberOfElements());
-		Polynomial<FFE> xqmx = cr.subtract(xq, x).getElement();
+		UnivariatePolynomialRing<FFE> ring = this.getUnivariatePolynomialRing();
+		GenericAlgebraicRingExtension<FFE> cr = new GenericAlgebraicRingExtension<>(ring.toUnivariate(t), this);
+		GenericAlgebraicExtensionElement<FFE> x = cr.fromPolynomial(ring.getVar());
+		GenericAlgebraicExtensionElement<FFE> xq = cr.power(x, this.getNumberOfElements());
+		Polynomial<FFE> xqmx = cr.subtract(xq, x).asPolynomial();
 		Polynomial<FFE> gcd = ring.gcd(t, xqmx);
 		return gcd.degree() > 0;
 	}

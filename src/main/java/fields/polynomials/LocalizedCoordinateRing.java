@@ -1,4 +1,4 @@
-package fields.helper;
+package fields.polynomials;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -9,25 +9,26 @@ import java.util.List;
 import fields.exceptions.InfinityException;
 import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
-import fields.helper.CoordinateRing.CoordinateIdeal;
-import fields.helper.CoordinateRing.CoordinateRingElement;
+import fields.helper.AbstractElement;
+import fields.helper.AbstractField;
+import fields.helper.FieldOfFractions;
 import fields.helper.FieldOfFractions.Fraction;
-import fields.helper.LocalizedCoordinateRing.LocalizedElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
-import fields.interfaces.LocalField;
-import fields.interfaces.LocalRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.UnivariatePolynomial;
 import fields.local.FormalPowerSeries;
 import fields.local.FormalPowerSeries.PowerSeries;
 import fields.local.LocalRingImplementation;
 import fields.local.Value;
 import fields.local.ValueGroup;
-import fields.polynomials.AbstractPolynomialRing;
-import fields.polynomials.Monomial;
-import fields.polynomials.PolynomialIdeal;
+import fields.polynomials.CoordinateRing.CoordinateIdeal;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
@@ -35,7 +36,7 @@ import util.Identity;
 import util.Pair;
 
 public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField<LocalizedElement<T>>
-		implements LocalField<LocalizedElement<T>, T> {
+		implements DiscreteValuationField<LocalizedElement<T>, T> {
 	public static class LocalizedElement<T extends Element<T>> extends AbstractElement<LocalizedElement<T>> {
 		private Fraction<Polynomial<T>> asPolynomialFraction;
 		private boolean canonical;
@@ -116,7 +117,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	private Field<T> field;
 	private CoordinateRing<T> ring;
 	private CoordinateIdeal<T> ideal;
-	private LocalRing<LocalizedElement<T>, T> localRing;
+	private DiscreteValuationRing<LocalizedElement<T>, T> localRing;
 	private LocalizedElement<T> uniformizer;
 	private Polynomial<T> uniformizerAsPolynomial;
 	private int uniformizerVariable;
@@ -126,7 +127,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	public LocalizedCoordinateRing(Field<T> field, CoordinateRing<T> ring, CoordinateIdeal<T> ideal) {
 		this.field = field;
 		PolynomialRing<T> polynomialRing = ring.getPolynomialRing();
-		CoordinateRing<T> reduction = new CoordinateRing<>(polynomialRing, ideal.getPolynomialIdeal());
+		CoordinateRing<T> reduction = ideal.divideOut();
 		if (ring.krullDimension() != 1) {
 			throw new ArithmeticException("not a curve");
 		}
@@ -172,7 +173,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		for (Polynomial<T> generator : ring.getIdeal().generators()) {
 			idealGenerators.add(this.polynomialRing.getEmbedding(generator));
 		}
-		this.ring = new CoordinateRing<>(this.polynomialRing, this.polynomialRing.getIdeal(idealGenerators));
+		this.ring = this.polynomialRing.getIdeal(idealGenerators).divideOut();
 		List<CoordinateRingElement<T>> generators = new ArrayList<>();
 		for (Polynomial<T> generator : ideal.asPolynomialIdeal().generators()) {
 			generators.add(this.ring.getEmbedding(this.polynomialRing.getEmbedding(generator)));
@@ -374,12 +375,12 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	}
 
 	@Override
-	public Field<T> reduction() {
+	public Field<T> residueField() {
 		return field;
 	}
 
 	@Override
-	public T reduce(LocalizedElement<T> t) {
+	public T reduceInteger(LocalizedElement<T> t) {
 		t.canonicalize();
 		if (t.value.compareTo(Value.ZERO) > 0) {
 			return field.zero();
@@ -396,7 +397,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	}
 
 	@Override
-	public LocalizedElement<T> lift(T s) {
+	public LocalizedElement<T> liftToInteger(T s) {
 		return getEmbedding((ring.getPolynomialRing().getEmbedding(s)));
 	}
 
@@ -413,7 +414,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 			if (t.equals(zero())) {
 				break;
 			}
-			T digit = reduce(t);
+			T digit = reduceInteger(t);
 			LocalizedElement<T> adjustedDigit = multiply(digit, uniformizerPower);
 			result = add(result, adjustedDigit);
 			uniformizerPower = multiply(uniformizerPower, uniformizer);
@@ -428,7 +429,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	}
 
 	@Override
-	public LocalField<LocalizedElement<T>, T> withAccuracy(int accuracy) {
+	public DiscreteValuationField<LocalizedElement<T>, T> withAccuracy(int accuracy) {
 		return this;
 	}
 
@@ -451,7 +452,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 				int minPower = valuation(t).value();
 				t = multiply(t, power(uniformizer(), -minPower));
 				for (int i = minPower; i < accuracy; i++) {
-					T c = reduce(t);
+					T c = reduceInteger(t);
 					coefficients.add(c);
 					t = divide(subtract(t,getEmbedding(c)), uniformizer());
 					if (t.equals(zero())) {
@@ -486,8 +487,14 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	}
 
 	@Override
-	public LocalRing<LocalizedElement<T>, T> ringOfIntegers() {
+	public DiscreteValuationRing<LocalizedElement<T>, T> ringOfIntegers() {
 		return localRing;
+	}
+	
+	@Override
+	public DiscreteValuationFieldExtension<LocalizedElement<T>, T, ?, ?, ?, ?> getUniqueExtension(
+			UnivariatePolynomial<LocalizedElement<T>> minimalPolynomial) {
+	throw new UnsupportedOperationException("Not implemented!");
 	}
 
 }

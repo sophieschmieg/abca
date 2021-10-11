@@ -30,10 +30,10 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 	}
 
 	public static PAdicQuaternions quaternions(PAdicField base) {
-		if (base.reduction().characteristic().equals(BigInteger.TWO)) {
+		if (base.residueField().characteristic().equals(BigInteger.TWO)) {
 			return new PAdicQuaternions(base, base.getInteger(-3), base.uniformizer());
 		}
-		return new PAdicQuaternions(base, base.lift(base.reduction().quadraticNonResidue()), base.uniformizer());
+		return new PAdicQuaternions(base, base.liftToInteger(base.residueField().quadraticNonResidue()), base.uniformizer());
 	}
 
 	public static PAdicQuaternions quaternions(PAdicField base, PAdicNumber a, PAdicNumber b) {
@@ -46,7 +46,7 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 			int aIndex = upToSquaresIndex(base, a());
 			int bIndex = upToSquaresIndex(base, b());
 			int[][] result;
-			if (base.reduction().characteristic().equals(BigInteger.TWO)) {
+			if (base.residueField().characteristic().equals(BigInteger.TWO)) {
 				result = new int[][] { { 1, -1, -1, 1, 1, -1, -1, 1 }, // -6
 						{ -1, 1, -1, 1, 1, -1, 1, -1 }, // -3
 						{ -1, -1, -1, -1, 1, 1, 1, 1 }, // -2
@@ -182,7 +182,7 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 
 	@Override
 	protected Quaternion<PAdicNumber> splittingElement() {
-		PrimeField reduction = base.reduction();
+		PrimeField reduction = base.residueField();
 		int aIndex = upToSquaresIndex(base, a());
 		int aValueSqrt = MiscAlgorithms.DivRoundDown(base.valuation(a()).value(), 2);
 		int bIndex = upToSquaresIndex(base, b());
@@ -318,8 +318,8 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 							.getPolynomial(reduction.one(), reduction.zero(), reduction.one())).extension();
 					FFE sqrtm1 = fp2.power(fp2.primitiveRoot(),
 							fp2.characteristic().subtract(BigInteger.ONE).shiftRight(1));
-					x = base.lift(sqrtm1.asPolynomial().univariateCoefficient(0));
-					y = base.lift(sqrtm1.asPolynomial().univariateCoefficient(1));
+					x = base.liftToInteger(sqrtm1.asPolynomial().univariateCoefficient(0));
+					y = base.liftToInteger(sqrtm1.asPolynomial().univariateCoefficient(1));
 				}
 			}
 		}

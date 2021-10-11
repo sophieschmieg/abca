@@ -10,16 +10,16 @@ import org.junit.jupiter.api.Test;
 
 import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
-import fields.helper.LocalizedCoordinateRing;
-import fields.helper.LocalizedCoordinateRing.LocalizedElement;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.local.Value;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 
 class CMLiftTest {
 
@@ -31,25 +31,26 @@ class CMLiftTest {
 		PolynomialIdeal<FFE> ideal = p.getIdeal(Collections.singletonList(mod));
 		System.out.println("Ring: " + p);
 		System.out.println("Ideal: " + ideal);
-		CoordinateRing<FFE> ring = new CoordinateRing<>(p, ideal);
+		CoordinateRing<FFE> ring = ideal.divideOut();
 		List<CoordinateRingElement<FFE>> list = new ArrayList<>();
 		list.add(ring.getEmbedding(p.getVar(1)));
 		list.add(ring.getEmbedding(p.subtract(p.getVar(2), p.one())));
 		LocalizedCoordinateRing<FFE> lcr = new LocalizedCoordinateRing<>(fq, ring, ring.getIdeal(list));
 		LocalizedElement<FFE> le1 = lcr.getEmbedding(p.subtract(p.getVar(2), p.one()));
-		
+
 		assertEquals(Value.ONE, lcr.valuation(le1));
 		Polynomial<FFE> mod2 = p.subtract(
 				p.add(p.getVarPower(1, 3), p.getVarPower(2, 3), p.multiply(p.getVar(1), p.getVarPower(2, 2))),
 				p.getVar(2));
-		CoordinateRing<FFE> ring2 = new CoordinateRing<>(p, p.getIdeal(Collections.singletonList(mod2)));
+		CoordinateRing<FFE> ring2 = p.getIdeal(Collections.singletonList(mod2)).divideOut();
 		List<CoordinateRingElement<FFE>> list2 = new ArrayList<>();
 		list2.add(ring.getEmbedding(p.getVar(1)));
 		list2.add(ring.getEmbedding(p.getVar(2)));
 		LocalizedCoordinateRing<FFE> lcr2 = new LocalizedCoordinateRing<>(fq, ring2, ring2.getIdeal(list2));
 		assertEquals(new Value(3), lcr2.valuation(lcr2.getEmbedding(p.getVar(2))));
 		assertEquals(new Value(12), lcr2.valuation(lcr2.getEmbedding(p.getVarPower(2, 4))));
-		LocalizedElement<FFE> testElement = lcr2.divide(lcr2.getEmbedding(p.getVarPower(2, 4)), lcr2.getEmbedding(p.getVarPower(1, 12)));
+		LocalizedElement<FFE> testElement = lcr2.divide(lcr2.getEmbedding(p.getVarPower(2, 4)),
+				lcr2.getEmbedding(p.getVarPower(1, 12)));
 		assertEquals(Value.ZERO, lcr2.valuation(testElement));
 		assertEquals(fq.one(), lcr2.reduce(testElement));
 	}

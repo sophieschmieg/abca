@@ -14,8 +14,6 @@ import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Complex;
 import fields.floatingpoint.Complex.ComplexNumber;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.helper.FieldEmbedding;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
@@ -30,8 +28,10 @@ import fields.interfaces.Ring.QuotientAndRemainderResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.vectors.Vector;
 import util.ConCatMap;
 import util.MiscAlgorithms;
@@ -85,7 +85,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			asPolynomials.add(projectiveRing.multiply(field.power(u, 2), projectiveRing.getVar(1)));
 			asPolynomials.add(projectiveRing.multiply(field.power(u, 3), projectiveRing.getVar(2)));
 			asPolynomials.add(projectiveRing.getVar(3));
-			return new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(), asPolynomials);
+			return new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(),
+					asPolynomials);
 		}
 
 		@Override
@@ -115,7 +116,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	private boolean superSingular;
 	private boolean superSingularDeterminied;
 
-	private static <T extends Element<T>> GenericProjectiveScheme<T> asGenericProjectiveScheme(Field<T> field, T a, T b) {
+	private static <T extends Element<T>> GenericProjectiveScheme<T> asGenericProjectiveScheme(Field<T> field, T a,
+			T b) {
 		PolynomialRing<T> ring = AbstractPolynomialRing.getPolynomialRing(field, 3, Monomial.GREVLEX);
 		Polynomial<T> f = ring.getEmbedding(field.one(), new int[] { 3, 0, 0 });
 		f = ring.add(f, ring.getEmbedding(field.negative(field.one()), new int[] { 0, 2, 1 }));
@@ -559,8 +561,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 	public CoordinateRing<T> getCoordinateRing() {
 		if (this.coordinateRing == null) {
-			this.coordinateRing = new CoordinateRing<T>(affineRing,
-					affineRing.getIdeal(Collections.singletonList(definingPolynomial)));
+			this.coordinateRing = affineRing.getIdeal(Collections.singletonList(definingPolynomial)).divideOut();
 		}
 		return this.coordinateRing;
 	}
@@ -777,8 +778,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		return result;
 	}
 
-	public RationalFunction<T> getRationalFunction(ProjectivePoint<T> zero,
-			ProjectivePoint<T> pole1, ProjectivePoint<T> pole2) {
+	public RationalFunction<T> getRationalFunction(ProjectivePoint<T> zero, ProjectivePoint<T> pole1,
+			ProjectivePoint<T> pole2) {
 		ProjectivePoint<T> common = this.getThirdIntersection(pole1, pole2);
 		Polynomial<T> numerator;
 		Polynomial<T> denominator;
@@ -1114,7 +1115,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			idealGen.add(r.getEmbedding(this.definingPolynomial, new int[] { 0, 1 }));
 			PolynomialIdeal<T> ideal = r.getIdeal(idealGen);
 			psiL = this.univariateRing.getEmbedding(psiL, new int[] { 0 });
-			CoordinateRing<T> cr = new CoordinateRing<T>(r, ideal);
+			CoordinateRing<T> cr = ideal.divideOut();
 			// Calculating x^q, y^q, x^(q^2), y^(q^2)
 			CoordinateRingElement<T> xq = cr.power(cr.getEmbedding(x), q);
 			CoordinateRingElement<T> yq = cr.power(cr.getEmbedding(y), q);
@@ -1445,7 +1446,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		List<ProjectivePoint<T>> zeroes = div.getPoles();
 		List<ProjectivePoint<T>> poles = div.getZeroes();
 		if (poles.size() == 0) {
-			return Collections.singletonList(ff.one());}
+			return Collections.singletonList(ff.one());
+		}
 		RationalFunction<T> f = ff.one();
 		ProjectivePoint<T> firstpole = poles.get(0);
 		ProjectivePoint<T> lastzero = null;
@@ -1457,7 +1459,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		for (int i = 0; i < size; i++) {
 			ProjectivePoint<T> zero = zeroes.get(i);
 			ProjectivePoint<T> pole = poles.get(i + 1);
-			f = ff.multiply(f, this.getRationalFunction( zero, firstpole, pole));
+			f = ff.multiply(f, this.getRationalFunction(zero, firstpole, pole));
 			firstpole = this.getThirdIntersection(firstpole, pole);
 			firstpole = this.getThirdIntersection(firstpole, zero);
 		}
@@ -1473,7 +1475,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			ProjectivePoint<T> zero = this.getThirdIntersection(firstpole, pole);
 			while (pole.equals(zero) || firstpole.equals(zero))
 				zero = this.getRandomElement();
-			functions.add(ff.multiply(f, this.getRationalFunction( zero, firstpole, pole)));
+			functions.add(ff.multiply(f, this.getRationalFunction(zero, firstpole, pole)));
 		}
 		return functions;
 	}
@@ -1484,7 +1486,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			return false;
 		return this.getRiemannRochSpace(div).size() == 1;
 	}
-	
+
 	@Override
 	public List<EllipticCurve<T>> irreducibleComponents() {
 		return Collections.singletonList(this);

@@ -2,9 +2,9 @@ package varieties.curves;
 
 import java.util.List;
 
-import fields.helper.CoordinateRing;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
+import fields.polynomials.CoordinateRing;
 import varieties.RationalFunction;
 import varieties.Scheme;
 import varieties.curves.DivisorGroup.Divisor;

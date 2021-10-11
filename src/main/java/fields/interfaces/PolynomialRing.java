@@ -25,7 +25,9 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public PolynomialRing<T> eliminateVariable();
 	public UnivariatePolynomial<Polynomial<T>> asUnivariatePolynomial(Polynomial<T> t, int variable);
 	public Polynomial<T> fromUnivariatePolynomial(UnivariatePolynomial<Polynomial<T>> t, int variable);
-	public PolynomialRing<T> addVariableWithElimination(int shift);
+	public Polynomial<T> flattenPolynomial(Polynomial<Polynomial<T>> t);
+	public Polynomial<Polynomial<T>> unflattenPolynomial(Polynomial<T> t, PolynomialRing<Polynomial<T>> polynomialRing, PolynomialRing<T> baseRing);
+    public PolynomialRing<T> addVariableWithElimination(int shift);
 	public Polynomial<T> getEmbeddingWithElimination(Polynomial<T> t, int shift);
 	public Polynomial<T> getEmbedding(Polynomial<T> t, int[] map);
 	public Polynomial<T> getEmbedding(Polynomial<T> t);
@@ -82,6 +84,11 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public PolynomialIdeal<T> intersect(Ideal<Polynomial<T>> t1, Ideal<Polynomial<T>> t2);
 	public PolynomialIdeal<T> radical(Ideal<Polynomial<T>> t);
 	public PolynomialIdeal<T> homogenizeIdeal(Ideal<Polynomial<T>> ideal);
+	public PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecomposition(Ideal<Polynomial<T>> t);
+	public PolynomialIdeal<T> getEmbeddingOfBaseIdeal(Ideal<T> t);
+	public PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<T>> t);
+	public PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<T>> t, int[] map);
+	public <S extends Element<S>> PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<S>> t, MathMap<S, T> map);
 	
 	public T evaluate(Polynomial<T> t, @SuppressWarnings("unchecked") T... ts);
 	public T evaluate(Polynomial<T> t, List<T> ts);

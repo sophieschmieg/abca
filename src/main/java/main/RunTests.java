@@ -13,8 +13,6 @@ import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
@@ -26,7 +24,7 @@ import fields.interfaces.Ring.ExtendedEuclideanResult;
 import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.local.CompleteLocalFieldExtension;
+import fields.local.CompleteDVRExtension;
 import fields.local.FormalPowerSeries;
 import fields.local.FormalPowerSeries.PowerSeries;
 import fields.local.PAdicField;
@@ -34,6 +32,8 @@ import fields.local.PAdicField.PAdicNumber;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import fields.polynomials.MultivariatePolynomialRing;
 import fields.vectors.FreeModule;
@@ -94,7 +94,7 @@ public class RunTests {
 		List<Polynomial<Fraction>> plist = new ArrayList<>();
 		plist.add(qxy.getPolynomial(map1));
 		plist.add(qxy.getPolynomial(map2));
-		CoordinateRing<Fraction> cr1 = new CoordinateRing<>(qxy, qxy.getIdeal(plist));
+		CoordinateRing<Fraction> cr1 =  qxy.getIdeal(plist).divideOut();
 		CoordinateRingElement<Fraction> x2y = cr1.add(cr1.getEmbedding(qxy.getVar(1)),
 				cr1.multiply(2, cr1.getEmbedding(qxy.getVar(2))));
 		CoordinateRingElement<Fraction> power = cr1.one();
@@ -149,7 +149,7 @@ public class RunTests {
 		UnivariatePolynomial<PAdicNumber> lifted = z3ring.getVar();
 		System.out.println(t);
 		System.out.println(lifted);
-		CoordinateRing<PAdicNumber> cr = new CoordinateRing<>(z3ring, z3ring.getIdeal(Collections.singletonList(t)));
+		CoordinateRing<PAdicNumber> cr = z3ring.getIdeal(Collections.singletonList(t)).divideOut();
 		ExtendedEuclideanResult<Polynomial<PAdicNumber>> ee = z3ring.extendedEuclidean(lifted, t);
 		if (!ee.getGcd().equals(z3ring.one())) {
 			throw new ArithmeticException("Trivial factors not removed or extended Euclidean not normalized!");
@@ -303,7 +303,7 @@ public class RunTests {
 		System.out.println("1/4 = " + onequarter + " = " + fiveadic.toRational(onequarter));
 		System.out.println("3/4 = " + threequarter + " = " + fiveadic.toRational(threequarter));
 
-		CompleteLocalFieldExtension<PAdicNumber, PFE, FFE, FiniteField> z5roots = fiveadic
+		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> z5roots = fiveadic
 				.getExtension(fiveadic.getUnivariatePolynomialRing().getPolynomial(fiveadic.one(), fiveadic.one(),
 						fiveadic.one(), fiveadic.one(), fiveadic.one()))
 				.extension();

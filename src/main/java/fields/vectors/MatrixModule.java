@@ -694,6 +694,29 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 		return r;
 	}
 
+	public Matrix<T> invertUpperTriangleMatrix(Matrix<T> t) {
+		if (t.rows() != rows || t.columns() != columns) {
+			throw new ArithmeticException("Matrix and Vector have wrong dimension");
+		}
+		List<List<T>> result = new ArrayList<>();
+		for (int i = 0; i < rows; i++) {
+			List<T> row = new ArrayList<>();
+			for (int j = 0; j < i; j++) {
+				row.add(ring.zero());
+			}
+			row.add(ring.inverse(t.entry(i + 1, i + 1)));
+			for (int j = i + 1; j < columns; j++) {
+				T value = ring.zero();
+				for (int k = i; k < j; k++) {
+					value = ring.add(ring.multiply(row.get(k), t.entry(k + 1, j + 1)), value);
+				}
+				row.add(ring.divideChecked(ring.negative(value), t.entry(j + 1, j + 1)));
+			}
+			result.add(row);
+		}
+		return new Matrix<>(result);
+	}
+
 	public Vector<T> multiply(Matrix<T> t, Vector<T> x) {
 		if (t.rows() != rows || x.dimension() != columns || t.columns() != columns) {
 			throw new ArithmeticException("Matrix and Vector have wrong dimension");

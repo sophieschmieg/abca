@@ -16,20 +16,19 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
+import fields.finitefields.ModularIntegerRing;
 import fields.finitefields.ModularIntegerRing.ModularIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
-import fields.helper.CoordinateRing;
-import fields.helper.CoordinateRing.CoordinateRingElement;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.DedekindRing;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Field;
 import fields.interfaces.Ideal;
-import fields.interfaces.LocalRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
@@ -39,8 +38,11 @@ import fields.local.PAdicField;
 import fields.local.PAdicField.PAdicNumber;
 import fields.local.Value;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.GenericUnivariatePolynomial;
 import fields.polynomials.Monomial;
+import util.Identity;
 import util.MiscAlgorithms;
 import util.SingletonSortedMap;
 
@@ -315,8 +317,13 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	@Override
 	public QuotientAndRemainderResult<IntE> quotientAndRemainder(IntE dividend, IntE divisor) {
-		BigInteger[] result = dividend.value.divideAndRemainder(divisor.value);
-		return new QuotientAndRemainderResult<>(new IntE(result[0]), new IntE(result[1]));
+		BigInteger divisorValue = divisor.value.abs();
+		BigInteger remainder = dividend.value.mod(divisorValue);
+		if (remainder.compareTo(divisorValue.shiftRight(1)) > 0) {
+			remainder = remainder.subtract(divisorValue);
+		}
+		BigInteger quotient = dividend.value.subtract(remainder).divide(divisor.value);
+		return new QuotientAndRemainderResult<>(new IntE(quotient), new IntE(remainder));
 	}
 
 	@Override
@@ -706,16 +713,29 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return Rationals.q().getFraction(numerator, denominator.getValue());
 	}
 
-	public LocalRing<Fraction, PFE> localize(BigInteger prime) {
+	public DiscreteValuationRing<Fraction, PFE> localize(BigInteger prime) {
 		return Rationals.q().withValuation(prime).ringOfIntegers();
 	}
 
-	public LocalRing<Fraction, PFE> localize(IntE prime) {
+	public DiscreteValuationRing<Fraction, PFE> localize(IntE prime) {
 		return localize(prime.value);
 	}
 
-	public LocalRing<Fraction, PFE> localize(Ideal<IntE> prime) {
+	public DiscreteValuationRing<Fraction, PFE> localize(Ideal<IntE> prime) {
 		return localize(prime.generators().get(0));
+	}
+
+	@Override
+	public LocalizeResult<IntE, Fraction, Fraction, ?> localizeAtIdeal(Ideal<IntE> primeIdeal) {
+		FieldOfFractionsResult<IntE, Fraction> fieldOfFractions = fieldOfFractions();
+		if (primeIdeal.equals(getZeroIdeal())) {
+			return new LocalizeResult<>(this, primeIdeal, Rationals.q(), fieldOfFractions.getEmbedding(),
+					fieldOfFractions.getNumerator(), fieldOfFractions.getDenominator(),
+					fieldOfFractions.getAsInteger());
+		}
+		DiscreteValuationRing<Fraction, PFE> result = localize(primeIdeal);
+		return new LocalizeResult<>(this, primeIdeal, result, fieldOfFractions.getEmbedding(),
+				fieldOfFractions.getNumerator(), fieldOfFractions.getDenominator(), fieldOfFractions.getAsInteger());
 	}
 
 	public Value valuation(IntE t, BigInteger prime) {
@@ -879,7 +899,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			}
 			int requiredAccuracy = (int) (Math.log(limit.doubleValue()) / Math.log(prime.value.doubleValue())) + 2;
 			PAdicField qp = new PAdicField(prime.value, requiredAccuracy);
-			LocalRing<PAdicNumber, PFE> zp = qp.ringOfIntegers();
+			DiscreteValuationRing<PAdicNumber, PFE> zp = qp.ringOfIntegers();
 			UnivariatePolynomialRing<PAdicNumber> zpr = zp.getUnivariatePolynomialRing();
 			UnivariatePolynomial<PAdicNumber> fp = zpr.getEmbedding(t, new MathMap<>() {
 				@Override
@@ -1065,12 +1085,32 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	@Override
-	public Ideal<IntE> intersect(Ideal<IntE> t1, Ideal<IntE> t2) {
+	public IntegerIdeal getUnitIdeal() {
+		return getIdeal(Collections.singletonList(one()));
+	}
+
+	@Override
+	public IntegerIdeal getZeroIdeal() {
+		return getIdeal(Collections.emptyList());
+	}
+
+	@Override
+	public IntegerIdeal getNilRadical() {
+		return getZeroIdeal();
+	}
+
+	@Override
+	public IntegerIdeal getIdeal(List<IntE> generators) {
+		return getIdealWithTransforms(generators).getIdeal();
+	}
+
+	@Override
+	public IntegerIdeal intersect(Ideal<IntE> t1, Ideal<IntE> t2) {
 		return getIdeal(Collections.singletonList(lcm(t1.generators().get(0), t2.generators().get(0))));
 	}
 
 	@Override
-	public Ideal<IntE> radical(Ideal<IntE> t) {
+	public IntegerIdeal radical(Ideal<IntE> t) {
 		IntE m = t.generators().get(0);
 		FactorizationResult<IntE, IntE> factors = uniqueFactorization(m);
 		IntE radical = one();
@@ -1078,6 +1118,85 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			radical = multiply(radical, prime);
 		}
 		return getIdeal(Collections.singletonList(radical));
+	}
+
+	@Override
+	public List<Ideal<IntE>> maximalPrimeIdealChain(Ideal<IntE> start) {
+		if (start.equals(getZeroIdeal())) {
+			return maximalPrimeIdealChain(start, getIdeal(Collections.singletonList(getInteger(2))));
+		}
+		return Collections.singletonList(primaryDecomposition(start).getRadicals().get(0));
+	}
+
+	@Override
+	public List<Ideal<IntE>> maximalPrimeIdealChain(Ideal<IntE> start, Ideal<IntE> end) {
+		if (!end.contains(start) || !end.isPrime()) {
+			throw new ArithmeticException("Invalid arguments!");
+		}
+		if (start.equals(getZeroIdeal())) {
+			if (end.equals(getZeroIdeal())) {
+				return Collections.singletonList(getZeroIdeal());
+			}
+			List<Ideal<IntE>> result = new ArrayList<>();
+			result.add(getZeroIdeal());
+			result.add(end);
+			return result;
+		}
+		return Collections.singletonList(end);
+	}
+
+	@Override
+	public PrimaryDecompositionResult<IntE, IntegerIdeal> primaryDecomposition(Ideal<IntE> t) {
+		IntE m = t.generators().get(0);
+		FactorizationResult<IntE, IntE> factors = uniqueFactorization(m);
+		List<IntegerIdeal> result = new ArrayList<>();
+		List<IntegerIdeal> radicals = new ArrayList<>();
+		for (IntE prime : factors.primeFactors()) {
+			result.add(getIdeal(Collections.singletonList(power(prime, factors.multiplicity(prime)))));
+			radicals.add(getIdeal(Collections.singletonList(prime)));
+		}
+		return new PrimaryDecompositionResult<>(result, radicals);
+	}
+
+	@Override
+	public ModuloMaximalIdealResult<IntE, PFE> moduloMaximalIdeal(Ideal<IntE> ideal) {
+		PrimeField fp = PrimeField.getPrimeField(ideal.generators().get(0).getValue());
+		return new ModuloMaximalIdealResult<>(this, ideal, fp, new MathMap<>() {
+			@Override
+			public PFE evaluate(IntE t) {
+				return reduce(t, ideal);
+			}
+		}, new MathMap<>() {
+			@Override
+			public IntE evaluate(PFE t) {
+				return lift(t);
+			}
+		});
+	}
+
+	@Override
+	public ModuloIdealResult<IntE, ?> moduloIdeal(Ideal<IntE> ideal) {
+		if (ideal.equals(getZeroIdeal())) {
+			return new ModuloIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
+		}
+		if (ideal.isPrime()) {
+			ModuloMaximalIdealResult<IntE, PFE> mod = moduloMaximalIdeal(ideal);
+			return new ModuloIdealResult<>(this, ideal, mod.getField(), mod.getReduction(), mod.getLift());
+		}
+		ModularIntegerRing result = new ModularIntegerRing(ideal.generators().get(0).getValue());
+		return new ModuloIdealResult<>(this, ideal, result, new MathMap<>() {
+
+			@Override
+			public ModularIntegerRingElement evaluate(IntE t) {
+				return result.reduce(t);
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public IntE evaluate(ModularIntegerRingElement t) {
+				return result.lift(t);
+			}
+		});
 	}
 
 	public IntE lift(ModularIntegerRingElement t) {
@@ -1139,18 +1258,38 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	@Override
-	public Rationals fieldOfFractions() {
-		return Rationals.q();
+	public FieldOfFractionsResult<IntE, Fraction> fieldOfFractions() {
+		Rationals q = Rationals.q();
+		return new FieldOfFractionsResult<>(this, q, new MathMap<>() {
+
+			@Override
+			public Fraction evaluate(IntE t) {
+				return q.getEmbedding(t);
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public IntE evaluate(Fraction t) {
+				return t.getNumerator();
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public IntE evaluate(Fraction t) {
+				return t.getDenominator();
+			}
+		}, new MathMap<>() {
+
+			@Override
+			public IntE evaluate(Fraction t) {
+				return t.asInteger();
+			}
+		});
 	}
 
 	@Override
-	public MathMap<IntE, Fraction> embedding() {
-		return new MathMap<>() {
-			@Override
-			public Fraction evaluate(IntE t) {
-				return Rationals.q().getInteger(t);
-			}
-		};
+	public DedekindRing<IntE, Fraction, PFE> asDedekindRing() {
+		return this;
 	}
 
 	@Override
@@ -1256,11 +1395,17 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 		@Override
 		public List<IntE> generate(IntE t) {
+			if (m.equals(zero())) {
+				return Collections.singletonList(zero());
+			}
 			return Collections.singletonList(z.getInteger(t.value.divide(m.value)));
 		}
 
 		@Override
 		public IntE residue(IntE t) {
+			if (m.equals(zero())) {
+				return t;
+			}
 			return new IntE(t.value.mod(m.value));
 		}
 
@@ -1275,7 +1420,15 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		}
 
 		@Override
+		public boolean isPrimary() {
+			return Integers.z().uniqueFactorization(m).primeFactors().size() == 1;
+		}
+
+		@Override
 		public boolean contains(IntE t) {
+			if (m.equals(zero())) {
+				return t.equals(zero());
+			}
 			return t.value.mod(m.value).equals(BigInteger.ZERO);
 		}
 
