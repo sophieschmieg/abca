@@ -29,6 +29,7 @@ import fields.polynomials.Monomial;
 import fields.vectors.pivot.DivisionPivotStrategy;
 import fields.vectors.pivot.EuclidPivotStrategy;
 import fields.vectors.pivot.PivotStrategy;
+import util.MiscAlgorithms;
 import util.Pair;
 
 public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
@@ -365,7 +366,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals) {
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<? extends Ideal<T>> ideals) {
 		Ideal<T> product = getUnitIdeal();
 		List<T> multipliers = new ArrayList<>();
 		for (int i = 0; i < ideals.size(); i++) {
@@ -389,6 +390,15 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheoremModuli(List<T> moduli) {
+		List<Ideal<T>> asIdeals = new ArrayList<>();
+		for (T t : moduli) {
+			asIdeals.add(getIdeal(Collections.singletonList(t)));
+		}
+		return prepareChineseRemainderTheorem(asIdeals);
+	}
+
+	@Override
 	public T chineseRemainderTheorem(List<T> elements, ChineseRemainderPreparation<T> preparation) {
 		if (elements.size() != preparation.getMultipliers().size()) {
 			throw new ArithmeticException("Unequal list sizes!");
@@ -402,8 +412,13 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals) {
+	public T chineseRemainderTheorem(List<T> elements, List<? extends Ideal<T>> ideals) {
 		return chineseRemainderTheorem(elements, prepareChineseRemainderTheorem(ideals));
+	}
+
+	@Override
+	public T chineseRemainderTheoremModuli(List<T> elements, List<T> moduli) {
+		return chineseRemainderTheorem(elements, prepareChineseRemainderTheoremModuli(moduli));
 	}
 
 	@Override
@@ -472,7 +487,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			}
 		});
 	}
-	
+
 	@Override
 	public LocalizeResult<T, ?, ?, ?> localizeAtIdeal(Ideal<T> primeIdeal) {
 		throw new UnsupportedOperationException("Not implemented!");
@@ -639,31 +654,22 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	public List<T> factors(T t) {
 		FactorizationResult<T, T> factorization = uniqueFactorization(t);
 		List<T> result = new ArrayList<>();
-		Map<T, Integer> powers = new TreeMap<>();
+		List<List<T>> primePowers = new ArrayList<>();
 		for (T prime : factorization.primeFactors()) {
-			powers.put(prime, 0);
-		}
-		T activePrime;
-		do {
-			T factor = one();
-			activePrime = null;
-			List<T> nullPrimes = new ArrayList<>();
-			for (T prime : powers.keySet()) {
-				factor = multiply(factor, power(prime, powers.get(prime)));
-				if (activePrime == null && powers.get(prime) < factorization.multiplicity(prime)) {
-					activePrime = prime;
-				} else if (activePrime == null) {
-					nullPrimes.add(prime);
-				}
+			List<T> powers = new ArrayList<>();
+			for (int i = 0; i <= factorization.multiplicity(prime); i++) {
+				powers.add(power(prime, i));
 			}
-			if (activePrime != null) {
-				for (T prime : nullPrimes) {
-					powers.put(prime, 0);
-				}
-				powers.put(activePrime, powers.get(activePrime) + 1);
+			primePowers.add(powers);
+		}
+		List<List<T>> factors = MiscAlgorithms.crossProduct(primePowers);
+		for (List<T> factorFactorList : factors) {
+			T factor = one();
+			for (T factorFactor : factorFactorList) {
+				factor = multiply(factor, factorFactor);
 			}
 			result.add(factor);
-		} while (activePrime != null);
+		}
 		return result;
 	}
 

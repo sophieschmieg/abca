@@ -34,6 +34,11 @@ public class TrivialDiscreteValuationField<T extends Element<T>> extends Abstrac
 		}
 		return Reals.r(1024).one();
 	}
+	
+	@Override
+	public Reals getReals() {
+		return Reals.r(1024);
+	}
 
 	@Override
 	public T zero() {

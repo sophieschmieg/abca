@@ -71,5 +71,10 @@ public abstract class AbstractAlgebra<T extends Element<T>, S extends Element<S>
 	public List<T> nonTrivialCombination(List<S> s) {
 		return nonTrivialCombinations(s).get(0);
 	}
+	
+	@Override
+	public boolean isTorsionFree() {
+		return annihilator().equals(getRing().getZeroIdeal());
+	}
 
 }

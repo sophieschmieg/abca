@@ -7,6 +7,9 @@ import java.util.List;
 import fields.helper.AbstractElement;
 import fields.interfaces.BilinearMap;
 import fields.interfaces.Element;
+import fields.interfaces.InnerProductSpace.OrthogonalSimilarResult;
+import fields.interfaces.InnerProductSpace.QRDecompositionResult;
+import fields.interfaces.InnerProductSpace.SingularValueDecompositionResult;
 import fields.interfaces.MathMap;
 import fields.interfaces.Module;
 import fields.interfaces.Ring;
@@ -15,6 +18,10 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 	private T[][] elements;
 	MatrixModule<T>.SmithNormalFormResult smithNormalFormResult = null;
 	MatrixModule<T>.LDUPResult ldupResult = null;
+	QRDecompositionResult<T> qrResult = null;
+	OrthogonalSimilarResult<T> schurrFormResult = null;
+	SingularValueDecompositionResult<T> svdResult = null;
+	Matrix<T> pseudoInverse;
 
 	@SuppressWarnings("unchecked")
 	public Matrix(List<List<T>> elements) {
@@ -59,8 +66,9 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 			MathMap<S, S> map) {
 		return fromLinearMap(domain, domain, map);
 	}
-	
-	public static <T extends Element<T>, S extends Element<S>> Matrix<T> fromBilinearMap(Module<T, S> space, BilinearMap<S, T> map) {
+
+	public static <T extends Element<T>, S extends Element<S>> Matrix<T> fromBilinearMap(Module<T, S> space,
+			BilinearMap<S, T> map) {
 		List<List<T>> elements = new ArrayList<>();
 		for (S s1 : space.getModuleGenerators()) {
 			List<T> row = new ArrayList<>();
@@ -80,6 +88,54 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 				rowResult.add(map.evaluate(t.entry(i + 1, j + 1)));
 			}
 			result.add(rowResult);
+		}
+		return new Matrix<>(result);
+	}
+
+	public static <T extends Element<T>> Matrix<T> fromDiagonal(List<T> diagonal, T zero) {
+		List<List<T>> result = new ArrayList<>();
+		for (int i = 0; i < diagonal.size(); i++) {
+			List<T> rowResult = new ArrayList<>();
+			for (int j = 0; j < diagonal.size(); j++) {
+				rowResult.add(i == j ? diagonal.get(i) : zero);
+			}
+			result.add(rowResult);
+		}
+		return new Matrix<>(result);
+	}
+
+	public static <T extends Element<T>> Matrix<T> fromBlockMatrix(List<List<Matrix<T>>> blocks) {
+		List<List<T>> result = new ArrayList<>();
+		for (List<Matrix<T>> rowBlock : blocks) {
+			Matrix<T> firstBlock = rowBlock.get(0);
+			for (int i = 0; i < firstBlock.rows(); i++) {
+				List<T> row = new ArrayList<>();
+				for (Matrix<T> matrix : rowBlock) {
+					row.addAll(matrix.row(i + 1).asList());
+				}
+				result.add(row);
+			}
+		}
+		return new Matrix<>(result);
+	}
+
+	public static <T extends Element<T>> Matrix<T> fromBlockDiagonalMatrix(List<Matrix<T>> blocks, T zero) {
+		List<List<T>> result = new ArrayList<>();
+		for (int i = 0; i < blocks.size(); i++) {
+			Matrix<T> diagonal = blocks.get(i);
+			for (int rowIndex = 0; rowIndex < diagonal.rows(); rowIndex++) {
+				List<T> row = new ArrayList<>();
+				for (int j = 0; j < blocks.size(); j++) {
+					if (i == j) {
+						row.addAll(diagonal.row(rowIndex + 1).asList());
+					} else {
+						for (int colIndex = 0; colIndex < blocks.get(j).columns(); colIndex++) {
+							row.add(zero);
+						}
+					}
+				}
+				result.add(row);
+			}
 		}
 		return new Matrix<>(result);
 	}
@@ -128,6 +184,18 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 
 	public T entry(int row, int column) {
 		return elements[row - 1][column - 1];
+	}
+
+	public Matrix<T> subMatrix(int rowStart, int rowEnd, int colStart, int colEnd) {
+		List<List<T>> r = new ArrayList<>();
+		for (int i = rowStart; i <= rowEnd; i++) {
+			List<T> row = new ArrayList<>();
+			for (int j = colStart; j <= colEnd; j++) {
+				row.add(entry(i, j));
+			}
+			r.add(row);
+		}
+		return new Matrix<>(r);
 	}
 
 	@Override
@@ -180,4 +248,25 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 		return 0;
 	}
 
+	public boolean isUpperTriangular(T zero) {
+		for (int i = 1; i < rows(); i++) {
+			for (int j = 0; j < Math.min(i, columns()); j++) {
+				if (!entry(i + 1, j + 1).equals(zero)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	public boolean isLowerTriangular(T zero) {
+		for (int i = 0; i < rows(); i++) {
+			for (int j = i + 1; j < columns(); j++) {
+				if (!entry(i + 1, j + 1).equals(zero)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
 }

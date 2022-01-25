@@ -8,6 +8,7 @@ import fields.interfaces.Algebra;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.FieldExtension;
+import fields.interfaces.Ideal;
 import fields.interfaces.DiscreteValuationField;
 import fields.interfaces.DiscreteValuationRing;
 import fields.vectors.FreeModule;
@@ -59,6 +60,16 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	@Override
 	public boolean isFree() {
 		return true;
+	}
+	
+	@Override
+	public boolean isTorsionFree() {
+		return true;
+	}
+
+	@Override
+	public Ideal<B> annihilator() {
+		return base.getZeroIdeal();
 	}
 
 	@Override

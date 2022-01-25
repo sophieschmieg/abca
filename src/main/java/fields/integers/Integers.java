@@ -16,8 +16,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
-import fields.finitefields.ModularIntegerRing;
-import fields.finitefields.ModularIntegerRing.ModularIntegerRingElement;
+import fields.finitefields.ModuloIntegerRing;
+import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractElement;
@@ -40,6 +40,9 @@ import fields.local.Value;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import fields.polynomials.GenericUnivariatePolynomial;
 import fields.polynomials.Monomial;
 import util.Identity;
@@ -317,6 +320,9 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	@Override
 	public QuotientAndRemainderResult<IntE> quotientAndRemainder(IntE dividend, IntE divisor) {
+		if (divisor.equals(zero())) {
+			return new QuotientAndRemainderResult<>(zero(), dividend);
+		}
 		BigInteger divisorValue = divisor.value.abs();
 		BigInteger remainder = dividend.value.mod(divisorValue);
 		if (remainder.compareTo(divisorValue.shiftRight(1)) > 0) {
@@ -913,7 +919,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			UnivariatePolynomialRing<PFE> reducedRing = zp.reduction().getUnivariatePolynomialRing();
 			UnivariatePolynomial<PFE> reduced = zp.reduceUnivariatePolynomial(fp);
 			List<Polynomial<PAdicNumber>> liftedFactors = new ArrayList<>();
-			System.err.println("Preparation successful");
+			//System.err.println("Preparation successful");
 			Method method = Method.OKUTSU;
 			switch (method) {
 			case LINEAR:
@@ -936,7 +942,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				break;
 			case QUADRATIC:
 				FactorizationResult<Polynomial<PFE>, PFE> factors = zp.reduction().factorization(reduced);
-				System.err.println("Finite Field factorization successful");
+				//System.err.println("Finite Field factorization successful");
 				for (Polynomial<PFE> factor : factors.primeFactors()) {
 					if (factor.degree() > 0) {
 						liftedFactors.add(zp.henselLiftFactor(zpr.normalize(fp), reducedRing.normalize(factor)));
@@ -944,7 +950,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				}
 				break;
 			}
-			System.err.println("Lifts computed successful");
+			//System.err.println("Lifts computed successful");
 
 			Map<Integer, Polynomial<PAdicNumber>> padicFactors = new TreeMap<>();
 			for (int i = 0; i < liftedFactors.size(); i++) {
@@ -1183,23 +1189,23 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			ModuloMaximalIdealResult<IntE, PFE> mod = moduloMaximalIdeal(ideal);
 			return new ModuloIdealResult<>(this, ideal, mod.getField(), mod.getReduction(), mod.getLift());
 		}
-		ModularIntegerRing result = new ModularIntegerRing(ideal.generators().get(0).getValue());
+		ModuloIntegerRing result = new ModuloIntegerRing(ideal.generators().get(0).getValue());
 		return new ModuloIdealResult<>(this, ideal, result, new MathMap<>() {
 
 			@Override
-			public ModularIntegerRingElement evaluate(IntE t) {
+			public ModuloIntegerRingElement evaluate(IntE t) {
 				return result.reduce(t);
 			}
 		}, new MathMap<>() {
 
 			@Override
-			public IntE evaluate(ModularIntegerRingElement t) {
+			public IntE evaluate(ModuloIntegerRingElement t) {
 				return result.lift(t);
 			}
 		});
 	}
 
-	public IntE lift(ModularIntegerRingElement t) {
+	public IntE lift(ModuloIntegerRingElement t) {
 		return new IntE(t.getValue());
 	}
 
@@ -1367,7 +1373,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 		public IntegerIdeal(IntE m) {
 			super(z);
-			this.m = m;
+			this.m = z.archimedeanValue(m);
 		}
 
 		public IntegerIdeal(int m) {
@@ -1387,12 +1393,24 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		public BigInteger getNumberOfElements() throws InfinityException {
 			throw new InfinityException();
 		}
+		
+		@Override
+		public List<List<IntE>> nonTrivialCombinations(List<IntE> s) {
+			Matrix<IntE> m = new Matrix<>(Collections.singletonList(s));
+			MatrixModule<IntE> mm = new MatrixModule<>(z(), 1, s.size());
+			List<Vector<IntE>> kernelBasis = mm.kernelBasis(m);
+			List<List<IntE>> result = new ArrayList<>();
+			for (Vector<IntE> basisVector : kernelBasis) {
+				result.add(basisVector.asList());
+			}
+			return result;
+		}
 
 		@Override
 		public List<IntE> generators() {
 			return Collections.singletonList(m);
 		}
-
+		
 		@Override
 		public List<IntE> generate(IntE t) {
 			if (m.equals(zero())) {

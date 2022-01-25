@@ -9,4 +9,5 @@ module abca {
 	opens fields.vectors;
 	opens util;
 	opens varieties.curves;
+	requires java.desktop;
 }

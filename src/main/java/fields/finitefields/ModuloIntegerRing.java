@@ -11,7 +11,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
-import fields.finitefields.ModularIntegerRing.ModularIntegerRingElement;
+import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
@@ -25,14 +25,14 @@ import fields.interfaces.MathMap;
 import fields.local.Value;
 import util.MiscAlgorithms;
 
-public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> {
+public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 	private BigInteger n;
 
-	public ModularIntegerRing(int n) {
+	public ModuloIntegerRing(int n) {
 		this.n = BigInteger.valueOf(n);
 	}
 
-	public ModularIntegerRing(BigInteger n) {
+	public ModuloIntegerRing(BigInteger n) {
 		this.n = n;
 	}
 
@@ -42,12 +42,12 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public ModularIntegerRingElement zero() {
+	public ModuloIntegerRingElement zero() {
 		return this.getElement(0);
 	}
 
 	@Override
-	public ModularIntegerRingElement one() {
+	public ModuloIntegerRingElement one() {
 		return this.getElement(1);
 	}
 
@@ -57,27 +57,27 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public ModularIntegerRingElement add(ModularIntegerRingElement t1, ModularIntegerRingElement t2) {
+	public ModuloIntegerRingElement add(ModuloIntegerRingElement t1, ModuloIntegerRingElement t2) {
 		return getElement(t1.value.add(t2.value));
 	}
 
 	@Override
-	public ModularIntegerRingElement negative(ModularIntegerRingElement t) {
+	public ModuloIntegerRingElement negative(ModuloIntegerRingElement t) {
 		return this.getElement(n.subtract(t.value));
 	}
 
 	@Override
-	public ModularIntegerRingElement multiply(ModularIntegerRingElement t1, ModularIntegerRingElement t2) {
+	public ModuloIntegerRingElement multiply(ModuloIntegerRingElement t1, ModuloIntegerRingElement t2) {
 		return getElement(t1.value.multiply(t2.value));
 	}
 
 	@Override
-	public ModularIntegerRingElement inverse(ModularIntegerRingElement t) {
+	public ModuloIntegerRingElement inverse(ModuloIntegerRingElement t) {
 		return getElement(t.value.modInverse(n));
 	}
 
 	@Override
-	public ModularIntegerRingElement getRandomElement() {
+	public ModuloIntegerRingElement getRandomElement() {
 		return getElement(MiscAlgorithms.randomBigInteger(new Random(), n));
 	}
 
@@ -86,26 +86,26 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		return this.n;
 	}
 
-	public ModularIntegerRingElement reduce(IntE t) {
-		return new ModularIntegerRingElement(t.getValue());
+	public ModuloIntegerRingElement reduce(IntE t) {
+		return new ModuloIntegerRingElement(t.getValue());
 	}
 
-	public IntE lift(ModularIntegerRingElement t) {
+	public IntE lift(ModuloIntegerRingElement t) {
 		return Integers.z().getInteger(t.getValue());
 	}
 
-	public Optional<Fraction> rationalReconstruction(ModularIntegerRingElement t, BigInteger numeratorBound,
+	public Optional<Fraction> rationalReconstruction(ModuloIntegerRingElement t, BigInteger numeratorBound,
 			BigInteger denominatorBound) {
 		return Rationals.q().rationalReconstruction(lift(t), new IntE(n), numeratorBound, denominatorBound);
 	}
 
-	public Optional<Fraction> rationalReconstruction(ModularIntegerRingElement t) {
+	public Optional<Fraction> rationalReconstruction(ModuloIntegerRingElement t) {
 		return Rationals.q().rationalReconstruction(lift(t), new IntE(n));
 	}
 
 	@Override
-	public Iterator<ModularIntegerRingElement> iterator() {
-		return new Iterator<ModularIntegerRingElement>() {
+	public Iterator<ModuloIntegerRingElement> iterator() {
+		return new Iterator<ModuloIntegerRingElement>() {
 			private BigInteger i = BigInteger.ZERO;
 
 			@Override
@@ -114,9 +114,9 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 			}
 
 			@Override
-			public ModularIntegerRingElement next() {
+			public ModuloIntegerRingElement next() {
 				this.i = this.i.add(BigInteger.ONE);
-				return ModularIntegerRing.this.getElement(i.subtract(BigInteger.ONE));
+				return ModuloIntegerRing.this.getElement(i.subtract(BigInteger.ONE));
 			}
 
 			@Override
@@ -141,16 +141,16 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		return "Z/" + n + "Z";
 	}
 
-	public ModularIntegerRingElement getElement(int value) {
-		return new ModularIntegerRingElement(BigInteger.valueOf(value));
+	public ModuloIntegerRingElement getElement(int value) {
+		return new ModuloIntegerRingElement(BigInteger.valueOf(value));
 	}
 
-	public ModularIntegerRingElement getElement(BigInteger value) {
-		return new ModularIntegerRingElement(value);
+	public ModuloIntegerRingElement getElement(BigInteger value) {
+		return new ModuloIntegerRingElement(value);
 	}
 
 	@Override
-	public boolean isUnit(ModularIntegerRingElement t) {
+	public boolean isUnit(ModuloIntegerRingElement t) {
 		return n.gcd(t.value).equals(BigInteger.ONE);
 	}
 
@@ -161,12 +161,12 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public Iterable<ModularIntegerRingElement> getUnits() {
-		return new Iterable<ModularIntegerRingElement>() {
+	public Iterable<ModuloIntegerRingElement> getUnits() {
+		return new Iterable<ModuloIntegerRingElement>() {
 
 			@Override
-			public Iterator<ModularIntegerRingElement> iterator() {
-				return new Iterator<ModularIntegerRingElement>() {
+			public Iterator<ModuloIntegerRingElement> iterator() {
+				return new Iterator<ModuloIntegerRingElement>() {
 					private BigInteger i = BigInteger.ZERO;
 
 					@Override
@@ -175,11 +175,11 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 					}
 
 					@Override
-					public ModularIntegerRingElement next() {
+					public ModuloIntegerRingElement next() {
 						do {
 							this.i = this.i.add(BigInteger.ONE);
-						} while (!ModularIntegerRing.this.isUnit(ModularIntegerRing.this.getElement(i)));
-						return ModularIntegerRing.this.getElement(i);
+						} while (!ModuloIntegerRing.this.isUnit(ModuloIntegerRing.this.getElement(i)));
+						return ModuloIntegerRing.this.getElement(i);
 					}
 				};
 			}
@@ -202,7 +202,7 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public boolean isZeroDivisor(ModularIntegerRingElement t) {
+	public boolean isZeroDivisor(ModuloIntegerRingElement t) {
 		return !isUnit(t);
 	}
 
@@ -220,15 +220,15 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public boolean isDivisible(ModularIntegerRingElement dividend, ModularIntegerRingElement divisor) {
+	public boolean isDivisible(ModuloIntegerRingElement dividend, ModuloIntegerRingElement divisor) {
 		BigInteger divisorGcd = divisor.value.gcd(n);
 		BigInteger dividendGcd = dividend.value.gcd(n);
 		return dividendGcd.mod(divisorGcd).equals(BigInteger.ZERO);
 	}
 
 	@Override
-	public QuotientAndRemainderResult<ModularIntegerRingElement> quotientAndRemainder(
-			ModularIntegerRingElement dividend, ModularIntegerRingElement divisor) {
+	public QuotientAndRemainderResult<ModuloIntegerRingElement> quotientAndRemainder(
+			ModuloIntegerRingElement dividend, ModuloIntegerRingElement divisor) {
 		BigInteger divisorGcd = divisor.value.gcd(n);
 		BigInteger dividendGcd = dividend.value.gcd(n);
 		BigInteger[] qr = dividendGcd.divideAndRemainder(divisorGcd);
@@ -238,23 +238,23 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		BigInteger reducedDividend = dividend.value.divide(divisorGcd);
 		BigInteger reducedDivisor = divisor.value.divide(divisorGcd);
 		BigInteger reducedN = n.divide(divisorGcd);
-		ModularIntegerRingElement result = new ModularIntegerRingElement(
+		ModuloIntegerRingElement result = new ModuloIntegerRingElement(
 				reducedDividend.multiply(reducedDivisor.modInverse(reducedN)));
 		return new QuotientAndRemainderResult<>(result, zero());
 	}
 
 	@Override
-	public BigInteger euclidMeasure(ModularIntegerRingElement t) {
+	public BigInteger euclidMeasure(ModuloIntegerRingElement t) {
 		return null;
 	}
 
 	@Override
-	public FactorizationResult<ModularIntegerRingElement, ModularIntegerRingElement> uniqueFactorization(
-			ModularIntegerRingElement t) {
+	public FactorizationResult<ModuloIntegerRingElement, ModuloIntegerRingElement> uniqueFactorization(
+			ModuloIntegerRingElement t) {
 		Integers z = Integers.z();
 		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(z.getInteger(n));
 		IntE e = z.getInteger(t.value);
-		SortedMap<ModularIntegerRingElement, Integer> result = new TreeMap<>();
+		SortedMap<ModuloIntegerRingElement, Integer> result = new TreeMap<>();
 		for (IntE prime : factors.primeFactors()) {
 			int power = factors.multiplicity(prime);
 			IntE factor = z.power(prime, power);
@@ -281,26 +281,26 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public ModularIntegerRingElement projectToUnit(ModularIntegerRingElement t) {
+	public ModuloIntegerRingElement projectToUnit(ModuloIntegerRingElement t) {
 		if (t.equals(zero())) {
 			return one();
 		}
 		return getElement(t.value.divide(t.value.gcd(n)));
 	}
 
-	public IdealResult<ModularIntegerRingElement, ModularIntegerIdeal> getIdealWithTransforms(
-			List<ModularIntegerRingElement> generators) {
+	public IdealResult<ModuloIntegerRingElement, ModularIntegerIdeal> getIdealWithTransforms(
+			List<ModuloIntegerRingElement> generators) {
 		if (generators.size() == 0) {
 			return new IdealResult<>(Collections.singletonList(Collections.emptyList()), generators,
 					new ModularIntegerIdeal(0));
 		}
 		Integers z = Integers.z();
 		List<IntE> lifted = new ArrayList<>();
-		for (ModularIntegerRingElement g : generators) {
+		for (ModuloIntegerRingElement g : generators) {
 			lifted.add(z.lift(g));
 		}
 		ExtendedEuclideanListResult<IntE> extendedEuclidean = z.extendedEuclidean(lifted);
-		List<ModularIntegerRingElement> reduced = new ArrayList<>();
+		List<ModuloIntegerRingElement> reduced = new ArrayList<>();
 		for (IntE expression : extendedEuclidean.getCoeffs()) {
 			reduced.add(reduce(expression));
 		}
@@ -310,20 +310,20 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public ModularIntegerIdeal getIdeal(List<ModularIntegerRingElement> generators) {
+	public ModularIntegerIdeal getIdeal(List<ModuloIntegerRingElement> generators) {
 		return getIdealWithTransforms(generators).getIdeal();
 	}
 
-	public ModularIntegerIdeal intersect(Ideal<ModularIntegerRingElement> t1, Ideal<ModularIntegerRingElement> t2) {
+	public ModularIntegerIdeal intersect(Ideal<ModuloIntegerRingElement> t1, Ideal<ModuloIntegerRingElement> t2) {
 		return getIdeal(Collections.singletonList(lcm(t1.generators().get(0), t2.generators().get(0))));
 	}
 
 	@Override
-	public ModularIntegerIdeal radical(Ideal<ModularIntegerRingElement> t) {
+	public ModularIntegerIdeal radical(Ideal<ModuloIntegerRingElement> t) {
 		Integers z = Integers.z();
 		IntE m = z.lift(t.generators().get(0));
 		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(m);
-		ModularIntegerRingElement radical = one();
+		ModuloIntegerRingElement radical = one();
 		for (IntE prime : factors.primeFactors()) {
 			radical = multiply(radical, reduce(prime));
 		}
@@ -331,8 +331,8 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public PrimaryDecompositionResult<ModularIntegerRingElement, ModularIntegerIdeal> primaryDecomposition(
-			Ideal<ModularIntegerRingElement> t) {
+	public PrimaryDecompositionResult<ModuloIntegerRingElement, ModularIntegerIdeal> primaryDecomposition(
+			Ideal<ModuloIntegerRingElement> t) {
 		Integers z = Integers.z();
 		IntE generator = lift(t.generators().get(0));
 		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(generator);
@@ -346,8 +346,8 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<ModularIntegerRingElement, PFE> moduloMaximalIdeal(
-			Ideal<ModularIntegerRingElement> ideal) {
+	public ModuloMaximalIdealResult<ModuloIntegerRingElement, PFE> moduloMaximalIdeal(
+			Ideal<ModuloIntegerRingElement> ideal) {
 		if (!ideal.isMaximal()) {
 			throw new ArithmeticException("Not a maximal ideal!");
 		}
@@ -355,44 +355,44 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		return new ModuloMaximalIdealResult<>(this, ideal, fp, new MathMap<>() {
 
 			@Override
-			public PFE evaluate(ModularIntegerRingElement t) {
+			public PFE evaluate(ModuloIntegerRingElement t) {
 				return fp.getElement(t.getValue());
 			}
 		}, new MathMap<>() {
 
 			@Override
-			public ModularIntegerRingElement evaluate(PFE t) {
+			public ModuloIntegerRingElement evaluate(PFE t) {
 				return getElement(t.getValue());
 			}
 		});
 	}
 
 	@Override
-	public ModuloIdealResult<ModularIntegerRingElement, ?> moduloIdeal(Ideal<ModularIntegerRingElement> ideal) {
+	public ModuloIdealResult<ModuloIntegerRingElement, ?> moduloIdeal(Ideal<ModuloIntegerRingElement> ideal) {
 		if (ideal.isPrime()) {
-			ModuloMaximalIdealResult<ModularIntegerRingElement, PFE> mod = moduloMaximalIdeal(ideal);
+			ModuloMaximalIdealResult<ModuloIntegerRingElement, PFE> mod = moduloMaximalIdeal(ideal);
 			return new ModuloIdealResult<>(this, ideal, mod.getField(), mod.getReduction(), mod.getLift());
 		}
-		ModularIntegerRing result = new ModularIntegerRing(ideal.generators().get(0).getValue());
+		ModuloIntegerRing result = new ModuloIntegerRing(ideal.generators().get(0).getValue());
 		return new ModuloIdealResult<>(this, ideal, result, new MathMap<>() {
 
 			@Override
-			public ModularIntegerRingElement evaluate(ModularIntegerRingElement t) {
+			public ModuloIntegerRingElement evaluate(ModuloIntegerRingElement t) {
 				return result.getElement(t.getValue());
 			}
 		}, new MathMap<>() {
 			@Override
-			public ModularIntegerRingElement evaluate(ModularIntegerRingElement t) {
+			public ModuloIntegerRingElement evaluate(ModuloIntegerRingElement t) {
 				return getElement(t.getValue());
 			}
 		});
 	}
 
 	@Override
-	public Ideal<ModularIntegerRingElement> getNilRadical() {
+	public Ideal<ModuloIntegerRingElement> getNilRadical() {
 		Integers z = Integers.z();
 		FactorizationResult<IntE, IntE> factorization = z.uniqueFactorization(z.getInteger(n));
-		ModularIntegerRingElement generator = one();
+		ModuloIntegerRingElement generator = one();
 		for (IntE prime : factorization.primeFactors()) {
 			generator = multiply(generator, reduce(prime));
 		}
@@ -407,21 +407,21 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 	}
 
 	@Override
-	public List<Ideal<ModularIntegerRingElement>> maximalPrimeIdealChain(Ideal<ModularIntegerRingElement> start) {
+	public List<Ideal<ModuloIntegerRingElement>> maximalPrimeIdealChain(Ideal<ModuloIntegerRingElement> start) {
 		if (n.equals(BigInteger.ONE)) {
 			return Collections.emptyList();
 		}
 		if (start.contains(one())) {
 			throw new ArithmeticException("Not a proper ideal!");
 		}
-		PrimaryDecompositionResult<ModularIntegerRingElement, ModularIntegerIdeal> decomposition = primaryDecomposition(
+		PrimaryDecompositionResult<ModuloIntegerRingElement, ModularIntegerIdeal> decomposition = primaryDecomposition(
 				start);
 		return Collections.singletonList(decomposition.getRadicals().get(0));
 	}
 
 	@Override
-	public List<Ideal<ModularIntegerRingElement>> maximalPrimeIdealChain(Ideal<ModularIntegerRingElement> start,
-			Ideal<ModularIntegerRingElement> end) {
+	public List<Ideal<ModuloIntegerRingElement>> maximalPrimeIdealChain(Ideal<ModuloIntegerRingElement> start,
+			Ideal<ModuloIntegerRingElement> end) {
 		if (n.equals(BigInteger.ONE)) {
 			return Collections.emptyList();
 		}
@@ -431,15 +431,15 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		if (!end.contains(start)) {
 			throw new ArithmeticException("Not an ideal chain");
 		}
-		PrimaryDecompositionResult<ModularIntegerRingElement, ModularIntegerIdeal> decomposition = primaryDecomposition(
+		PrimaryDecompositionResult<ModuloIntegerRingElement, ModularIntegerIdeal> decomposition = primaryDecomposition(
 				start);
 		return Collections.singletonList(decomposition.getRadicals().get(0));
 	}
 
-	public class ModularIntegerRingElement extends AbstractElement<ModularIntegerRingElement> {
+	public class ModuloIntegerRingElement extends AbstractElement<ModuloIntegerRingElement> {
 		private BigInteger value;
 
-		private ModularIntegerRingElement(BigInteger value) {
+		private ModuloIntegerRingElement(BigInteger value) {
 			this.value = value.mod(n);
 			while (this.value.compareTo(BigInteger.ZERO) < 0)
 				this.value = this.value.add(n);
@@ -454,17 +454,17 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		}
 
 		@Override
-		public int compareTo(ModularIntegerRingElement o) {
+		public int compareTo(ModuloIntegerRingElement o) {
 			return this.value.compareTo(o.value);
 		}
 
 	}
 
-	public class ModularIntegerIdeal extends AbstractIdeal<ModularIntegerRingElement> {
-		private ModularIntegerRingElement m;
+	public class ModularIntegerIdeal extends AbstractIdeal<ModuloIntegerRingElement> {
+		private ModuloIntegerRingElement m;
 
-		private ModularIntegerIdeal(ModularIntegerRingElement m) {
-			super(ModularIntegerRing.this);
+		private ModularIntegerIdeal(ModuloIntegerRingElement m) {
+			super(ModuloIntegerRing.this);
 			this.m = m;
 		}
 
@@ -473,32 +473,68 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		}
 
 		private ModularIntegerIdeal(BigInteger m) {
-			this(new ModularIntegerRingElement(m));
+			this(new ModuloIntegerRingElement(m));
 		}
 
 		@Override
 		public boolean isFinite() {
-			return false;
+			return true;
 		}
 
 		@Override
 		public BigInteger getNumberOfElements() throws InfinityException {
-			throw new InfinityException();
+			if (m.equals(zero())) {
+				return BigInteger.ONE;
+			}
+			return n.divide(m.getValue());
 		}
 
 		@Override
-		public List<ModularIntegerRingElement> generators() {
+		public Ideal<ModuloIntegerRingElement> annihilator() {
+			if (m.equals(zero())) {
+				getUnitIdeal();
+			}
+			return getIdeal(Collections.singletonList(getInteger(n.divide(m.getValue()))));
+		}
+		
+		@Override
+		public List<List<ModuloIntegerRingElement>> nonTrivialCombinations(List<ModuloIntegerRingElement> s) {
+		Integers z = Integers.z();
+			List<IntE> integerList = new ArrayList<>();
+		for (ModuloIntegerRingElement e : s) {
+			integerList.add(lift(e));
+		}
+		integerList.add(z.getInteger(n));
+		List<List<IntE>> integerResult = z.getUnitIdeal().nonTrivialCombinations(integerList);
+		List<List<ModuloIntegerRingElement>> result = new ArrayList<>();
+		for (List<IntE> integerRow : integerResult) {
+			List<ModuloIntegerRingElement> row = new ArrayList<>();
+			for (IntE value : integerRow.subList(0, s.size())) {
+				row.add(reduce(value));
+			}
+			result.add(row);
+		}
+		return result;
+		}
+		
+		@Override
+		public List<List<ModuloIntegerRingElement>> getModuleGeneratorRelations() {
+			return Collections.singletonList(Collections.singletonList(getInteger(n.divide(m.getValue()))));
+		}
+
+		@Override
+		public List<ModuloIntegerRingElement> generators() {
 			return Collections.singletonList(m);
 		}
 
 		@Override
-		public List<ModularIntegerRingElement> generate(ModularIntegerRingElement t) {
+		public List<ModuloIntegerRingElement> generate(ModuloIntegerRingElement t) {
 			return Collections.singletonList(getElement(t.value.divide(m.value)));
 		}
 
 		@Override
-		public ModularIntegerRingElement residue(ModularIntegerRingElement t) {
-			return new ModularIntegerRingElement(t.value.mod(m.value));
+		public ModuloIntegerRingElement residue(ModuloIntegerRingElement t) {
+			return new ModuloIntegerRingElement(t.value.mod(m.value));
 		}
 
 		@Override
@@ -520,23 +556,23 @@ public class ModularIntegerRing extends AbstractRing<ModularIntegerRingElement> 
 		}
 
 		@Override
-		public boolean contains(ModularIntegerRingElement t) {
+		public boolean contains(ModuloIntegerRingElement t) {
 			return t.value.mod(m.value).equals(BigInteger.ZERO);
 		}
 
 		@Override
-		public Value maximumPowerContains(ModularIntegerRingElement t) {
+		public Value maximumPowerContains(ModuloIntegerRingElement t) {
 			if (t.equals(zero()) || m.equals(one())) {
 				return Value.INFINITY;
 			}
 			if (m.equals(zero())) {
 				return Value.ZERO;
 			}
-			FactorizationResult<Ideal<ModularIntegerRingElement>, Ideal<ModularIntegerRingElement>> factors = idealFactorization(
+			FactorizationResult<Ideal<ModuloIntegerRingElement>, Ideal<ModuloIntegerRingElement>> factors = idealFactorization(
 					this);
 			Value value = Value.INFINITY;
 			Integers z = Integers.z();
-			for (Ideal<ModularIntegerRingElement> factor : factors.primeFactors()) {
+			for (Ideal<ModuloIntegerRingElement> factor : factors.primeFactors()) {
 				Ideal<IntE> liftedFactor = z.getIdeal(Collections.singletonList(z.lift(factor.generators().get(0))));
 				value = value.min(new Value(
 						z.valuation(z.lift(t), liftedFactor).value() / z.valuation(z.lift(m), liftedFactor).value()));

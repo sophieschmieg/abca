@@ -1,12 +1,16 @@
-package varieties.curves;
+package varieties.curves.elliptic;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
@@ -14,6 +18,7 @@ import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Complex;
 import fields.floatingpoint.Complex.ComplexNumber;
+import fields.helper.AbstractElement;
 import fields.helper.FieldEmbedding;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
@@ -24,28 +29,34 @@ import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.Ring.ExtendedEuclideanResult;
+import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.Ring.QuotientAndRemainderResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.numberfields.NumberField;
+import fields.numberfields.NumberField.NFE;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
-import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.vectors.Vector;
 import util.ConCatMap;
 import util.MiscAlgorithms;
+import util.graph.Graph;
+import util.graph.Graph.GraphBuilder;
 import varieties.FunctionField;
 import varieties.RationalFunction;
 import varieties.curves.DivisorGroup.Divisor;
+import varieties.curves.SmoothCurve;
 import varieties.projective.AbstractProjectiveScheme;
+import varieties.projective.GenericProjectiveScheme;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
-import varieties.projective.GenericProjectiveScheme;
 
 public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveScheme<T>
-		implements SmoothCurve<T>, Group<ProjectivePoint<T>> {
-	private static class Isomorphism<T extends Element<T>> implements Isogeny<T> {
+		implements SmoothCurve<T>, Group<ProjectivePoint<T>>, Element<EllipticCurve<T>> {
+	public static class Isomorphism<T extends Element<T>> extends AbstractElement<Isogeny<T>> implements Isogeny<T> {
 		private final EllipticCurve<T> domain;
 		private final EllipticCurve<T> range;
 		private final Field<T> field;
@@ -57,6 +68,21 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			this.field = domain.getField();
 			this.range = new EllipticCurve<T>(field, field.multiply(field.power(u, 4), domain.getA()),
 					field.multiply(field.power(u, 6), domain.getB()));
+			range.setNumberOfPointsFrom(domain, this);
+		}
+
+		@Override
+		public String toString() {
+			return "[" + u + "]";
+		}
+
+		@Override
+		public int compareTo(Isogeny<T> o) {
+			if (o instanceof Isomorphism<?>) {
+				Isomorphism<T> other = (Isomorphism<T>) o;
+				return u.compareTo(other.u);
+			}
+			return getClass().getName().compareTo(o.getClass().getName());
 		}
 
 		@Override
@@ -98,6 +124,11 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		public Isogeny<T> getDual() {
 			return new Isomorphism<>(range, field.inverse(u));
 		}
+
+//		@Override
+		public List<ProjectivePoint<T>> kernelGenerators() {
+			return Collections.emptyList();
+		}
 	}
 
 	private Field<T> field;
@@ -115,6 +146,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	private BigInteger numberOfPoints = BigInteger.valueOf(-1);
 	private boolean superSingular;
 	private boolean superSingularDeterminied;
+	private Map<IntE, List<ProjectivePoint<T>>> torsionPointBasis;
+	private static Map<BigInteger, Map<Integer, Polynomial<PFE>>> genericDivisionPolynomialsByBase;
 
 	private static <T extends Element<T>> GenericProjectiveScheme<T> asGenericProjectiveScheme(Field<T> field, T a,
 			T b) {
@@ -327,16 +360,22 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	private static ComplexNumber capitalG(Complex c, ComplexNumber tau, int weight) {
 		ComplexNumber result = c.zero();
 		ComplexNumber prev;
-		int i = 1;
+		int m = 1;
+		int n = 1;
 		do {
 			prev = result;
-			for (int n = 0; n <= i; n++) {
-				int m = i - n;
-				ComplexNumber summand1 = c.power(c.inverse(c.add(c.getInteger(m), c.multiply(n, tau))), 2 * weight);
-				ComplexNumber summand2 = c.power(c.inverse(c.add(c.getInteger(m), c.multiply(-n, tau))), 2 * weight);
-				result = c.add(result, summand1, summand2);
-				result = c.add(result, summand1, summand2);
+			for (int i = -n; i <= n; i++) {
+				ComplexNumber summand1 = c.power(c.inverse(c.add(c.getInteger(m), c.multiply(i, tau))), 2 * weight);
+				ComplexNumber summand2 = c.power(c.inverse(c.add(c.getInteger(-m), c.multiply(i, tau))), 2 * weight);
+				result = c.add(result, c.add(summand1, summand2));
 			}
+			for (int j = -m + 1; j <= m - 1; j++) {
+				ComplexNumber summand1 = c.power(c.inverse(c.add(c.getInteger(j), c.multiply(n, tau))), 2 * weight);
+				ComplexNumber summand2 = c.power(c.inverse(c.add(c.getInteger(j), c.multiply(-n, tau))), 2 * weight);
+				result = c.add(result, c.add(summand1, summand2));
+			}
+			m++;
+			n++;
 		} while (!c.close(prev, result));
 		return result;
 	}
@@ -442,6 +481,207 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		return new FromTauResult(tau, fromJInvariant(c, j), weierstrassP(c, tau), weierstrassPDerivative(c, tau));
 	}
 
+	public static class WithComplexMultiplication {
+		private EllipticCurve<NFE> curve;
+		private Isogeny<NFE> endomorphism;
+		private NFE tau;
+		private NumberField imaginaryQuadraticExtension;
+		private NumberField hilbertClassField;
+
+		private WithComplexMultiplication(EllipticCurve<NFE> curve, Isogeny<NFE> endomorphism, NFE tau,
+				NumberField imaginaryQuadraticExtension, NumberField hilbertClassField) {
+			this.curve = curve;
+			this.endomorphism = endomorphism;
+			this.tau = tau;
+			this.imaginaryQuadraticExtension = imaginaryQuadraticExtension;
+			this.hilbertClassField = hilbertClassField;
+		}
+
+		public EllipticCurve<NFE> getCurve() {
+			return curve;
+		}
+
+		public Isogeny<NFE> getEndomorphism() {
+			return endomorphism;
+		}
+
+		public NFE getTau() {
+			return tau;
+		}
+
+		public NumberField getImaginaryQuadraticExtension() {
+			return imaginaryQuadraticExtension;
+		}
+
+		public NumberField getHilbertClassField() {
+			return hilbertClassField;
+		}
+	}
+
+	public static WithComplexMultiplication withComplexMultiplication(NumberField imaginaryQuadraticExtension,
+			NFE tau) {
+		if (imaginaryQuadraticExtension.degree() != 2) {
+			throw new ArithmeticException("Not an order with complex multiplication");
+		}
+		return null;
+	}
+
+	public static EllipticCurve<FFE> withTrace(PrimeField base, BigInteger trace) {
+		Integers z = Integers.z();
+		PolynomialRing<PFE> r = AbstractPolynomialRing.getPolynomialRing(base, 4, Monomial.GREVLEX);
+		Polynomial<PFE> rx = r.getVar(1);
+		Polynomial<PFE> ry = r.getVar(2);
+		Polynomial<PFE> ra = r.getVar(3);
+		Polynomial<PFE> rb = r.getVar(4);
+		Polynomial<PFE> equation = r.subtract(r.add(r.power(rx, 3), r.multiply(ra, rx), rb), r.power(ry, 2));
+		for (IntE prime : z.setOfPrimes()) {
+			if (prime.getValue().equals(base.characteristic())) {
+				continue;
+			}
+			int moddedTrace = trace.mod(prime.getValue()).intValueExact();
+			Polynomial<PFE> divisionPolynomial = genericDivisionPolynomial(base, prime.intValueExact(), r);
+			List<Polynomial<PFE>> generators = new ArrayList<>();
+			generators.add(equation);
+			generators.add(divisionPolynomial);
+			PolynomialIdeal<PFE> ideal = r.getIdeal(generators);
+			CoordinateRing<PFE> cr = ideal.divideOut();
+			CoordinateRingElement<PFE> x = cr.getVar(1);
+			CoordinateRingElement<PFE> y = cr.getVar(2);
+			CoordinateRingElement<PFE> a = cr.getVar(3);
+			CoordinateRingElement<PFE> b = cr.getVar(4);
+			CoordinateRingElement<PFE> xp = cr.power(x, base.characteristic());
+			CoordinateRingElement<PFE> xpp = cr.power(xp, base.characteristic());
+			CoordinateRingElement<PFE> yp = cr.power(y, base.characteristic());
+			CoordinateRingElement<PFE> ypp = cr.power(yp, base.characteristic());
+		}
+		return null;
+	}
+
+	private static Polynomial<PFE> genericDivisionPolynomial(PrimeField base, int m, PolynomialRing<PFE> r) {
+		if (genericDivisionPolynomialsByBase == null) {
+			genericDivisionPolynomialsByBase = new TreeMap<>();
+		}
+		genericDivisionPolynomialsByBase.putIfAbsent(base.characteristic(), new TreeMap<>());
+		Map<Integer, Polynomial<PFE>> genericDivisionPolynomials = genericDivisionPolynomialsByBase
+				.get(base.characteristic());
+		if (genericDivisionPolynomials.containsKey(m)) {
+			Polynomial<PFE> p = genericDivisionPolynomials.get(m);
+			if (m % 2 == 0) {
+				return r.multiply(2, r.getVar(2), p);
+			} else {
+				return p;
+			}
+		}
+		Polynomial<PFE> o = r.one();
+		Polynomial<PFE> x = r.getVar(1);
+		Polynomial<PFE> x2 = r.getVarPower(1, 2);
+		Polynomial<PFE> x3 = r.getVarPower(1, 3);
+		Polynomial<PFE> x4 = r.getVarPower(1, 4);
+		Polynomial<PFE> x6 = r.getVarPower(1, 6);
+		Polynomial<PFE> a = r.getVar(3);
+		Polynomial<PFE> a2 = r.getVarPower(3, 2);
+		Polynomial<PFE> a3 = r.getVarPower(3, 3);
+		Polynomial<PFE> b = r.getVarPower(4, 1);
+		Polynomial<PFE> b2 = r.getVarPower(4, 2);
+		Polynomial<PFE> ab = r.multiply(a, b);
+		Polynomial<PFE> y2 = r.add(x3, r.multiply(a, x), b);
+		if (m == 0) {
+			genericDivisionPolynomials.put(0, r.zero());
+		} else if (m == 1) {
+			genericDivisionPolynomials.put(1, o);
+		} else if (m == 2) {
+			genericDivisionPolynomials.put(2, o);
+		} else if (m == 3) {
+			Polynomial<PFE> p = r.multiply(3, x4);
+			p = r.add(p, r.multiply(6, a, x2));
+			p = r.add(p, r.multiply(12, b, x));
+			p = r.add(p, r.multiply(-1, a2));
+			genericDivisionPolynomials.put(3, p);
+		} else if (m == 4) {
+			Polynomial<PFE> p = x6;
+			p = r.add(p, r.multiply(5, a, x4));
+			p = r.add(p, r.multiply(20, b, x3));
+			p = r.add(p, r.multiply(-5, a2, x2));
+			p = r.add(p, r.multiply(-4, ab, x));
+			p = r.add(p, r.multiply(-8, b2));
+			p = r.add(p, r.multiply(-1, a3));
+			p = r.multiply(2, p);
+			genericDivisionPolynomials.put(4, p);
+		} else if (m % 2 == 0) {
+			int n = m / 2;
+			for (int i = n - 2; i <= n + 2; i++) {
+				genericDivisionPolynomial(base, i, r);
+			}
+			Polynomial<PFE> psiNm2 = genericDivisionPolynomials.get(n - 2);
+			Polynomial<PFE> psiNm1 = genericDivisionPolynomials.get(n - 1);
+			Polynomial<PFE> psiN = genericDivisionPolynomials.get(n);
+			Polynomial<PFE> psiN1 = genericDivisionPolynomials.get(n + 1);
+			Polynomial<PFE> psiN2 = genericDivisionPolynomials.get(n + 2);
+			Polynomial<PFE> p = r.subtract(r.multiply(psiN2, r.power(psiNm1, 2)),
+					r.multiply(psiNm2, r.power(psiN1, 2)));
+			p = r.multiply(psiN, p);
+			genericDivisionPolynomials.put(m, p);
+		} else if (m % 2 == 1) {
+			int n = (m - 1) / 2;
+			for (int i = n - 1; i <= n + 2; i++) {
+				genericDivisionPolynomial(base, i, r);
+			}
+			Polynomial<PFE> psiNm1 = genericDivisionPolynomials.get(n - 1);
+			Polynomial<PFE> psiN = genericDivisionPolynomials.get(n);
+			Polynomial<PFE> psiN1 = genericDivisionPolynomials.get(n + 1);
+			Polynomial<PFE> psiN2 = genericDivisionPolynomials.get(n + 2);
+			Polynomial<PFE> firstTerm = r.multiply(psiN2, r.power(psiN, 3));
+			Polynomial<PFE> secondTerm = r.multiply(psiNm1, r.power(psiN1, 3));
+			if (n % 2 == 0) {
+				firstTerm = r.multiply(16, firstTerm, y2, y2);
+			} else {
+				secondTerm = r.multiply(16, secondTerm, y2, y2);
+			}
+			genericDivisionPolynomials.put(m, r.subtract(firstTerm, secondTerm));
+		}
+		return genericDivisionPolynomial(base, m, r);
+
+	}
+	
+	private static List<CoordinateRingElement<PFE>> genericAdd(CoordinateRingElement<PFE> x1, CoordinateRingElement<PFE> y1,
+			CoordinateRingElement<PFE> x2, CoordinateRingElement<PFE> y2, CoordinateRing<PFE> cr) {
+		CoordinateRingElement<PFE> ydiff = cr.subtract(y2, y1);
+		CoordinateRingElement<PFE> xdiff = cr.subtract(x2, x1);
+		CoordinateRingElement<PFE> s = cr.divideChecked(ydiff, xdiff);
+		CoordinateRingElement<PFE> xr = cr.multiply(s, s);
+		xr = cr.subtract(xr, cr.add(x1, x2));
+		CoordinateRingElement<PFE> yr = cr.add(y1, cr.multiply(s, cr.subtract(xr, x1)));
+		List<CoordinateRingElement<PFE>> result = new ArrayList<>();
+		result.add(xr);
+		result.add(cr.negative(yr));
+		return result;
+	}
+
+	private static List<CoordinateRingElement<PFE>> genericMultiply(PrimeField base, int n, CoordinateRing<PFE> cr, PolynomialRing<PFE> r) {
+		// Calculating [qbar] (x, y)
+//		int nabs = Math.abs(n);
+//		Polynomial<PFE> psiNsq = genericDivisionPolynomial(base, nabs, r);
+//		psiNsq = r.multiply(psiNsq, psiNsq);
+//		psiNsq = cr.getPolynomialRing()
+//				.getEmbedding(r.reduce(psiNsq, Collections.singletonList(this.definingPolynomial)), new int[] { 0, 1 });
+//		CoordinateRingElement<T> psiNsqInv = cr.getEmbedding(this.invertXOnlyPolynomial(psiNsq, psiL));
+//		CoordinateRingElement<T> psiNm1 = cr.getEmbedding(this.getDivisionPolynomial(nabs == 0 ? 1 : (nabs - 1)));
+//		CoordinateRingElement<T> psiNp1 = cr.getEmbedding(this.getDivisionPolynomial(nabs + 1));
+//		CoordinateRingElement<T> qx = cr.subtract(cr.getEmbedding(r.getVar(1)), cr.multiply(psiNsqInv, psiNm1, psiNp1));
+//		CoordinateRingElement<T> qy = cr.multiply(cr.getEmbedding(this.getDivisionPolynomial(2 * nabs)), psiNsqInv,
+//				psiNsqInv);
+//		qy = cr.multiply(qy, cr.getEmbedding(r.getEmbedding(this.field.inverse(this.field.getInteger(2)))));
+//		if (n < 0) {
+//			qy = cr.negative(qy);
+//		}
+//		List<CoordinateRingElement<T>> result = new ArrayList<>();
+//		result.add(qx);
+//		result.add(qy);
+//		return result;
+		return null;
+	}
+
+
 	public static IntE numberOfSupersingularCurves(IntE prime) {
 		Integers z = Integers.z();
 		QuotientAndRemainderResult<IntE> qr12 = z.quotientAndRemainder(prime, z.getInteger(12));
@@ -483,12 +723,17 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		x3 = r.getVarPower(1, 3);
 		rb = r.getEmbedding(this.b);
 		this.rhs = r.add(x3, r.multiply(this.a, x), rb);
+		this.torsionPointBasis = new TreeMap<>();
 	}
 
 	public T jInvariant() {
 		T fourACube = this.field.multiply(4, this.field.power(a, 3));
 		T twentySevenBSquare = this.field.multiply(27, this.field.power(b, 2));
 		return this.field.multiply(1728, this.field.divide(fourACube, this.field.add(fourACube, twentySevenBSquare)));
+	}
+
+	public Isomorphism<T> identity() {
+		return new Isomorphism<>(this, field.one());
 	}
 
 	public List<Isogeny<T>> getIsomorphisms(EllipticCurve<T> range) {
@@ -532,15 +777,108 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			}
 		}
 		Isogeny<T> frobenius = new Frobenius<>(this, n);
-		if (q.equals(BigInteger.ONE)) {
+//		if (q.equals(BigInteger.ONE)) {
+//			return frobenius;
+//		}
+		if (frobenius.getRange().equals(this)) {
 			return frobenius;
 		}
 		List<Isogeny<T>> isomorphisms = frobenius.getRange().getIsomorphisms(this);
 		return new CompositionIsogeny<>(frobenius, isomorphisms.get(0));
 	}
 
+	public Graph<EllipticCurve<T>, Isogeny<T>> isogenyGraph(int prime) {
+		if (!getField().isFinite()) {
+			throw new UnsupportedOperationException("Not implemented");
+		}
+		GraphBuilder<EllipticCurve<T>, Isogeny<T>> builder = new GraphBuilder<>(true);
+		Set<T> visited = new TreeSet<>();
+		Map<T, EllipticCurve<T>> canonical = new TreeMap<>();
+		Deque<EllipticCurve<T>> queue = new LinkedList<>();
+		queue.add(this);
+		while (!queue.isEmpty()) {
+			EllipticCurve<T> curve = queue.poll();
+			if (visited.contains(curve.jInvariant())) {
+				continue;
+			}
+			builder.addVertex(curve);
+			visited.add(curve.jInvariant());
+			canonical.put(curve.jInvariant(), curve);
+			List<ProjectivePoint<T>> torsionPoints = curve.getTorsionPointBasis(prime);
+			List<ProjectivePoint<T>> kernelPoints = new ArrayList<>();
+			if (torsionPoints.isEmpty()) {
+				continue;
+			}
+			kernelPoints.add(torsionPoints.get(0));
+			if (torsionPoints.size() == 2) {
+				for (int i = 0; i < prime; i++) {
+					kernelPoints.add(curve.add(curve.multiply(i, torsionPoints.get(0)), torsionPoints.get(1)));
+				}
+			}
+			for (ProjectivePoint<T> torsionPoint : kernelPoints) {
+				Isogeny<T> isogeny = new KernelPointIsogeny<>(curve, torsionPoint, prime);
+				EllipticCurve<T> range = isogeny.getRange();
+				if (canonical.containsKey(range.jInvariant())) {
+					Isogeny<T> isomorphism = range.getIsomorphisms(canonical.get(range.jInvariant())).get(0);
+					isogeny = new CompositionIsogeny<>(isogeny, isomorphism);
+					range = canonical.get(range.jInvariant());
+				} else {
+					canonical.put(range.jInvariant(), range);
+				}
+				builder.addEdge(curve, range, isogeny);
+				if (!visited.contains(range.jInvariant())) {
+					queue.add(range);
+				}
+			}
+		}
+		return builder.build();
+
+	}
+
 	public BigInteger trace() {
 		return field.getNumberOfElements().add(BigInteger.ONE).subtract(getNumberOfElements());
+	}
+
+	public BigInteger asMultiplicationIsogenyModOrder(Isogeny<T> isogeny) {
+		Integers z = Integers.z();
+		BigInteger numberOfPoints = getNumberOfElements();
+		FactorizationResult<IntE, IntE> factorization = z.uniqueFactorization(z.getInteger(numberOfPoints));
+		List<IntE> primePowers = new ArrayList<>();
+		List<IntE> residues = new ArrayList<>();
+		for (IntE prime : factorization.primeFactors()) {
+			int exp = MiscAlgorithms.DivRoundUp(factorization.multiplicity(prime), 2);
+			IntE power = z.power(prime, exp);
+			IntE subPower = z.divideChecked(power, prime);
+			IntE cofactor = z.divideChecked(z.getInteger(numberOfPoints),
+					z.power(prime, factorization.multiplicity(prime)));
+			ProjectivePoint<T> torsionPoint;
+			do {
+				torsionPoint = multiply(cofactor, getRandomElement());
+			} while (multiply(subPower, torsionPoint).equals(neutral()));
+			while (!multiply(power, torsionPoint).equals(neutral())) {
+				power = z.multiply(prime, power);
+				exp++;
+			}
+			primePowers.add(power);
+			IntE currentPower = power;
+			IntE currentReconstructed = z.zero();
+			IntE currentDigit = z.one();
+			do {
+				currentPower = z.divideChecked(power, prime);
+				currentDigit = z.multiply(currentDigit, prime);
+				ProjectivePoint<T> point = multiply(currentPower, torsionPoint);
+				ProjectivePoint<T> image = isogeny.evaluate(point);
+				for (int i = 0; i < prime.intValueExact(); i++) {
+					ProjectivePoint<T> multiplied = multiply(i, point);
+					if (multiplied.equals(image)) {
+						currentReconstructed = z.add(z.multiply(z.getInteger(i), currentDigit), currentReconstructed);
+						break;
+					}
+				}
+			} while (!currentPower.equals(z.one()));
+			residues.add(currentReconstructed);
+		}
+		return z.chineseRemainderTheoremModuli(residues, primePowers).getValue();
 	}
 
 	public boolean isSupersingular() {
@@ -762,6 +1100,15 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	}
 
 	@Override
+	public int compareTo(EllipticCurve<T> o) {
+		int cmp = a.compareTo(o.a);
+		if (cmp != 0) {
+			return cmp;
+		}
+		return b.compareTo(o.b);
+	}
+
+	@Override
 	public int getEmbeddingDimension() {
 		return 2;
 	}
@@ -970,6 +1317,120 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		}
 	}
 
+	public ProjectivePoint<T> getRandomTorsionPoint(int torsion) {
+		return getRandomTorsionPoint(BigInteger.valueOf(torsion));
+	}
+
+	public ProjectivePoint<T> getRandomTorsionPoint(BigInteger torsion) {
+		return getRandomTorsionPoint(Integers.z().getInteger(torsion));
+	}
+
+	public ProjectivePoint<T> getRandomTorsionPoint(IntE torsion) {
+		Integers z = Integers.z();
+		List<ProjectivePoint<T>> basis = getTorsionPointBasis(torsion);
+		ProjectivePoint<T> result = neutral();
+		for (ProjectivePoint<T> basisPoint : basis) {
+			result = add(result, multiply(z.getRandomElement(torsion), basisPoint));
+		}
+		return result;
+	}
+
+	public List<ProjectivePoint<T>> getTorsionPointBasis(int torsion) {
+		return getTorsionPointBasis(BigInteger.valueOf(torsion));
+	}
+
+	public List<ProjectivePoint<T>> getTorsionPointBasis(BigInteger torsion) {
+		return getTorsionPointBasis(Integers.z().getInteger(torsion));
+	}
+
+	public List<ProjectivePoint<T>> getTorsionPointBasis(IntE torsion) {
+		Integers z = Integers.z();
+		if (torsion.equals(z.one())) {
+			return Collections.emptyList();
+		}
+		if (!torsionPointBasis.containsKey(torsion)) {
+			IntE order = z.getInteger(getNumberOfElements());
+			FactorizationResult<IntE, IntE> torsionFactors = z.uniqueFactorization(torsion);
+			if (torsionFactors.primeFactors().size() > 1) {
+				ProjectivePoint<T> generator1 = neutral();
+				ProjectivePoint<T> generator2 = neutral();
+				for (IntE prime : torsionFactors.primeFactors()) {
+					IntE primePower = z.power(prime, torsionFactors.multiplicity(prime));
+					List<ProjectivePoint<T>> basis = getTorsionPointBasis(primePower);
+					if (basis.isEmpty()) {
+						generator1 = null;
+						generator2 = null;
+					} else if (basis.size() == 1) {
+						generator1 = generator1 != null ? add(generator1, basis.get(0)) : null;
+						generator2 = null;
+					} else {
+						generator1 = generator1 != null ? add(generator1, basis.get(0)) : null;
+						generator2 = generator2 != null ? add(generator2, basis.get(1)) : null;
+					}
+				}
+				List<ProjectivePoint<T>> result = new ArrayList<>();
+				if (generator1 != null) {
+					result.add(generator1);
+				}
+				if (generator2 != null) {
+					result.add(generator2);
+				}
+				torsionPointBasis.put(torsion, result);
+			} else {
+				if (!z.isDivisible(order, torsion)) {
+					torsionPointBasis.put(torsion, Collections.emptyList());
+					return Collections.emptyList();
+				}
+				IntE multiplier = z.divideChecked(order, torsion);
+				IntE gcd;
+				do {
+					gcd = z.gcd(multiplier, torsion);
+					multiplier = z.divideChecked(multiplier, gcd);
+				} while (!gcd.equals(z.one()));
+				IntE prime = torsionFactors.firstPrimeFactor();
+				int multiplicity = torsionFactors.multiplicity(prime);
+				IntE subPrimePower = z.power(prime, multiplicity - 1);
+				int tries = 0;
+				ProjectivePoint<T> torsionPoint1;
+				do {
+					torsionPoint1 = multiply(multiplier, getRandomElement());
+					tries++;
+				} while (tries < 10 && multiply(subPrimePower, torsionPoint1).equals(neutral()));
+				if (multiply(subPrimePower, torsionPoint1).equals(neutral())) {
+					torsionPointBasis.put(torsion, Collections.emptyList());
+					return Collections.emptyList();
+				}
+				int multiplicationOffset = 0;
+				while (!multiply(torsion, torsionPoint1).equals(neutral())) {
+					multiplicationOffset++;
+					torsionPoint1 = multiply(prime, torsionPoint1);
+				}
+				List<ProjectivePoint<T>> result = new ArrayList<>();
+				result.add(torsionPoint1);
+				if (z.isDivisible(order, z.power(prime, 2 * multiplicity + multiplicationOffset))) {
+					ProjectivePoint<T> torsionPoint2;
+					tries = 0;
+					do {
+						torsionPoint2 = multiply(multiplier, getRandomElement());
+						tries++;
+						if (multiply(subPrimePower, torsionPoint2).equals(neutral())) {
+							continue;
+						}
+						while (!multiply(torsion, torsionPoint2).equals(neutral())) {
+							torsionPoint2 = multiply(prime, torsionPoint2);
+						}
+					} while (tries < 10
+							&& weilPairing(torsion.getValue(), torsionPoint1, torsionPoint2).equals(field.one()));
+					if (tries < 10) {
+						result.add(torsionPoint2);
+					}
+				}
+				torsionPointBasis.put(torsion, result);
+			}
+		}
+		return torsionPointBasis.get(torsion);
+	}
+
 	@Override
 	public boolean isFinite() {
 		return this.field.isFinite();
@@ -1051,6 +1512,15 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			countPointsUpwards(pm1.multiply(pm1), field.characteristic().pow(2));
 		}
 		return true;
+	}
+
+	public void setNumberOfPointsFrom(EllipticCurve<T> domain, Isogeny<T> isogeny) {
+		if (domain.equals(this) || !isogeny.getRange().equals(this) || !isogeny.getDomain().equals(domain)) {
+			return;
+		}
+		if (domain.numberOfPoints.compareTo(BigInteger.ZERO) > 0) {
+			this.numberOfPoints = domain.numberOfPoints;
+		}
 	}
 
 	@Override

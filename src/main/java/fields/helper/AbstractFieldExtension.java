@@ -51,7 +51,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	private int degree;
 	private FiniteVectorSpace<T> asVectorSpace;
 	private Polynomial<T> genericNorm;
-	
+
 	public AbstractFieldExtension(UnivariatePolynomial<T> minimalPolynomial, Field<T> baseField) {
 		super(minimalPolynomial, baseField);
 		this.baseField = baseField;
@@ -83,6 +83,10 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	@Override
 	public final FiniteVectorSpace<T> asVectorSpace() {
 		return asVectorSpace;
+	}
+
+	public final S getUnitVector(int index) {
+		return power(alpha(), index - 1);
 	}
 
 	@Override
@@ -145,17 +149,17 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public int dimension() {
 		return degree();
 	}
-	
+
 	@Override
 	public DedekindRing<S, S, S> asDedekindRing() {
 		return this;
 	}
-	
+
 	@Override
 	public S divide(S dividend, S divisor) {
 		return multiply(dividend, inverse(divisor));
 	}
-	
+
 	@Override
 	public final Matrix<S> asMatrixOver(S t, FieldEmbedding<T, S, Ext> base) {
 		return asMatrix(asVectorOver(t, base), minimalPolynomialOver(base), base.getEmbeddedField().zero(),
@@ -212,12 +216,12 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		}
 		return base.trace(t);
 	}
-	
+
 	@Override
 	public T traceForm(S s1, S s2) {
 		return trace(multiply(s1, s2));
 	}
-	
+
 	@Override
 	public BilinearMap<S, T> traceForm() {
 		return new BilinearMap<>() {
@@ -227,12 +231,12 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 			}
 		};
 	}
-	
+
 	@Override
 	public S traceFormOver(S s1, S s2, FieldEmbedding<T, S, Ext> base) {
 		return traceOver(multiply(s1, s2), base);
 	}
-	
+
 	@Override
 	public BilinearMap<S, S> traceFormOver(FieldEmbedding<T, S, Ext> base) {
 		return new BilinearMap<>() {
@@ -242,12 +246,12 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 			}
 		};
 	}
-	
+
 	@Override
 	public Matrix<T> traceFormMatrix() {
 		return Matrix.fromBilinearMap(this, traceForm());
 	}
-	
+
 	@Override
 	public Matrix<S> traceFormMatrixOver(FieldEmbedding<T, S, Ext> base) {
 		return Matrix.fromBilinearMap(base.asVectorSpace(), new BilinearMap<>() {
@@ -311,7 +315,6 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		throw new ArithmeticException("Could not find minimal polynomial for " + s);
 	}
 
-
 	@Override
 	public List<S> conjugates(S s) {
 		List<S> conjugates = new ArrayList<>();
@@ -342,7 +345,8 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 			public Vector<T> evaluate(GenericAlgebraicExtensionElement<S> t) {
 				List<T> asVector = new ArrayList<>();
 				for (int i = 0; i < degree; i++) {
-					asVector.addAll(AbstractFieldExtension.this.asVector(t.asPolynomial().univariateCoefficient(i)).asList());
+					asVector.addAll(
+							AbstractFieldExtension.this.asVector(t.asPolynomial().univariateCoefficient(i)).asList());
 				}
 				return new Vector<>(asVector);
 			}
@@ -445,12 +449,12 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public List<Ideal<S>> maximalPrimeIdealChain() {
 		return Collections.singletonList(getZeroIdeal());
 	}
-	
+
 	@Override
 	public List<Ideal<S>> maximalPrimeIdealChain(Ideal<S> start) {
 		return Collections.singletonList(getZeroIdeal());
 	}
-	
+
 	@Override
 	public List<Ideal<S>> maximalPrimeIdealChain(Ideal<S> start, Ideal<S> end) {
 		return Collections.singletonList(getZeroIdeal());
@@ -512,7 +516,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		}
 		return new PrimaryDecompositionResult<>(Collections.emptyList(), Collections.emptyList());
 	}
-	
+
 	@Override
 	public ModuloMaximalIdealResult<S, S> moduloMaximalIdeal(Ideal<S> ideal) {
 		if (!ideal.equals(getZeroIdeal())) {
@@ -528,7 +532,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		}
 		return new ModuloIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
 	}
-	
+
 	@Override
 	public <U extends Element<U>> Ideal<S> getIdealEmbedding(Ideal<U> t, MathMap<U, S> map) {
 		for (U generator : t.generators()) {
@@ -538,12 +542,12 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		}
 		return getZeroIdeal();
 	}
-	
+
 	@Override
 	public Ideal<S> getNilRadical() {
 		return getZeroIdeal();
 	}
-	
+
 //	@Override
 //	public IdealResult<S, FieldIdeal<S>> getIdealWithTransforms(List<S> generators) {
 //		FieldIdeal<S> ideal = new FieldIdeal<>(generators, this);
@@ -649,7 +653,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public boolean isIntegral() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isReduced() {
 		return true;
@@ -679,22 +683,22 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		return new LocalizeResult<>(this, primeIdeal, this, new Identity<>(), new Identity<>(),
 				new ConstantMap<>(one()), new Identity<>());
 	}
-	
+
 	@Override
 	public Ideal<S> maximalIdeal() {
 		return getZeroIdeal();
 	}
-	
+
 	@Override
 	public Field<S> reduction() {
 		return this;
 	}
-	
+
 	@Override
 	public S reduce(S t) {
 		return t;
 	}
-	
+
 	@Override
 	public S lift(S t) {
 		return t;
@@ -747,7 +751,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		}
 		return dividend.equals(zero());
 	}
-	
+
 	@Override
 	public PivotStrategy<S> preferredPivotStrategy() {
 		return new TrivialPivotStrategy<>(this);
@@ -820,7 +824,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
-	public ChineseRemainderPreparation<S> prepareChineseRemainderTheorem(List<Ideal<S>> ideals) {
+	public ChineseRemainderPreparation<S> prepareChineseRemainderTheorem(List<? extends Ideal<S>> ideals) {
 		if (ideals.size() > 1) {
 			throw new ArithmeticException("Not coprime proper ideals!");
 		}
@@ -845,7 +849,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
-	public S chineseRemainderTheorem(List<S> elements, List<Ideal<S>> ideals) {
+	public S chineseRemainderTheorem(List<S> elements, List<? extends Ideal<S>> ideals) {
 		if (elements.size() != ideals.size()) {
 			throw new ArithmeticException("Mismatched multipliers!");
 		}
@@ -928,8 +932,8 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 				UnivariatePolynomialRing<S> extensionRing = extension.getUnivariatePolynomialRing();
 				S embeddedX = extensionRing.evaluate(extensionRing.getEmbedding(x, extension.getEmbeddingMap()),
 						extension.alpha());
-				S embeddedGamma = extensionRing
-						.evaluate(extensionRing.getEmbedding(gamma, extension.getEmbeddingMap()), extension.alpha());
+				S embeddedGamma = extensionRing.evaluate(extensionRing.getEmbedding(gamma, extension.getEmbeddingMap()),
+						extension.alpha());
 				List<Vector<T>> gammaXBase = new ArrayList<>();
 				S xPower = extension.one();
 				for (int i = 0; i < extension.degree() / degree(); i++) {

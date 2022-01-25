@@ -31,6 +31,11 @@ public class ValueFractions extends AbstractField<Fraction> implements ValueFiel
 		//return absNumerator / denominator;
 	}
 	
+	@Override
+	public Reals getReals() {
+		return r;
+	}
+	
 	public Fraction abs(Fraction t) {
 		if (t.compareTo(zero()) >= 0) {
 			return t;

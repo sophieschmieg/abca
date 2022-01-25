@@ -13,7 +13,7 @@ import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import varieties.affine.AffineScheme;
-import varieties.curves.EllipticCurve;
+import varieties.curves.elliptic.EllipticCurve;
 import varieties.projective.ProjectivePoint;
 
 public class SchemesTest {

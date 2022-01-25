@@ -27,11 +27,12 @@ import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.ValueField;
 import fields.vectors.Vector;
 import util.Identity;
+import util.SingletonSortedMap;
 
 public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex>
 		implements ValueField<ComplexNumber>, FloatingPointSet<ComplexNumber, Complex> {
 	private Reals r;
-	private Complex doublePrecision;
+	private Complex highPrecision;
 	private static Map<Integer, Complex> complex = new TreeMap<>();
 
 	public class ComplexNumber extends AbstractElement<ComplexNumber>
@@ -80,7 +81,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	private Complex(int precision) {
 		this(Reals.r(precision));
 	}
-	
+
 	public static Complex c(int precision) {
 		if (!complex.containsKey(precision)) {
 			complex.put(precision, new Complex(precision));
@@ -88,11 +89,11 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		return complex.get(precision);
 	}
 
-	private Complex doublePrecision() {
-		if (doublePrecision == null) {
-			doublePrecision = withPrecision(2 * precision());
+	private Complex highPrecision() {
+		if (highPrecision == null) {
+			highPrecision = withPrecision(precision() + 4);
 		}
-		return doublePrecision;
+		return highPrecision;
 	}
 
 	@Override
@@ -102,13 +103,16 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 
 	@Override
 	public boolean close(ComplexNumber t1, ComplexNumber t2) {
-		int minRealExponent = Math.min(t1.realPart.exponent(), t2.realPart.exponent());
-		int minImgExponent = Math.min(t1.complexPart.exponent(), t2.complexPart.exponent());
-		int minExponent = Math.max(minRealExponent, minImgExponent);
-		int precision = r.precision();
-		return r.abs(r.subtract(t1.realPart, t2.realPart)).compareTo(r.getPowerOfTwo(-precision + minExponent + 1)) <= 0
-				&& r.abs(r.subtract(t1.complexPart, t2.complexPart))
-						.compareTo(r.getPowerOfTwo(-precision + minExponent + 1)) <= 0;
+		ComplexNumber diff = subtract(t1, t2);
+		Real norm = norm(diff);
+		return norm.compareTo(r.getPowerOfTwo(-r.precision() + 1)) < 0;
+//		int minRealExponent = Math.min(t1.realPart.exponent(), t2.realPart.exponent());
+//		int minImgExponent = Math.min(t1.complexPart.exponent(), t2.complexPart.exponent());
+//		int minExponent = Math.max(minRealExponent, minImgExponent);
+//		int precision = r.precision();
+//		return r.abs(r.subtract(t1.realPart, t2.realPart)).compareTo(r.getPowerOfTwo(-precision + minExponent + 1)) <= 0
+//				&& r.abs(r.subtract(t1.complexPart, t2.complexPart))
+//						.compareTo(r.getPowerOfTwo(-precision + minExponent + 1)) <= 0;
 	}
 
 	@Override
@@ -192,6 +196,17 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		return new ComplexNumber(t, r.zero());
 	}
 
+	public boolean isReal(ComplexNumber t) {
+		return r.abs(t.complexPart()).compareTo(r.getPowerOfTwo(-r.precision() + t.realPart().exponent())) < 0;
+	}
+	
+	public Real asReal(ComplexNumber t) {
+		if (!isReal(t)) {
+			throw new ArithmeticException("Not a real number!");
+		}
+		return t.realPart();
+	}
+
 	@Override
 	public ComplexNumber add(ComplexNumber t1, ComplexNumber t2) {
 		return new ComplexNumber(r.add(t1.realPart, t2.realPart), r.add(t1.complexPart, t2.complexPart));
@@ -218,8 +233,9 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 
 	@Override
 	public ComplexNumber divide(ComplexNumber dividend, ComplexNumber divisor) {
-		Real denom = doublePrecision().norm(divisor);
-		return getEmbedding(doublePrecision().multiply(doublePrecision().getEmbedding(doublePrecision().r.inverse(denom)), dividend, doublePrecision().conjugate(divisor)));
+		Real denom = highPrecision().norm(divisor);
+		return getEmbedding(highPrecision().multiply(highPrecision().getEmbedding(highPrecision().r.inverse(denom)),
+				dividend, highPrecision().conjugate(divisor)));
 	}
 
 	public ComplexNumber conjugate(ComplexNumber t) {
@@ -236,8 +252,13 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		return r.positiveSqrt(norm(t));
 	}
 
+	@Override
+	public Reals getReals() {
+		return r;
+	}
+
 	public ComplexNumber exp(ComplexNumber t) {
-		return getEmbedding(doublePrecision().calculateExp(t, this));
+		return getEmbedding(highPrecision().calculateExp(t, this));
 	}
 
 	private ComplexNumber calculateExp(ComplexNumber t, Complex halfPrecision) {
@@ -297,54 +318,54 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		}
 	}
 
-	public UnivariatePolynomial<IntE> findAlgebraicInteger(ComplexNumber t, int maxDegree, IntE bound) {
-		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, maxDegree + 3);
-		Integers z = Integers.z();
-//		Rationals q = Rationals.q();
-		IntE sqrtBound = z.one();// z.getInteger(bound.getValue().sqrt());
-		List<Vector<Real>> basis = new ArrayList<>();
-		for (int i = 0; i <= maxDegree; i++) {
-			List<Real> vector = new ArrayList<>();
-			for (int j = 0; j <= maxDegree; j++) {
-				if (i == j) {
-					IntE divisor = i == maxDegree ? sqrtBound : z.one();
-					vector.add(r.getInteger(divisor));
-				} else {
-					vector.add(r.zero());
-				}
-			}
-			ComplexNumber power = multiply(getInteger(bound), power(t, i));
-			vector.add(r.getInteger(power.realPart().round()));
-			vector.add(r.getInteger(power.complexPart().round()));
-			basis.add(new Vector<>(vector));
-		}
-		Vector<Real> lll = space.latticeReduction(basis).get(0);
-		List<IntE> coefficients = new ArrayList<>();
-		for (int i = 0; i <= maxDegree; i++) {
-			IntE divisor = i == maxDegree ? sqrtBound : z.one();
-			coefficients.add(z.divide(lll.get(i + 1).round(), z.getInteger(divisor)));
-		}
-		UnivariatePolynomialRing<IntE> integerPolynomials = z.getUnivariatePolynomialRing();
-		UnivariatePolynomial<IntE> polynomial = integerPolynomials.getPolynomial(coefficients);
-		FactorizationResult<Polynomial<IntE>, IntE> factors = z.factorization(polynomial);
-		UnivariatePolynomialRing<ComplexNumber> polynomials = getUnivariatePolynomialRing();
-		UnivariatePolynomial<IntE> result = null;
-		Real minValue = null;
-		for (Polynomial<IntE> factor : factors.primeFactors()) {
-			UnivariatePolynomial<ComplexNumber> embedded = polynomials.getEmbedding(factor, new MathMap<>() {
-				@Override
-				public ComplexNumber evaluate(IntE t) {
-					return getInteger(t);
-				}
-			});
-			Real value = value(polynomials.evaluate(embedded, t));
-			if (minValue == null || value.compareTo(minValue) < 0) {
-				minValue = value;
-				result = integerPolynomials.toUnivariate(factor);
-			}
-		}
-		return result;
-	}
+//	public UnivariatePolynomial<IntE> findAlgebraicInteger(ComplexNumber t, int maxDegree, IntE bound) {
+//		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, maxDegree + 3);
+//		Integers z = Integers.z();
+////		Rationals q = Rationals.q();
+//		IntE sqrtBound = z.one();// z.getInteger(bound.getValue().sqrt());
+//		List<Vector<Real>> basis = new ArrayList<>();
+//		for (int i = 0; i <= maxDegree; i++) {
+//			List<Real> vector = new ArrayList<>();
+//			for (int j = 0; j <= maxDegree; j++) {
+//				if (i == j) {
+//					IntE divisor = i == maxDegree ? sqrtBound : z.one();
+//					vector.add(r.getInteger(divisor));
+//				} else {
+//					vector.add(r.zero());
+//				}
+//			}
+//			ComplexNumber power = multiply(getInteger(bound), power(t, i));
+//			vector.add(r.getInteger(power.realPart().round()));
+//			vector.add(r.getInteger(power.complexPart().round()));
+//			basis.add(new Vector<>(vector));
+//		}
+//		Vector<Real> lll = space.latticeReduction(basis).get(0);
+//		List<IntE> coefficients = new ArrayList<>();
+//		for (int i = 0; i <= maxDegree; i++) {
+//			IntE divisor = i == maxDegree ? sqrtBound : z.one();
+//			coefficients.add(z.divide(lll.get(i + 1).round(), z.getInteger(divisor)));
+//		}
+//		UnivariatePolynomialRing<IntE> integerPolynomials = z.getUnivariatePolynomialRing();
+//		UnivariatePolynomial<IntE> polynomial = integerPolynomials.getPolynomial(coefficients);
+//		FactorizationResult<Polynomial<IntE>, IntE> factors = z.factorization(polynomial);
+//		UnivariatePolynomialRing<ComplexNumber> polynomials = getUnivariatePolynomialRing();
+//		UnivariatePolynomial<IntE> result = null;
+//		Real minValue = null;
+//		for (Polynomial<IntE> factor : factors.primeFactors()) {
+//			UnivariatePolynomial<ComplexNumber> embedded = polynomials.getEmbedding(factor, new MathMap<>() {
+//				@Override
+//				public ComplexNumber evaluate(IntE t) {
+//					return getInteger(t);
+//				}
+//			});
+//			Real value = value(polynomials.evaluate(embedded, t));
+//			if (minValue == null || value.compareTo(minValue) < 0) {
+//				minValue = value;
+//				result = integerPolynomials.toUnivariate(factor);
+//			}
+//		}
+//		return result;
+//	}
 
 	@Override
 	public boolean isIrreducible(UnivariatePolynomial<ComplexNumber> t) {
@@ -352,8 +373,14 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> factorization(UnivariatePolynomial<ComplexNumber> t) {
-		FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> squareFree = getUnivariatePolynomialRing().squareFreeFactorization(t);
+	public FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> factorization(
+			UnivariatePolynomial<ComplexNumber> t) {
+		if (t.degree() == 1) {
+			return new FactorizationResult<>(t.leadingCoefficient(),
+					SingletonSortedMap.map(getUnivariatePolynomialRing().normalize(t), 1));
+		}
+		FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> squareFree = getUnivariatePolynomialRing()
+				.squareFreeFactorization(t);
 		SortedMap<Polynomial<ComplexNumber>, Integer> result = new TreeMap<>();
 		for (Polynomial<ComplexNumber> squareFreeFactor : squareFree.primeFactors()) {
 			for (Polynomial<ComplexNumber> factor : squareFreeFactorization(squareFreeFactor)) {

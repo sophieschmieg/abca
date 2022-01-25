@@ -11,11 +11,14 @@ import fields.interfaces.Element;
 import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.Ring;
 import fields.interfaces.Ring.FactorizationResult;
+import fields.interfaces.Ring.IdealResult;
 import util.MiscAlgorithms;
 
 public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynomial<T>> {
 	private List<Polynomial<T>> basis;
+	private List<List<Polynomial<T>>> relations;
 	private PolynomialRing<T> polynomialRing;
 	private CoordinateRing<T> coordinateRing;
 
@@ -38,6 +41,92 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 
 	public int degree() {
 		return divideOut().degree();
+	}
+
+	@Override
+	public List<List<Polynomial<T>>> nonTrivialCombinations(List<Polynomial<T>> s) {
+		Ring<T> ring = polynomialRing.getRing();
+		IdealResult<Polynomial<T>, PolynomialIdeal<T>> ideal = polynomialRing.getIdealWithTransforms(s);
+		if (ideal.getIdeal().generators().equals(s)) {
+			return ideal.getIdeal().getModuleGeneratorRelations();
+		}
+		List<List<Polynomial<T>>> result = new ArrayList<>();
+		for (int i = 1; i < s.size(); i++) {
+			for (int j = 0; j < i; j++) {
+				Monomial leadingFirst = s.get(j).leadingMonomial();
+				T firstLeadingCoefficient = s.get(j).leadingCoefficient();
+				Monomial leadingSecond = s.get(i).leadingMonomial();
+				T secondLeadingCoefficient = s.get(i).leadingCoefficient();
+				Monomial lcm = leadingFirst.lcm(leadingSecond);
+				T coefficientLcm = ring.lcm(firstLeadingCoefficient, secondLeadingCoefficient);
+				Polynomial<T> firstMultiplier = polynomialRing.getPolynomial(Collections.singletonMap(
+						lcm.divide(leadingFirst), ring.divideChecked(coefficientLcm, firstLeadingCoefficient)));
+				Polynomial<T> secondMultiplier = polynomialRing
+						.getPolynomial(Collections.singletonMap(lcm.divide(leadingSecond),
+								ring.negative(ring.divideChecked(coefficientLcm, secondLeadingCoefficient))));
+				Polynomial<T> buchbergerPolynomial = polynomialRing.add(
+						polynomialRing.multiply(firstMultiplier, s.get(j)),
+						polynomialRing.multiply(secondMultiplier, s.get(i)));
+				List<Polynomial<T>> generated = ideal.getIdeal().generate(buchbergerPolynomial);
+				List<Polynomial<T>> relation = new ArrayList<>();
+				for (int k = 0; k < s.size(); k++) {
+					if (k == j) {
+						relation.add(firstMultiplier);
+					} else if (k == i) {
+						relation.add(secondMultiplier);
+					} else {
+						relation.add(polynomialRing.zero());
+					}
+				}
+				for (int k = 0; k < generated.size(); k++) {
+					Polynomial<T> coefficient = polynomialRing.negative(generated.get(k));
+					for (int l = 0; l < s.size(); l++) {
+						Polynomial<T> originalCoefficient = polynomialRing.multiply(coefficient,
+								ideal.getGeneratorExpressions().get(k).get(l));
+						relation.set(l, polynomialRing.add(relation.get(l), originalCoefficient));
+					}
+				}
+				result.add(relation);
+			}
+		}
+		return result;
+	}
+
+	@Override
+	public List<List<Polynomial<T>>> getModuleGeneratorRelations() {
+		if (relations == null) {
+			Ring<T> ring = polynomialRing.getRing();
+			relations = new ArrayList<>();
+			for (int i = 1; i < basis.size(); i++) {
+				Monomial leadingFirst = basis.get(i - 1).leadingMonomial();
+				T firstLeadingCoefficient = basis.get(i - 1).leadingCoefficient();
+				Monomial leadingSecond = basis.get(i).leadingMonomial();
+				T secondLeadingCoefficient = basis.get(i).leadingCoefficient();
+				Monomial lcm = leadingFirst.lcm(leadingSecond);
+				T coefficientLcm = ring.lcm(firstLeadingCoefficient, secondLeadingCoefficient);
+				Polynomial<T> firstMultiplier = polynomialRing.getPolynomial(Collections.singletonMap(
+						lcm.divide(leadingFirst), ring.divideChecked(coefficientLcm, firstLeadingCoefficient)));
+				Polynomial<T> secondMultiplier = polynomialRing
+						.getPolynomial(Collections.singletonMap(lcm.divide(leadingSecond),
+								ring.negative(ring.divideChecked(coefficientLcm, secondLeadingCoefficient))));
+				Polynomial<T> buchbergerPolynomial = polynomialRing.add(
+						polynomialRing.multiply(firstMultiplier, basis.get(i - 1)),
+						polynomialRing.multiply(secondMultiplier, basis.get(i)));
+				List<Polynomial<T>> generated = generate(buchbergerPolynomial);
+				List<Polynomial<T>> relation = new ArrayList<>();
+				for (int j = 0; j < basis.size(); j++) {
+					Polynomial<T> coefficient = polynomialRing.negative(generated.get(j));
+					if (j == i - 1) {
+						coefficient = polynomialRing.add(coefficient, firstMultiplier);
+					} else if (j == i) {
+						coefficient = polynomialRing.add(coefficient, secondMultiplier);
+					}
+					relation.add(coefficient);
+				}
+				relations.add(relation);
+			}
+		}
+		return relations;
 	}
 
 	@Override

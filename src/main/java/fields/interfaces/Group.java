@@ -1,6 +1,8 @@
 package fields.interfaces;
 
 import java.math.BigInteger;
+import java.util.Map;
+import java.util.TreeMap;
 
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
@@ -10,6 +12,11 @@ public interface Group<T extends Element<T>> extends Monoid<T> {
 	public T neutral();
 	public T inverse(T t);
 	public T operate(T t1, T t2);
+	
+	public default T power(int n, T t) {
+		return power(BigInteger.valueOf(n), t);	
+	}
+	
 	public default T power(BigInteger n, T t) {
 		T result = this.neutral();
 		if (n.signum() < 0) {
@@ -22,6 +29,26 @@ public interface Group<T extends Element<T>> extends Monoid<T> {
 			t = this.operate(t, t);
 		}
 		return result;
+	}
+	
+	public default BigInteger discreteLogarithm(T base, T power) {
+		Map<T, Integer> babySteps = new TreeMap<>();
+		BigInteger n = getOrder(base);
+		int m = n.sqrt().add(BigInteger.ONE).intValueExact();
+		T babyStep = neutral();
+		for(int i = 0; i < m; i++) {
+		babySteps.put(babyStep, i);
+		babyStep = operate(babyStep, base);
+		}
+		T baseByM = power(-m, base);
+		T giantStep = power;
+		for(int i = 0; i < m; i++) {
+			if (babySteps.containsKey(giantStep)) {
+				return BigInteger.valueOf(i).multiply(BigInteger.valueOf(m)).add(BigInteger.valueOf(babySteps.get(giantStep)));
+			}
+			giantStep = operate(giantStep, baseByM);
+		}
+		throw new ArithmeticException("Could not find discrete logarithm!");
 	}
 	
 	public default BigInteger getOrder(T t) {

@@ -207,6 +207,11 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 	public Real value(Ext<B> t) {
 		return Reals.r(1024).positiveRoot(baseField.value(norm(t)), degree());
 	}
+	
+	@Override
+	public Reals getReals() {
+		return Reals.r(1024);
+	}
 
 	@Override
 	public boolean isComplete() {

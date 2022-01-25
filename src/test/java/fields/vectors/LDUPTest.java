@@ -2,14 +2,20 @@ package fields.vectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
+import fields.floatingpoint.FiniteRealVectorSpace;
+import fields.floatingpoint.Reals;
+import fields.floatingpoint.Reals.Real;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 
-class MatrixModuleTest {
+class LDUPTest {
 
 	@Test
 	void testIntegersSquareMatrices() {

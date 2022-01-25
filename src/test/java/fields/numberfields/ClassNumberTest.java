@@ -13,100 +13,9 @@ import fields.integers.Rationals.Fraction;
 import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.numberfields.IdealClassGroup.IdealClass;
 
 class ClassNumberTest {
-
-//	@Test
-//	void testGeneratorExpressionQuadraticFields() {
-//		Integers z = Integers.z();
-//		Rationals q = Rationals.q();
-//		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-//		List<UnivariatePolynomial<Fraction>> minimalPolynomials = new ArrayList<>();
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(-6), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(-3), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(-2), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(1), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(2), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(3), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(5), q.zero(), q.one()));
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(6), q.zero(), q.one()));
-//		minimalPolynomials.add(
-//				polynomials.getPolynomial(q.getInteger(7), q.getInteger(0), q.getInteger(5), q.getInteger(0), q.one()));
-//		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-//			NumberField nf = new NumberField(minimalPolynomial);
-//			System.out.println(nf);
-//			NumberFieldIntegers order = nf.maximalOrder();
-//			for (int tc = 0; tc < 10; tc++) {
-//				NFE rng;
-//				do {
-//					rng = order.getRandomElement();
-//				} while (nf.norm(rng).equals(q.zero()) || z.isUnit(nf.norm(rng).asInteger()));
-//				IntE norm = nf.norm(rng).asInteger();
-//				List<IntE> factors = z.factors(norm);
-//				IntE factor;
-//				do {
-//					factor = factors.get(new Random().nextInt(factors.size()));
-//				} while (z.isUnit(factor));
-//				Ideal<NFE> id = order.getIdeal(rng, order.getInteger(factor));
-//				List<NFE> generators = new ArrayList<>();
-//				for (int i = 0; i < 10; i++) {
-//					generators.add(id.getRandomElement());
-//				}
-//				IdealResult<NFE> ideal = order.getIdealWithTransforms(generators);
-//				for (int i = 0; i < ideal.getIdeal().generators().size(); i++) {
-//					NFE generator = ideal.getIdeal().generators().get(i);
-//					NFE test = order.zero();
-//					for (int j = 0; j < generators.size(); j++) {
-//						NFE coefficient = ideal.getGeneratorExpressions().get(i).get(j);
-//						test = order.add(test, order.multiply(coefficient, generators.get(j)));
-//					}
-//					assertEquals(generator, test);
-//				}
-//			}
-//		}
-//	}
-//
-//	@Test
-//	void testGeneratorExpressionHighDegreeFields() {
-//		Integers z = Integers.z();
-//		Rationals q = Rationals.q();
-//		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-//		List<UnivariatePolynomial<Fraction>> minimalPolynomials = new ArrayList<>();
-//		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(93), q.getInteger(63), q.getInteger(58),
-//				q.getInteger(39), q.getInteger(14), q.getInteger(3), q.one()));
-//		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-//			NumberField nf = new NumberField(minimalPolynomial);
-//			System.out.println(nf);
-//			NumberFieldIntegers order = nf.maximalOrder();
-//			for (int tc = 0; tc < 3; tc++) {
-//				NFE rng;
-//				do {
-//					rng = order.getRandomElement();
-//				} while (nf.norm(rng).equals(q.zero()) || z.isUnit(nf.norm(rng).asInteger()));
-//				IntE norm = nf.norm(rng).asInteger();
-//				List<IntE> factors = z.factors(norm);
-//				IntE factor;
-//				do {
-//					factor = factors.get(new Random().nextInt(factors.size()));
-//				} while (z.isUnit(factor));
-//				Ideal<NFE> id = order.getIdeal(rng, order.getInteger(factor));
-//				List<NFE> generators = new ArrayList<>();
-//				for (int i = 0; i < 10; i++) {
-//					generators.add(id.getRandomElement());
-//				}
-//				IdealResult<NFE> ideal = order.getIdealWithTransforms(generators);
-//				for (int i = 0; i < ideal.getIdeal().generators().size(); i++) {
-//					NFE generator = ideal.getIdeal().generators().get(i);
-//					NFE test = order.zero();
-//					for (int j = 0; j < generators.size(); j++) {
-//						NFE coefficient = ideal.getGeneratorExpressions().get(i).get(j);
-//						test = order.add(test, order.multiply(coefficient, generators.get(j)));
-//					}
-//					assertEquals(generator, test);
-//				}
-//			}
-//		}
-//	}
 
 	@Test
 	void testClassImaginaryQuadraticNumberOne() {
@@ -124,8 +33,13 @@ class ClassNumberTest {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		int[] d = new int[] { 15, 5, 6, 35, 10, 51, 13, 22, 91, 115, 123, 37, 187, 58, 235, 267, 403, 427 };
+		System.out.println("Checking imaginary quadratic fields with class number 2");
 		for (int i : d) {
 			NumberField nf = new NumberField(polynomials.getPolynomial(q.getInteger(i), q.zero(), q.one()));
+			System.out.println(nf);
+			for (IdealClass cl : nf.idealClassGroup()) {
+				System.out.println(cl.alternativeRepresentatives());
+			}
 			assertEquals(BigInteger.TWO, nf.classNumber());
 		}
 	}
@@ -135,7 +49,7 @@ class ClassNumberTest {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		int[] d = new int[] { 23, 31, 59, 83, 107, 139, 211, 283, 307, 331, 379, 499, 547, 643, 883, 907 };
-		System.out.println("Checking class number 3");
+		System.out.println("Checking imaginary quadratic fields with class number 3");
 		for (int i : d) {
 			NumberField nf = new NumberField(polynomials.getPolynomial(q.getInteger(i), q.zero(), q.one()));
 			System.out.println(nf);
@@ -202,11 +116,14 @@ class ClassNumberTest {
 	void testClassRealQuadraticNumberThree() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-		int[] d = new int[] {229, 257, 79, 321, 469, 473, 142, 733, 761, 223, 993, 254 };
+		int[] d = new int[] { 229, 257, 79, 321, 469, 473, 142, 733, 761, 223, 993, 254 };
 		System.out.println("Checking real quadratic class number 3");
 		for (int i : d) {
 			NumberField nf = new NumberField(polynomials.getPolynomial(q.getInteger(-i), q.zero(), q.one()));
 			System.out.println(nf);
+			for (IdealClass cl : nf.idealClassGroup()) {
+				System.out.println(cl.alternativeRepresentatives());
+			}
 			assertEquals(BigInteger.valueOf(3), nf.classNumber());
 		}
 	}
@@ -215,9 +132,20 @@ class ClassNumberTest {
 	void testClassNumberDegreeThree() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-		UnivariatePolynomial<Fraction> f = polynomials.getPolynomial(q.getInteger(4), q.one(), q.zero(), q.one());
+		UnivariatePolynomial<Fraction> f = polynomials.getPolynomial(q.one(), q.getInteger(-2), q.getInteger(-1), q.one());
+		//UnivariatePolynomial<Fraction> f = polynomials.getPolynomial(q.getInteger(4), q.one(), q.zero(), q.one());
 		NumberField field = new NumberField(f);
-		assertEquals(BigInteger.valueOf(2), field.classNumber());
+		assertEquals(BigInteger.valueOf(1), field.classNumber());
+	}
+	
+	@Test
+	void testClassNumberDegreeFour() {
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+		UnivariatePolynomial<Fraction> f = polynomials.getPolynomial(q.getInteger(2), q.zero(), q.zero(), q.zero(), q.one());
+		NumberField field = new NumberField(f);
+		System.out.println(field);
+		assertEquals(BigInteger.valueOf(1), field.classNumber());
 	}
 
 	@Test

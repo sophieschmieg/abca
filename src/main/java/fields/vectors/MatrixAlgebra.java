@@ -15,6 +15,8 @@ import fields.helper.AbstractAlgebra;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Ideal;
+import fields.interfaces.InnerProductSpace;
+import fields.interfaces.InnerProductSpace.QRDecompositionResult;
 import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
@@ -98,6 +100,11 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 	}
 
 	@Override
+	public Ideal<T> annihilator() {
+		return ring.getZeroIdeal();
+	}
+
+	@Override
 	public Matrix<T> getRandomElement() {
 		return module.getRandomElement();
 	}
@@ -130,10 +137,6 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 	@Override
 	public Matrix<T> multiply(Matrix<T> t1, Matrix<T> t2) {
 		return module.multiply(t1, t2);
-	}
-
-	public Matrix<T> multiply(int[] permutation, Matrix<T> t) {
-		return module.multiply(permutation, t);
 	}
 
 	public Matrix<T> swapOperation(int iIndex, int jIndex) {
@@ -336,25 +339,40 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 		return ring.isUnit(determinant(t));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public Matrix<T> inverse(Matrix<T> t) {
-		MatrixModule<T>.SmithNormalFormResult gauss = smithNormalForm(t);
-		@SuppressWarnings("unchecked")
-		T[][] matrix = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), dimension, dimension);
-		for (int i = 0; i < dimension; i++) {
-			for (int j = 0; j < dimension; j++) {
-				if (i == j) {
-					matrix[i][j] = ring.inverse(gauss.getDiagonalMatrix().entry(i + 1, j + 1));
-				} else {
-					matrix[i][j] = ring.zero();
+		if (t.pseudoInverse == null) {
+			if (module.hasInnerProductSpace()) {
+				InnerProductSpace<T, Vector<T>> space = module.domainInnerProductSpace();
+				QRDecompositionResult<T> qr = space.qrDecomposition(t);
+				t.pseudoInverse = multiply(invertUpperTriangleMatrix(qr.getUpperTriangularMatrix()),
+						space.conjugateTranspose(qr.getUnitaryMatrix()));
+			} else {
+				MatrixModule<T>.SmithNormalFormResult gauss = smithNormalForm(t);
+				T[][] matrix = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), dimension, dimension);
+				for (int i = 0; i < dimension; i++) {
+					for (int j = 0; j < dimension; j++) {
+						if (i == j) {
+							matrix[i][j] = ring.inverse(gauss.getDiagonalMatrix().entry(i + 1, j + 1));
+						} else {
+							matrix[i][j] = ring.zero();
+						}
+					}
 				}
+				t.pseudoInverse = multiply(gauss.getColOperationsInverse(), new Matrix<T>(matrix),
+						gauss.getRowOperationsInverse());
 			}
 		}
-		return multiply(gauss.getColOperationsInverse(), new Matrix<T>(matrix), gauss.getRowOperationsInverse());
+		return t.pseudoInverse;
 	}
 
 	public Matrix<T> invertUpperTriangleMatrix(Matrix<T> t) {
 		return module.invertUpperTriangleMatrix(t);
+	}
+
+	public Matrix<T> invertLowerTriangleMatrix(Matrix<T> lowerTriangle) {
+		return module.invertLowerTriangleMatrix(lowerTriangle);
 	}
 
 	public int[] invertPermutation(int[] permutation) {

@@ -26,28 +26,28 @@ import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.DedekindRing;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationField.OtherVersion;
+import fields.interfaces.DiscreteValuationField.Valuation;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Field.Extension;
 import fields.interfaces.FieldExtension;
 import fields.interfaces.Ideal;
-import fields.interfaces.DiscreteValuationField;
-import fields.interfaces.DiscreteValuationField.OtherVersion;
-import fields.interfaces.DiscreteValuationField.Valuation;
-import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.MathMap;
 import fields.interfaces.Module;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.interfaces.UnivariatePolynomialRing.ExtendedResultantResult;
 import fields.interfaces.ValueField.AbsoluteValue;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
@@ -929,7 +929,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	private class Type<R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
-			implements OkutsuType<T, S, R, RE, RFE> {
+			implements OkutsuType<T, S, R, RE, RFE>, Cloneable {
 		private UnivariatePolynomial<T> polynomial;
 		private int level;
 		private Type<R, RE, RFE> prevLevel;
@@ -992,25 +992,6 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			this.prevLevel = prevLevel;
 			this.representative = representative;
 			computeDerivedValues();
-//			this.level = prevLevel.level + 1;
-//			this.polynomial = prevLevel.polynomial;
-//			this.ramificationIndex = prevLevel.ramificationIndex;
-//			this.residueDegree = prevLevel.residueDegree;
-//			RFE prevField = prevLevel.reductionFieldExtension.getField();
-//			this.reductionFieldExtension = prevField
-//					.getEmbeddedExtension(prevField.getUnivariatePolynomialRing().getVar());
-//			this.reductionAsExtension = new Extension<>(reductionFieldExtension.getField(),
-//					prevLevel.reductionAsExtension.domain(),
-//					new ConCatMap<>(prevLevel.reductionAsExtension.embeddingMap(),
-//							reductionFieldExtension.getEmbeddingMap()),
-//					new ConCatMap<>(reductionFieldExtension.asVectorMap(),
-//							new FlattenProductVectorMap<>(prevLevel.reductionAsExtension.asVectorMap())));
-//			this.value = -1;
-//			this.e = 1;
-//			this.f = 1;
-//			this.l = 0;
-//			this.lPrime = 1;
-//			this.order = 1;
 		}
 
 		// Constructor for non root nodes
@@ -1022,6 +1003,32 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			this.lambda = lambda;
 			this.order = order;
 			computeDerivedValues();
+		}
+
+		// Copy Constructor
+		private Type(Type<R, RE, RFE> copy) {
+			this.level = copy.level;
+			this.polynomial = copy.polynomial;
+			this.ramificationIndex = copy.ramificationIndex;
+			this.lambda = copy.lambda;
+			this.nu = copy.nu;
+			this.precision = copy.precision;
+			this.w = copy.w;
+			this.h = copy.h;
+			this.e = copy.e;
+			this.representative = copy.representative;
+			this.order = copy.order;
+			this.reduced = copy.reduced;
+			this.residueDegree = copy.residueDegree;
+			this.f = copy.f;
+			this.l = copy.l;
+			this.lPrime = copy.lPrime;
+			this.value = copy.value;
+			this.reductionFieldExtension = copy.reductionFieldExtension;
+			this.reductionAsExtension = copy.reductionAsExtension;
+			this.logUniformizer = copy.logUniformizer;
+			this.capitalPhi = copy.capitalPhi;
+			this.gamma = copy.gamma;
 		}
 
 		private void computeDerivedValues() {
@@ -1096,6 +1103,11 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 				}
 			}
 			return result;
+		}
+
+		@Override
+		public Type<R, RE, RFE> clone() {
+			return new Type<>(this);
 		}
 
 		private Pair<Integer, UnivariatePolynomial<T>> computeDivisorPolynomial(int m) {
@@ -1385,7 +1397,11 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			if (level == 0) {
 				return LocalRingImplementation.this.valuationOfUnivariatePolynomial(t);
 			}
-			return prevLevel.valuationNextLevel(t, lambda);
+			Value prevLevelValue = prevLevel.valuationNextLevel(t, lambda);
+			if (this.leaf() && !precision().isInfinite() && prevLevelValue.compareTo(precision()) >= 0) {
+				return singleFactorLifting(this, 2*precision().value()).valuation(t);
+			}
+			return prevLevelValue;
 		}
 
 		private Value valuationNextLevel(UnivariatePolynomial<T> t, Fraction lambda) {
@@ -1671,8 +1687,9 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		if (prevLevel.leaf()) {
 			return Collections.singletonList(prevLevel);
 		}
-		UnivariatePolynomialRing<T> polynomials = getUnivariatePolynomialRing();
+		List<Type<R, RE, RFE>> workStack = new ArrayList<>();
 		List<OkutsuType<T, S, R, RE, RFE>> result = new ArrayList<>();
+		UnivariatePolynomialRing<T> polynomials = getUnivariatePolynomialRing();
 		QuotientAndRemainderResult<Polynomial<T>> qr = polynomials.quotientAndRemainder(t, prevLevel.representative);
 		int order = prevLevel.order;
 		if (qr.getRemainder().equals(polynomials.zero())) {
@@ -1683,7 +1700,6 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		Rationals q = Rationals.q();
 		Type<R, RE, RFE>.NewtonPolygon polygon = prevLevel.newtonPolygon(t, order);
 		RFE field = prevLevel.reductionFieldExtension.getField();
-		List<Type<R, RE, RFE>> workStack = new ArrayList<>();
 		for (Fraction slope : polygon.slopes) {
 			Fraction lambda = q.negative(slope);
 			UnivariatePolynomial<RE> reduced = prevLevel.reduceNextLevel(t, lambda, polygon);
@@ -1696,14 +1712,8 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 					workStack.add(type.updateLeaf(nextRepresentative));
 					continue;
 				}
-				if (nextRepresentative.degree() <= prevLevel.representative.degree()) {
-					prevLevel.representative = nextRepresentative;
-					result.addAll(theMontesAlgorithm(t, prevLevel));
-					return result;
-				} else {
-					workStack.add(new Type<>(prevLevel, nextRepresentative, nextReduced, lambda,
-							factorization.multiplicity(factor)));
-				}
+				workStack.add(new Type<>(prevLevel, nextRepresentative, nextReduced, lambda,
+						factorization.multiplicity(factor)));
 			}
 		}
 		for (Type<R, RE, RFE> type : workStack) {
@@ -1737,7 +1747,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	public <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> UnivariatePolynomial<T> invertInType(
 			UnivariatePolynomial<T> t, OkutsuType<T, S, R, RE, RFE> type, int precision) {
 		UnivariatePolynomialRing<T> polynomials = field.getUnivariatePolynomialRing();
-		if (type.valuation(t).compareTo(Value.ZERO) > 0) {
+		if (!type.valuation(t).equals(Value.ZERO)) {
 			throw new ArithmeticException("Not divisible in ring");
 		}
 		int requiredDigitAccuracy;
@@ -1755,8 +1765,8 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 					type.ramificationIndex()) + 4 * type.exponent();
 		}
 		int mu = valuationOfUnivariatePolynomial(t).value();
-		t = polynomials.multiply(field.power(field.uniformizer(), -mu), t);
-		RE reduced = type.reduction().extension().inverse(type.reduce(t));
+		UnivariatePolynomial<T> denormalized = polynomials.multiply(field.power(field.uniformizer(), -mu), t);
+		RE reduced = type.reduction().extension().inverse(type.reduce(denormalized));
 		UnivariatePolynomial<T> inverse = polynomials.multiply(field.power(field.uniformizer(), mu),
 				type.lift(reduced, -mu * type.ramificationIndex()));
 		for (int s = 1; s < precision; s *= 2) {
@@ -1838,12 +1848,17 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<T> polynomials = field.getUnivariatePolynomialRing();
 		int numTypes = theMontes.getTypes().size();
-		List<List<UnivariatePolynomial<T>>> result = new ArrayList<>();
 		// TODO replace with explicit formulas
+		List<List<UnivariatePolynomial<T>>> result = new ArrayList<>();
 		for (int i = 0; i < numTypes; i++) {
 			OkutsuType<T, S, R, RE, RFE> type = theMontes.getTypes().get(i);
 			List<UnivariatePolynomial<T>> typeResult = new ArrayList<>();
 			result.add(typeResult);
+			List<Fraction> requiredValuationIncrease = new ArrayList<>();
+			for (int k = 0; k < numTypes; k++) {
+				requiredValuationIncrease.add(q.getInteger(2));
+			}
+			boolean valuationsChanged = false;
 			for (int j = 0; j < type.representative().degree(); j++) {
 				UnivariatePolynomial<T> integralGenerator = type.divisorPolynomial(j);
 				Fraction generatorValue = q.divide(q.getInteger(type.valuation(integralGenerator).value()),
@@ -1859,19 +1874,36 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 					}
 					Fraction secondaryFractionValue = q.divide(q.getInteger(secondaryGeneratorValue.value()),
 							q.getInteger(secondaryType.ramificationIndex()));
-					int cmp = secondaryFractionValue.compareTo(q.add(generatorValue, reduced ? q.one() : q.zero()));
+					Fraction diff = q.subtract(secondaryFractionValue, generatorValue);
+					if (requiredValuationIncrease.get(k).compareTo(diff) > 0) {
+						valuationsChanged = true;
+						requiredValuationIncrease.set(k, diff);
+					}
+				}
+			}
+			List<Fraction> originalValuationIncrease = new ArrayList<>();
+			originalValuationIncrease.addAll(requiredValuationIncrease);
+			UnivariatePolynomial<T> multiplier = polynomials.one();
+			while (valuationsChanged) {
+				valuationsChanged = false;
+				for (int k = 0; k < numTypes; k++) {
+					if (i == k) {
+						continue;
+					}
+					Fraction diff = requiredValuationIncrease.get(k);
+					int cmp = diff.compareTo(reduced ? q.one() : q.zero());
 					if (cmp > 0 || (!reduced && k > i && cmp == 0)) {
 						continue;
 					}
+					OkutsuType<T, S, R, RE, RFE> secondaryType = theMontes.getTypes().get(k);
 					Fraction phiValue = q.divide(q.getInteger(type.valuation(secondaryType.representative()).value()),
 							q.getInteger(type.ramificationIndex()));
 					Fraction secondaryPhiValue = q.divide(q.getInteger(secondaryType.quality().value()),
 							q.getInteger(secondaryType.ramificationIndex()));
-					if (q.add(secondaryFractionValue, reduced ? q.one() : q.zero(), secondaryPhiValue)
-							.compareTo(q.add(generatorValue, phiValue)) < 0) {
+					if (q.add(diff, reduced ? q.one() : q.zero(), secondaryPhiValue).compareTo(phiValue) < 0) {
 						Fraction necessaryValue = q.divide(
 								q.multiply(type.ramificationIndex(),
-										q.add(generatorValue, reduced ? q.one() : q.zero(), phiValue)),
+										q.add(q.negative(diff), reduced ? q.one() : q.zero(), phiValue)),
 								q.getInteger(secondaryType.ramificationIndex()));
 						int nessaryValueInt = MiscAlgorithms.DivRoundUp(
 								necessaryValue.getNumerator().getValue().intValueExact(),
@@ -1879,17 +1911,79 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 						secondaryType = singleFactorLifting(secondaryType, nessaryValueInt);
 						theMontes.getTypes().set(k, secondaryType);
 					}
-					integralGenerator = polynomials.multiply(integralGenerator, secondaryType.representative());
-					generatorValue = q.divide(q.getInteger(type.valuation(integralGenerator).value()),
-							q.getInteger(type.ramificationIndex()));
+					valuationsChanged = true;
+					multiplier = polynomials.multiply(multiplier, secondaryType.representative());
 				}
-				typeResult.add(roundUnivariatePolynomial(polynomials.multiply(
-						field.power(field.uniformizer(),
-								-MiscAlgorithms.DivRoundDown(generatorValue.getNumerator().getValue().intValueExact(),
-										generatorValue.getDenominator().getValue().intValueExact())),
-						integralGenerator), reduced ? 2 : 1));
+				Fraction multiplierValue = q.divide(q.getInteger(type.valuation(multiplier).value()),
+						q.getInteger(type.ramificationIndex()));
+				for (int k = 0; k < numTypes; k++) {
+					if (i == k) {
+						continue;
+					}
+					OkutsuType<T, S, R, RE, RFE> secondaryType = theMontes.getTypes().get(k);
+					Value secondaryGeneratorValue = secondaryType.valuation(multiplier);
+					if (secondaryGeneratorValue.isInfinite()) {
+						continue;
+					}
+					Fraction secondaryFractionValue = q.divide(q.getInteger(secondaryGeneratorValue.value()),
+							q.getInteger(secondaryType.ramificationIndex()));
+					Fraction diff = q.subtract(secondaryFractionValue, multiplierValue);
+					requiredValuationIncrease.set(k, q.add(originalValuationIncrease.get(k), diff));
+				}
+			}
+			for (int j = 0; j < type.representative().degree(); j++) {
+				UnivariatePolynomial<T> integralGenerator = type.divisorPolynomial(j);
+				integralGenerator = polynomials.multiply(integralGenerator, multiplier);
+				Fraction generatorValue = q.divide(q.getInteger(type.valuation(integralGenerator).value()),
+						q.getInteger(type.ramificationIndex()));
+
+				typeResult.add(roundUnivariatePolynomial(
+						polynomials.multiply(field.power(field.uniformizer(),
+								-MiscAlgorithms.DivRoundDown(generatorValue.numeratorIntValueExact(),
+										generatorValue.denominatorIntValueExact())),
+								integralGenerator),
+						reduced ? 2 : 1));
 			}
 		}
+//		System.out.println("Polynomial: " + minimalPolynomial);
+//		System.out.println("Ring: " + this);
+//		System.out.println("Reduced: " + reduced);
+//		for (int i = 0; i < numTypes; i++) {
+//			List<UnivariatePolynomial<T>> perType = result.get(i);
+//			OkutsuType<T, S, R, RE, RFE> type = theMontes.getTypes().get(i);
+//			for (int k = 0; k < perType.size(); k++) {
+//				Value mainValue = type.valuation(perType.get(k));
+//				RE reducedActual= type.reduce(perType.get(k));
+//				RE reducedExpected =type.reduce(type.divisorPolynomial(k));
+//				System.out.println(reducedActual);
+//				if(!reducedActual.equals(reducedExpected)) {
+//					System.err.println("Expected reduction " + reducedExpected);
+//				}
+//				for (int j = 0; j < numTypes; j++) {
+//					if (i == j) {
+//						continue;
+//					}
+//					OkutsuType<T, S, R, RE, RFE> otherType = theMontes.getTypes().get(j);
+//					Value v = otherType.valuation(perType.get(k));
+//					System.out.println("Type " + theMontes.getTypes().get(i) + " Evaluating type" + type);
+//					System.out.println("Basis Vector: " + perType.get(k));
+//					System.out.println("Value: " + v);
+//					System.out.println("Main Value: " + mainValue);
+//					if (v.compareTo(mainValue) < 0) {
+//						System.err.println("value lower");
+//					}
+//					if (v.compareTo(mainValue) == 0) {
+//						if (reduced) {
+//							System.err.println("value equal");
+//						} else if (i > j) {
+//							System.err.println("value equal i > j");
+//						} else {
+//							System.out.println("value equal");
+//						}
+//					}
+//				}
+//			}
+//		}
 		return result;
 	}
 
@@ -2069,7 +2163,6 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		}
 
 		@Override
-
 		public DiscreteValuationRing<T, S> getRing() {
 			return field.ringOfIntegers();
 		}
@@ -2081,7 +2174,12 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 		@Override
 		public boolean isFree() {
-			return false;
+			return true;
+		}
+
+		@Override
+		public Ideal<T> annihilator() {
+			return getRing().getZeroIdeal();
 		}
 
 		@Override
@@ -2238,6 +2336,18 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		@Override
 		public boolean isMaximal() {
 			return valuation.equals(new Value(1));
+		}
+
+		@Override
+		public List<List<T>> nonTrivialCombinations(List<T> s) {
+			Matrix<T> m = new Matrix<>(Collections.singletonList(s));
+			MatrixModule<T> mm = new MatrixModule<>(ring, 1, s.size());
+			List<Vector<T>> kernelBasis = mm.kernelBasis(m);
+			List<List<T>> result = new ArrayList<>();
+			for (Vector<T> basisVector : kernelBasis) {
+				result.add(basisVector.asList());
+			}
+			return result;
 		}
 
 		@Override

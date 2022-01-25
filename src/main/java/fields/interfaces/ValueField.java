@@ -1,5 +1,6 @@
 package fields.interfaces;
 
+import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 
 public interface ValueField<T extends Element<T>> extends Field<T> {
@@ -19,4 +20,6 @@ public interface ValueField<T extends Element<T>> extends Field<T> {
 			}
 		};
 	}
+
+	public Reals getReals();
 }

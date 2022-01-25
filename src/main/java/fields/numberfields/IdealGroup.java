@@ -5,6 +5,8 @@ import java.util.Iterator;
 
 import fields.exceptions.InfinityException;
 import fields.interfaces.Group;
+import fields.interfaces.Ideal;
+import fields.numberfields.NumberField.NFE;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 
 public class IdealGroup implements Group<FractionalIdeal> {
@@ -48,8 +50,12 @@ public class IdealGroup implements Group<FractionalIdeal> {
 		return new FractionalIdeal(order, order.getUnitIdeal(), order.getUnitIdeal());
 	}
 	
-	public FractionalIdeal getEmbedding(NumberFieldIdeal ideal ) {
-		return new FractionalIdeal(order, ideal);
+	public FractionalIdeal getEmbedding(Ideal<NFE> ideal ) {
+		return new FractionalIdeal(order, (NumberFieldIdeal)ideal);
+	}
+	
+	public FractionalIdeal getPrincipalIdeal(NFE t) {
+		return FractionalIdeal.principalIdeal(order, t);
 	}
 
 	@Override

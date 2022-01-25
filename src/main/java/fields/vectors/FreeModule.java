@@ -9,6 +9,7 @@ import java.util.List;
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractModule;
 import fields.interfaces.Element;
+import fields.interfaces.Ideal;
 import fields.interfaces.Ring;
 
 public class FreeModule<T extends Element<T>> extends AbstractModule<T, Vector<T>> {
@@ -84,6 +85,11 @@ public class FreeModule<T extends Element<T>> extends AbstractModule<T, Vector<T
 	@Override
 	public boolean isFree() {
 		return true;
+	}
+	
+	@Override
+	public Ideal<T> annihilator() {
+		return ring.getZeroIdeal();
 	}
 
 	@Override

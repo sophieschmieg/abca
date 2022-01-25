@@ -14,6 +14,7 @@ import fields.helper.TranscendentalFieldExtension.TExt;
 import fields.interfaces.Algebra;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
@@ -147,6 +148,16 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	@Override
 	public boolean isFree() {
 		return true;
+	}
+	
+	@Override
+	public boolean isTorsionFree() {
+		return true;
+	}
+
+	@Override
+	public Ideal<T> annihilator() {
+		return baseField.getZeroIdeal();
 	}
 
 	@Override
@@ -307,6 +318,11 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	@Override
 	public Field<T> getField() {
 		return baseField;
+	}
+	
+	@Override
+	public TExt<T> getUnitVector(int index) {
+		throw new InfinityException();
 	}
 
 	@Override

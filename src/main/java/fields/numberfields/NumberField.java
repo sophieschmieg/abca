@@ -9,13 +9,18 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import fields.finitefields.FiniteField;
+import fields.finitefields.FiniteField.FFE;
+import fields.finitefields.PrimeField;
+import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Complex;
 import fields.floatingpoint.Complex.ComplexNumber;
+import fields.floatingpoint.FiniteRealVectorSpace;
 import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractFieldExtension;
-import fields.helper.AbstractInnerProductSpace;
+import fields.helper.FieldEmbedding;
 import fields.helper.GaloisGroup;
 import fields.helper.GenericAlgebraicRingExtension;
 import fields.helper.GenericAlgebraicRingExtension.GenericAlgebraicExtensionElement;
@@ -24,32 +29,39 @@ import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
-import fields.interfaces.InnerProductSpace;
+import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.DiscreteValuationRing.OkutsuType;
+import fields.interfaces.DiscreteValuationRing.TheMontesResult;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.interfaces.ValueField;
+import fields.local.CompleteDVRExtension;
+import fields.local.CompleteDVRExtension.Ext;
+import fields.local.PAdicField;
+import fields.local.PAdicField.PAdicNumber;
+import fields.numberfields.IdealClassGroup.IdealClass;
 import fields.numberfields.NumberField.NFE;
+import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
-public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberField>
-		implements InnerProductSpace<Fraction, NFE> {
+public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberField> {
 	private Rationals q;
 	private Reals r;
 	private Complex c;
 	private boolean embeddingsComputed;
 	private List<EmbeddedNumberField<Real>> realEmbeddings;
 	private List<EmbeddedNumberField<ComplexNumber>> complexEmbeddings;
+	private FiniteRealVectorSpace logRepresentationSpace;
+	private FiniteRealVectorSpace minkowskiEmbeddingSpace;
 	private NumberFieldIntegers maximalOrder;
 	private IdealGroup idealGroup;
 	private IdealClassGroup idealClassGroup;
-	private List<Fraction> basisNorms;
-	private static final int PRECISION_FOR_EMBEDDINGS = 1024;
+	private static final int PRECISION_FOR_EMBEDDINGS = 128;
 
 	public static class NFE extends AbstractElement<NFE> implements AlgebraicExtensionElement<Fraction, NFE> {
 		private UnivariatePolynomial<Fraction> e;
@@ -92,6 +104,9 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		this.embeddingsComputed = false;
 		this.r = Reals.r(PRECISION_FOR_EMBEDDINGS);
 		this.c = Complex.c(PRECISION_FOR_EMBEDDINGS);
+		if (!q.isIrreducible(minimalPolynomial())) {
+			throw new ArithmeticException("Not irreducible");
+		}
 	}
 
 	public NumberFieldIntegers maximalOrder() {
@@ -99,6 +114,14 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 			maximalOrder = new NumberFieldIntegers(this);
 		}
 		return maximalOrder;
+	}
+
+	public NumberFieldOrder getOrder(NFE generator) {
+		return getOrder(Collections.singletonList(generator));
+	}
+
+	public NumberFieldOrder getOrder(List<NFE> generators) {
+		return new NumberFieldOrder(this, generators);
 	}
 
 	@Override
@@ -140,7 +163,7 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		}, c.getUnivariatePolynomialRing());
 		Map<ComplexNumber, Integer> roots = c.roots(minPoly);
 		for (ComplexNumber alpha : roots.keySet()) {
-			if (alpha.complexPart().equals(r.zero()) || alpha.complexPart().exponent() < -r.precision()) {
+			if (alpha.complexPart().equals(r.zero()) || alpha.complexPart().exponent() < -r.precision() + 5) {
 				MathMap<Real, NFE> round = degree() == 1 ? new MathMap<>() {
 					@Override
 					public NFE evaluate(Real t) {
@@ -173,46 +196,88 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		computeEmbeddings();
 		return Collections.unmodifiableList(this.complexEmbeddings);
 	}
-//
-//	public List<EmbeddedNumberField<Ext<PAdicNumber>>> padicEmbeddings(BigInteger prime, int accuracy) {
-//		NumberFieldIntegers r = maximalOrder();
-//		PAdicField base = new PAdicField(prime, accuracy);
-//		Integers z = Integers.z();
-//		z.reduceUnivariatePolynomial(minimalPolynomial(), prime);
-//		UnivariatePolynomial<PAdicNumber> minPoly = base.getUnivariatePolynomialRing().getEmbedding(minimalPolynomial(),
-//				new MathMap<>() {
-//					@Override
-//					public PAdicNumber evaluate(Fraction t) {
-//						return base.fromRational(t);
-//					}
-//				});
-//		FactorizationResult<Polynomial<PFE>> factors = base.reduction()
-//				.factorization(base.ringOfIntegers().reduceUnivariatePolynomial(minPoly));
-//		List<EmbeddedNumberField<Ext<PAdicNumber, PFE, FFE>>> result = new ArrayList<>();
-//		for (Polynomial<PFE> factor : factors.getFactors().keySet()) {
-//			LocalExtension<PAdicNumber, PAdicNumber, PFE, FFE> zp = base.getExtension(base.ringOfIntegers()
-//					.henselLiftFactor(minPoly, base.reduction().getUnivariatePolynomialRing().toUnivariate(factor)));
-//			Ext<PAdicNumber, PFE, FFE> gamma = zp
-//					.roots(zp.getUnivariatePolynomialRing().getEmbedding(minPoly, zp.getPrimeEmbeddingMap())).keySet()
-//					.iterator().next();
-//			result.add(new EmbeddedNumberField<>(this, zp, gamma, new MathMap<>() {
-//				@Override
-//				public NFE evaluate(Ext<PAdicNumber, PFE, FFE> t) {
-//					Polynomial<PAdicNumber> asPoly = zp.asGenericPrimeExtensionFieldElement(t).asPolynomial();
-//					Polynomial<Fraction> roundedPoly = Rationals.q().getUnivariatePolynomialRing().getEmbedding(asPoly,
-//							new MathMap<>() {
-//								@Override
-//								public Fraction evaluate(PAdicNumber t) {
-//									return Rationals.q().getEmbedding(base.roundToInteger(t, accuracy));
-//								}
-//							});
-//					return getUnivariatePolynomialRing().evaluate(
-//							getUnivariatePolynomialRing().getEmbedding(roundedPoly, getPrimeEmbeddingMap()), gamma());
-//				}
-//			}));
-//		}
-//		return result;
-//	}
+
+	public List<EmbeddedNumberField<Ext<PAdicNumber>>> padicEmbeddings(PAdicField base) {
+		IntE prime = base.getPrime();
+		UnivariatePolynomialRing<PAdicNumber> padicPolynomials = base.getUnivariatePolynomialRing();
+		Integers z = Integers.z();
+		DiscreteValuationRing<Fraction, PFE> localized = z.localize(prime);
+		PrimeField fp = PrimeField.getPrimeField(prime);
+		Extension<PFE, PFE, FFE, FiniteField> trivialExtension = fp
+				.getExtension(fp.getUnivariatePolynomialRing().getVar());
+		TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = localized
+				.theMontesAlgorithm(minimalPolynomial(), trivialExtension);
+		List<EmbeddedNumberField<Ext<PAdicNumber>>> result = new ArrayList<>();
+		for (OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type : theMontes.getTypes()) {
+			type = localized.singleFactorLifting(type, base.getAccuracy());
+			CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> embeddingField = CompleteDVRExtension
+					.getCompleteDVRExtension(
+							padicPolynomials.getEmbedding(type.representative(), base.fromRationalMap()), base,
+							trivialExtension);
+			Ext<PAdicNumber> alpha = embeddingField.alpha();
+			result.add(new EmbeddedNumberField<>(this, embeddingField, alpha, new MathMap<>() {
+				@Override
+				public NFE evaluate(Ext<PAdicNumber> t) {
+					UnivariatePolynomial<Fraction> asPolynomial = q.getUnivariatePolynomialRing()
+							.getEmbedding(t.asPolynomial(), base.toRationalMap());
+					UnivariatePolynomial<NFE> asNFEPolynomial = getUnivariatePolynomialRing().getEmbedding(asPolynomial,
+							getEmbeddingMap());
+					return getUnivariatePolynomialRing().evaluate(asNFEPolynomial, alpha());
+				}
+			}));
+		}
+		return result;
+	}
+
+	public Real minkowskiBound() {
+		Real discriminantSqrt = r.positiveSqrt(r.abs(r.getInteger(discriminant())));
+		int complexEmbeddings = complexEmbeddings().size();
+		Real fourOverPiToPower = r.power(r.divide(r.getInteger(4), r.pi()), complexEmbeddings);
+		int degree = degree();
+		Real nFactorialOverNToN = r.one();
+		for (int i = 1; i <= degree; i++) {
+			nFactorialOverNToN = r.multiply(nFactorialOverNToN, r.divide(r.getInteger(i), r.getInteger(degree)));
+		}
+		return r.multiply(discriminantSqrt, fourOverPiToPower, nFactorialOverNToN);
+	}
+
+	public Vector<Real> minkowskiEmbedding(NFE t) {
+		List<Real> embedding = new ArrayList<>();
+		for (EmbeddedNumberField<Real> realEmbedding : realEmbeddings()) {
+			embedding.add(realEmbedding.embedding(t));
+		}
+		for (EmbeddedNumberField<ComplexNumber> complexEmbedding : complexEmbeddings()) {
+			ComplexNumber embedded = complexEmbedding.embedding(t);
+			embedding.add(embedded.realPart());
+			embedding.add(embedded.complexPart());
+		}
+		return new Vector<>(embedding);
+	}
+
+	public FiniteRealVectorSpace minkowskiEmbeddingSpace() {
+		if (minkowskiEmbeddingSpace == null) {
+			minkowskiEmbeddingSpace = new FiniteRealVectorSpace(r, degree());
+		}
+		return minkowskiEmbeddingSpace;
+	}
+
+	public FiniteRealVectorSpace logRepresentationSpace() {
+		if (logRepresentationSpace == null) {
+			logRepresentationSpace = new FiniteRealVectorSpace(r, realEmbeddings().size() + complexEmbeddings().size());
+		}
+		return logRepresentationSpace;
+	}
+
+	public Vector<Real> logRepresentation(NFE t) {
+		List<Real> result = new ArrayList<>();
+		for (EmbeddedNumberField<Real> realEmbedding : realEmbeddings()) {
+			result.add(r.log(realEmbedding.value(t)));
+		}
+		for (EmbeddedNumberField<ComplexNumber> complexEmbedding : complexEmbeddings()) {
+			result.add(r.multiply(2, r.log(complexEmbedding.value(t))));
+		}
+		return new Vector<>(result);
+	}
 
 	@Override
 	public FactorizationResult<Polynomial<NFE>, NFE> factorization(UnivariatePolynomial<NFE> t) {
@@ -344,46 +409,8 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		return maximalOrder().discriminant(maximalOrder().getModuleGenerators());
 	}
 
-	public Real minkowskiBound() {
-		Real discriminantSqrt = r.positiveSqrt(r.abs(r.getInteger(discriminant())));
-		int complexEmbeddings = complexEmbeddings().size();
-		Real fourOverPiToPower = r.power(r.divide(r.getInteger(4), r.pi()), complexEmbeddings);
-		int degree = degree();
-		Real nFactorialOverNToN = r.one();
-		for (int i = 1; i <= degree; i++) {
-			nFactorialOverNToN = r.multiply(nFactorialOverNToN, r.divide(r.getInteger(i), r.getInteger(degree)));
-		}
-		return r.multiply(discriminantSqrt, fourOverPiToPower, nFactorialOverNToN);
-	}
-
 	public BigInteger classNumber() {
 		return idealClassGroup().getNumberOfElements();
-//		Integers z = Integers.z();
-//		if (degree() > 2) {
-//			throw new UnsupportedOperationException("Class number not implemented for degree > 2!");
-//		}
-//		if (degree() == 1) {
-//			return BigInteger.ONE;
-//		}
-//		IntE d = discriminant();
-//		if (d.compareTo(z.zero()) > 0) {
-//			throw new UnsupportedOperationException("Class number not implemented for real quadratic fields!");
-//		}
-//		FactorizationResult<IntE> primeFactors = z.uniqueFactorization(d);
-//		primeLoop: for (IntE prime : primeFactors.primeFactors()) {
-//			for (int i = 0; i < z.divide(d, prime).intValueExact(); i++) {
-//				IntE a = z.add(z.multiply(i, prime), z.one());
-//				if (!z.gcd(d, a).equals(z.one())) {
-//					continue;
-//				}
-//				if (MiscAlgorithms.kroneckerSymbol(d.getValue(), a.getValue()) != 1) {
-//					continue primeLoop;
-//				}
-//			}
-//			System.out.println("Prime: " + prime);
-//			System.out.println("Mod 4: " + prime.getValue().mod(BigInteger.valueOf(4)));
-//		}
-//		return null;
 	}
 
 	public IdealGroup idealGroup() {
@@ -398,6 +425,93 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 			idealClassGroup = new IdealClassGroup(maximalOrder());
 		}
 		return idealClassGroup;
+	}
+
+	public FieldEmbedding<Fraction, NFE, NumberField> hilbertClassField() {
+		IdealClassGroup icg = idealClassGroup();
+		UnivariatePolynomialRing<NFE> polynomialRing = getUnivariatePolynomialRing();
+		UnivariatePolynomial<NFE> unity = polynomialRing.toUnivariate(polynomialRing
+				.subtract(polynomialRing.getVarPower(classNumber().intValueExact()), polynomialRing.one()));
+		FactorizationResult<Polynomial<NFE>, NFE> rootsOfUnity = factorization(unity);
+		for (Polynomial<NFE> factor : rootsOfUnity.primeFactors()) {
+			if (factor.degree() != 1) {
+				throw new UnsupportedOperationException("Need more roots of unity!");
+			}
+		}
+		List<NFE> unitGroupGenerators = maximalOrder().unitGroupGenerators();
+		List<NFE> generators = new ArrayList<>();
+		generators.addAll(unitGroupGenerators);
+		List<NFE> alpha = new ArrayList<>();
+		List<IdealClass> diagonalGenerators = icg.getDiagonalModuleGenerators();
+		List<IntE> ranks = icg.getDiagonalRanks();
+		for (int i = 0; i < diagonalGenerators.size(); i++) {
+			IdealClass ic = diagonalGenerators.get(i);
+			NumberFieldIdeal power = maximalOrder().power(ic.representative(), ranks.get(i).intValueExact());
+			if (!power.isPrincipal()) {
+				throw new ArithmeticException("Ideal Class Group wrong!");
+			}
+			alpha.add(power.generators().get(0));
+		}
+		generators.addAll(alpha);
+		return null;
+	}
+
+	public MathMap<ComplexNumber, ComplexNumber> dirichletZetaFunction(int precision) {
+		Real epsilon = r.power(r.getInteger(2), -precision);
+		return new MathMap<>() {
+			@Override
+			public ComplexNumber evaluate(ComplexNumber t) {
+				if (t.realPart().compareTo(r.one()) <= 0) {
+					return null;
+				}
+				Integers z = Integers.z();
+				Fraction realPartFraction = null;
+				boolean useFraction = t.complexPart().equals(r.zero());
+				if (useFraction) {
+					realPartFraction = r.roundToFraction(t.realPart(), PRECISION_FOR_EMBEDDINGS);
+					if (realPartFraction.getDenominator().compareTo(z.getInteger(10000)) > 0) {
+						useFraction = false;
+					}
+				}
+				ComplexNumber result = c.one();// .subtract(t, c.one());
+				ComplexNumber prevResult;
+				Iterator<IntE> primeIt = z.primes();
+				do {
+					prevResult = result;
+					IntE prime = primeIt.next();
+					System.out.println(result);
+					System.out.println(prime);
+					List<NumberFieldIdeal> ideals = maximalOrder().idealsOver(prime);
+					for (NumberFieldIdeal ideal : ideals) {
+						ComplexNumber multiplier;
+						if (useFraction) {
+							ComplexNumber coefficient = c.getEmbedding(
+									q.power(q.getEmbedding(ideal.norm()), z.negative(realPartFraction.getNumerator())));
+							int power = realPartFraction.denominatorIntValueExact();
+							ComplexNumber secondCoefficient = c.multiply(power, coefficient);
+							multiplier = c.getInteger(2);
+							ComplexNumber prevMultiplier;
+							do {
+								prevMultiplier = multiplier;
+								ComplexNumber eval = c.subtract(c.power(c.subtract(multiplier, c.one()), power),
+										c.multiply(coefficient, c.power(multiplier, power)));
+								ComplexNumber derivativeEval = c.subtract(
+										c.multiply(power, c.power(c.subtract(multiplier, c.one()), power - 1)),
+										c.multiply(secondCoefficient, c.power(multiplier, power - 1)));
+								multiplier = c.subtract(multiplier, c.divide(eval, derivativeEval));
+							} while (!c.close(multiplier, prevMultiplier));
+						} else {
+							ComplexNumber normToMinusS = c
+									.exp(c.multiply(-1, c.getEmbedding(r.log(r.getInteger(ideal.norm()))), t));
+							ComplexNumber denominator = c.subtract(c.one(), normToMinusS);
+							multiplier = c.inverse(denominator);
+						}
+						result = c.multiply(result, multiplier);
+					}
+				} while (c.value(c.subtract(prevResult, result)).compareTo(epsilon) > 0);
+				return result;
+			}
+		};
 	}
 
 	@Override
@@ -416,36 +530,8 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		return this;
 	}
 
-	@Override
-	public ValueField<Fraction> getValueField() {
-		return Rationals.q().withInfValue();
-	}
-
-	@Override
-	public Fraction innerProduct(NFE s1, NFE s2) {
-		if (basisNorms == null) {
-			basisNorms = new ArrayList<>();
-			for (int i = 0; i < degree(); i++) {
-				basisNorms.add(q.withInfValue().abs(q.power(minimalPolynomial().univariateCoefficient(0), i)));
-			}
-		}
-		Vector<Fraction> t1 = asVector(s1);
-		Vector<Fraction> t2 = asVector(s2);
-		Fraction result = q.zero();
-		for (int i = 0; i < degree(); i++) {
-			result = q.add(result, q.multiply(basisNorms.get(i), t1.get(i + 1), t2.get(i + 1)));
-		}
-		return result;
-	}
-
-	@Override
-	public List<NFE> latticeReduction(List<NFE> s) {
-		return AbstractInnerProductSpace.latticeReduction(this, new MathMap<>() {
-			@Override
-			public Fraction evaluate(Fraction t) {
-				return q.withInfValue().round(t);
-			}
-		}, s);
+	public Fraction traceForm(NFE s1, NFE s2) {
+		return trace(multiply(s1, s2));
 	}
 
 }

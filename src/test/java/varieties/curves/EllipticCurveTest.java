@@ -39,6 +39,9 @@ import fields.numberfields.NumberField.NFE;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import fields.vectors.Vector;
+import varieties.curves.elliptic.EllipticCurve;
+import varieties.curves.elliptic.Frobenius;
+import varieties.curves.elliptic.KernelIsogeny;
 import varieties.projective.ProjectivePoint;
 
 class EllipticCurveTest {

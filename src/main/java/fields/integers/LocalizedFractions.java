@@ -57,6 +57,11 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Discr
 		}
 		return r.exp(r.divide(r.log(r.getInteger(prime)), r.getInteger(valuation(t).value())));
 	}
+	
+	@Override
+	public Reals getReals() {
+		return r;
+	}
 
 	@Override
 	public Fraction zero() {

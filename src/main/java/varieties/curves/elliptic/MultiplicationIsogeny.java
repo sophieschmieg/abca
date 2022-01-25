@@ -1,4 +1,4 @@
-package varieties.curves;
+package varieties.curves.elliptic;
 
 import java.math.BigInteger;
 
@@ -14,6 +14,24 @@ public class MultiplicationIsogeny<T extends Element<T>> implements Isogeny<T> {
 	public MultiplicationIsogeny(BigInteger n, EllipticCurve<T> curve) {
 		this.n = n;
 		this.curve = curve;
+	}
+
+	@Override
+	public int compareTo(Isogeny<T> o) {
+		if (o instanceof MultiplicationIsogeny<?>) {
+			MultiplicationIsogeny<T> other =(MultiplicationIsogeny<T>)o;
+			int cmp = curve.compareTo(other.curve);
+			if (cmp != 0) {
+				return cmp;
+			}
+			return n.compareTo(other.n);
+		}
+		return getClass().getName().compareTo(o.getClass().getName());
+	}
+	
+	@Override
+	public String toString() {
+		return "[" + n + "]";
 	}
 
 	@Override

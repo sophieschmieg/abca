@@ -119,4 +119,9 @@ public abstract class AbstractModule<T extends Element<T>, S extends Element<S>>
 		return nonTrivialCombinations(s).get(0);
 	}
 	
+	@Override
+	public boolean isTorsionFree() {
+		return annihilator().equals(getRing().getZeroIdeal());
+	}
+	
 }

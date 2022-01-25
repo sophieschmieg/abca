@@ -102,6 +102,11 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	public final boolean isFree() {
 		return true;
 	}
+	
+	@Override
+	public Ideal<T> annihilator() {
+		return getRing().getZeroIdeal();
+	}
 
 	private <S extends Element<S>> FieldOfFractionsResult<Polynomial<T>, TExt<S>> fieldOfFractions(
 			FieldOfFractionsResult<T, S> baseFractions) {

@@ -4,12 +4,9 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.floatingpoint.Complex.ComplexNumber;
-import fields.helper.AbstractInnerProductSpace;
-import fields.integers.Rationals;
-import fields.interfaces.MathMap;
+import fields.floatingpoint.Reals.Real;
 import fields.interfaces.ValueField;
-import fields.numberfields.EmbeddedNumberField;
-import fields.numberfields.NumberField;
+import fields.vectors.AbstractInnerProductSpace;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
@@ -43,6 +40,31 @@ public class FiniteComplexVectorSpace extends AbstractInnerProductSpace<ComplexN
 	public ValueField<ComplexNumber> getValueField() {
 		return c;
 	}
+	
+	@Override
+	public ComplexNumber asComplexNumber(ComplexNumber t) {
+		return t;
+	}
+	
+	@Override
+	public ComplexNumber fromComplexNumber(ComplexNumber t) {
+		return t;
+	}
+	
+	@Override
+	public ComplexNumber fromReal(Real r) {
+		return c.getEmbedding(r);
+	}
+	
+	@Override
+	public ComplexNumber conjugate(ComplexNumber t) {
+		return c.conjugate(t);
+	}
+	
+	@Override
+	public FiniteComplexVectorSpace withDimension(int dimension) {
+		return new FiniteComplexVectorSpace(c, dimension);
+	}
 
 	@Override
 	public Vector<ComplexNumber> zero() {
@@ -73,15 +95,15 @@ public class FiniteComplexVectorSpace extends AbstractInnerProductSpace<ComplexN
 	public Iterator<Vector<ComplexNumber>> iterator() {
 		return vectorSpace.iterator();
 	}
+	
+	@Override
+	public Vector<ComplexNumber> getUnitVector(int index) {
+		return vectorSpace.getUnitVector(index);
+	}
 
 	@Override
 	public List<Vector<ComplexNumber>> getBasis() {
 		return vectorSpace.getBasis();
-	}
-
-	@Override
-	public boolean isLinearIndependent(List<Vector<ComplexNumber>> s) {
-		return vectorSpace.isLinearIndependent(s);
 	}
 
 	@Override
@@ -99,22 +121,21 @@ public class FiniteComplexVectorSpace extends AbstractInnerProductSpace<ComplexN
 		return s;
 	}
 
-	@Override
-	public List<Vector<ComplexNumber>> latticeReduction(List<Vector<ComplexNumber>> s) {
-		Rationals q = Rationals.q();
-		NumberField nf = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
-		return latticeReduction(s, nf.complexEmbeddings().get(0));
-	}
-
-	public List<Vector<ComplexNumber>> latticeReduction(List<Vector<ComplexNumber>> s, EmbeddedNumberField<ComplexNumber> quadraticField) {
-		return latticeReduction(this, new MathMap<>() {
-			@Override
-			public ComplexNumber evaluate(ComplexNumber t) {
-				return quadraticField.embedding(quadraticField.roundToInteger(t));
-			}
-		}, s);
-	}
-	
+//	@Override
+//	public List<Vector<ComplexNumber>> latticeReduction(List<Vector<ComplexNumber>> s) {
+//		Rationals q = Rationals.q();
+//		NumberField nf = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
+//		return latticeReduction(s, nf.complexEmbeddings().get(0));
+//	}
+//
+//	public List<Vector<ComplexNumber>> latticeReduction(List<Vector<ComplexNumber>> s, EmbeddedNumberField<ComplexNumber> quadraticField) {
+//		return latticeReduction(this, new MathMap<>() {
+//			@Override
+//			public ComplexNumber evaluate(ComplexNumber t) {
+//				return quadraticField.embedding(quadraticField.roundToInteger(t));
+//			}
+//		}, s);
+//	}
 
 	@Override
 	public MatrixAlgebra<ComplexNumber> matrixAlgebra() {

@@ -107,6 +107,11 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 	public boolean isFree() {
 		return true;
 	}
+	
+	@Override
+	public Ideal<I> annihilator() {
+		return ring.getZeroIdeal();
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<Quaternion<T>> s) {

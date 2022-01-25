@@ -2,21 +2,22 @@ package fields.vectors;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractModule;
 import fields.interfaces.Element;
+import fields.interfaces.Ideal;
 import fields.interfaces.Module;
 import fields.interfaces.Ring;
 
 public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends AbstractModule<T, S> {
 	private Module<T, S> module;
-	private FreeModule<T> freeModule;
 	private List<S> generators;
-	private List<Vector<T>> basisAsVectors;
 	private Matrix<T> baseChange;
+	private MatrixModule<T> matrixModule;
 	private FreeModule<T> asFreeModule;
 
 	public FreeSubModule(Module<T, S> module, List<S> generators) {
@@ -24,6 +25,11 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 			throw new ArithmeticException("module is not free");
 		}
 		this.module = module;
+		if (generators.isEmpty()) {
+			this.generators = Collections.emptyList();
+			this.asFreeModule = new FreeModule<>(module.getRing(), 0);
+			return;
+		}
 		List<Vector<T>> asVectors = new ArrayList<>();
 		int embeddingDimension = 0;
 		boolean differentEmbeddingDimensions = false;
@@ -37,7 +43,6 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 				embeddingDimension = vector.dimension();
 			}
 		}
-		this.freeModule = new FreeModule<>(module.getRing(), embeddingDimension);
 		if (differentEmbeddingDimensions) {
 			asVectors.clear();
 			for (S s : generators) {
@@ -51,8 +56,9 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 			}
 		}
 		Matrix<T> asMatrix = Matrix.fromColumns(asVectors);
-		this.basisAsVectors = asMatrix.getModule(module.getRing()).imageBasis(asMatrix);
+		List<Vector<T>> basisAsVectors = asMatrix.getModule(module.getRing()).imageBasis(asMatrix);
 		this.baseChange = Matrix.fromColumns(basisAsVectors);
+		this.matrixModule = baseChange.getModule(module.getRing());
 		this.generators = new ArrayList<>();
 		for (Vector<T> basisVector : basisAsVectors) {
 			this.generators.add(module.fromVector(basisVector));
@@ -96,6 +102,11 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 	}
 
 	@Override
+	public Ideal<T> annihilator() {
+		return module.getRing().getZeroIdeal();
+	}
+
+	@Override
 	public boolean isLinearIndependent(List<S> s) {
 		return module.isLinearIndependent(s);
 	}
@@ -106,7 +117,35 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 	}
 
 	public boolean contains(S s) {
-		return freeModule.matrixAlgebra().hasSolution(baseChange, module.asVector(s));
+		if (generators.isEmpty()) {
+			return s.equals(module.zero());
+		}
+		return matrixModule.hasSolution(baseChange, module.asVector(s));
+	}
+
+	public boolean contains(FreeSubModule<T, S> other) {
+		for (S otherBasisElement : other.getBasis()) {
+			if (!contains(otherBasisElement)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public FreeSubModule<T, S> intersection(FreeSubModule<T, S> other) {
+		List<S> generators = new ArrayList<>();
+		generators.addAll(this.generators);
+		generators.addAll(other.generators);
+		List<List<T>> coeffs = module.nonTrivialCombinations(generators);
+		List<S> intersectionGenerators = new ArrayList<>();
+		for (List<T> coeff : coeffs) {
+			S generator = zero();
+			for (int i = 0; i < this.generators.size(); i++) {
+				generator = add(generator, scalarMultiply(coeff.get(i), this.generators.get(i)));
+			}
+			intersectionGenerators.add(generator);
+		}
+		return new FreeSubModule<>(module, intersectionGenerators);
 	}
 
 	public FreeSubModule<T, S> add(FreeSubModule<T, S> other) {
@@ -176,7 +215,10 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 
 	@Override
 	public Vector<T> asVector(S s) {
-		return freeModule.matrixAlgebra().solve(baseChange, module.asVector(s));
+		if (generators.isEmpty()) {
+			return new Vector<>();
+		}
+		return matrixModule.solve(baseChange, module.asVector(s));
 	}
 
 	public MatrixAlgebra<T> matrixAlgebra() {
@@ -185,6 +227,14 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 
 	public int rank() {
 		return this.generators.size();
+	}
+
+	public T conductor() {
+		if (generators.isEmpty()) {
+			return module.getRing().zero();
+		}
+		MatrixModule<T>.SmithNormalFormResult smith = matrixModule.smithNormalForm(baseChange);
+		return smith.getDiagonalMatrix().entry(rank(), rank());
 	}
 
 	@Override

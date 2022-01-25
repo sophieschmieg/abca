@@ -64,6 +64,11 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 				r.divide(r.multiply(r.log(r.getInteger(prime)), r.getInteger(type.valuation(t.asPolynomial()).value())),
 						r.getInteger(type.ramificationIndex())));
 	}
+	
+	@Override
+	public Reals getReals() {
+		return r;
+	}
 
 	@Override
 	public NFE inverse(NFE t, int accuracy) {

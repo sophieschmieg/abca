@@ -10,7 +10,7 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
 import varieties.SimpleFunctionField.SimpleFunctionFieldFromCoordinateRingOverExtension;
-import varieties.curves.EllipticCurve;
+import varieties.curves.elliptic.EllipticCurve;
 
 class SimpleFunctionFieldTest {
 

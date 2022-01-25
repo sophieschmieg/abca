@@ -1,45 +1,116 @@
 package fields.interfaces;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import fields.floatingpoint.Reals;
+import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals.Real;
+import fields.vectors.DualVectorSpace;
+import fields.vectors.Matrix;
 
 public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> extends NormedVectorSpace<T, S> {
-	T innerProduct(S s1, S s2);
+	public ComplexNumber asComplexNumber(T t);
+
+	public T fromComplexNumber(ComplexNumber t);
+
+	public T fromReal(Real r);
+
+	public T innerProduct(S s1, S s2);
 
 	@Override
-	default Real valueNorm(S s) {
-		Reals r = Reals.r(1024);
-		return r.positiveSqrt(getValueField().value(innerProduct(s, s)));
-	}
+	public Real valueNorm(S s);
 
-	default List<S> gramSchmidt(List<S> s) {
-		List<S> orthogonal = new ArrayList<>();
-		ValueField<T> f = getValueField();
-		for (int i = 0; i < s.size(); i++) {
-			S vector = s.get(i);
-			for (int j = 0; j < i; j++) {
-				vector = subtract(vector, scalarMultiply(
-						f.divide(innerProduct(s.get(i), s.get(j)), innerProduct(s.get(j), s.get(j))), s.get(j)));
-			}
-			orthogonal.add(vector);
+	public List<S> gramSchmidt(List<S> s);
+
+	public List<S> normedGramSchmidt(List<S> s);
+
+	public List<S> extendToOrthonormalBasis(List<S> s);
+
+	public T conjugate(T s);
+
+	public DualVectorSpace<T, S> getDual();
+
+	public InnerProductSpace<T, S> withDimension(int dimension);
+
+	public Matrix<T> conjugateTranspose(Matrix<T> t);
+
+	public class QRDecompositionResult<T extends Element<T>> {
+		private Matrix<T> unitaryMatrix;
+		private Matrix<T> upperTriangularMatrix;
+
+		public QRDecompositionResult(Matrix<T> unitaryMatrix, Matrix<T> upperTriangularMatrix) {
+			this.unitaryMatrix = unitaryMatrix;
+			this.upperTriangularMatrix = upperTriangularMatrix;
 		}
-		return orthogonal;
 
-	}
-
-	default List<S> normedGramSchmidt(List<S> s) {
-		List<S> orthogonal = gramSchmidt(s);
-		List<S> orthonormal = new ArrayList<>();
-		ValueField<T> f = getValueField();
-		for (S vector : orthogonal) {
-			orthonormal.add(
-					scalarMultiply(f.inverse(f.sqrt(innerProduct(vector, vector)).keySet().iterator().next()), vector));
+		public Matrix<T> getUnitaryMatrix() {
+			return unitaryMatrix;
 		}
-		return orthonormal;
+
+		public Matrix<T> getUpperTriangularMatrix() {
+			return upperTriangularMatrix;
+		}
+
 	}
 
-	List<S> latticeReduction(List<S> s);
+	public QRDecompositionResult<T> qrDecomposition(Matrix<T> t);
+
+	public QRDecompositionResult<T> qrDecomposition(Matrix<T> t, boolean hessenberg);
+
+	public class OrthogonalSimilarResult<T extends Element<T>> {
+		private Matrix<T> unitaryMatrix;
+		private Matrix<T> orthogonallySimilarMatrix;
+
+		public OrthogonalSimilarResult(Matrix<T> unitaryMatrix, Matrix<T> orthogonallySimilarMatrix) {
+			this.unitaryMatrix = unitaryMatrix;
+			this.orthogonallySimilarMatrix = orthogonallySimilarMatrix;
+		}
+
+		public Matrix<T> getUnitaryMatrix() {
+			return unitaryMatrix;
+		}
+
+		public Matrix<T> getOrthogonallySimilarMatrix() {
+			return orthogonallySimilarMatrix;
+		}
+
+	}
+
+	public OrthogonalSimilarResult<T> schurrForm(Matrix<T> t);
+
+	public OrthogonalSimilarResult<T> hessenbergForm(Matrix<T> t);
+
+	public class SingularValueDecompositionResult<T extends Element<T>> {
+		private int rank;
+		private Matrix<T> leftUnitaryMatrix;
+		private Matrix<T> diagonalMatrix;
+		private Matrix<T> rightUnitaryMatrix;
+
+		public SingularValueDecompositionResult(int rank, Matrix<T> leftUnitaryMatrix, Matrix<T> diagonalMatrix,
+				Matrix<T> rightUnitaryMatrix) {
+			this.rank = rank;
+			this.leftUnitaryMatrix = leftUnitaryMatrix;
+			this.diagonalMatrix = diagonalMatrix;
+			this.rightUnitaryMatrix = rightUnitaryMatrix;
+		}
+		
+		public int getRank() {
+			return rank;
+		}
+
+		public Matrix<T> getLeftUnitaryMatrix() {
+			return leftUnitaryMatrix;
+		}
+
+		public Matrix<T> getDiagonalMatrix() {
+			return diagonalMatrix;
+		}
+
+		public Matrix<T> getRightUnitaryMatrix() {
+			return rightUnitaryMatrix;
+		}
+	}
+
+	public SingularValueDecompositionResult<T> singularValueDecomposition(Matrix<T> t);
+	
+	public Matrix<T> pseudoInverse(Matrix<T> t);
 }

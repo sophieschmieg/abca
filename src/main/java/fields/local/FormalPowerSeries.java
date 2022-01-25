@@ -299,6 +299,11 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 		}
 		return r.exp(r.getInteger(-valuation(t).value()));
 	}
+	
+	@Override
+	public Reals getReals() {
+		return r;
+	}
 
 	@Override
 	public PowerSeries<T> zero() {

@@ -174,6 +174,9 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		private boolean canonical;
 
 		private Fraction(Ring<T> ring, T numerator, T denominator) {
+			if (denominator.equals(ring.zero())) {
+				throw new ArithmeticException("Division by 0!");
+			}
 			this.ring = ring;
 			if (numerator.equals(ring.zero())) {
 				denominator = ring.one();

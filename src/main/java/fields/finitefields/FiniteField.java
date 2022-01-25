@@ -2,7 +2,6 @@ package fields.finitefields;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +30,7 @@ import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
-import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
-import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import util.Pair;
 
 public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
@@ -170,6 +167,11 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	@Override
 	public FiniteField makeExtension(UnivariatePolynomial<PFE> minimalPolynomial) {
 		return getFiniteField(minimalPolynomial, PrimeField.getPrimeField(characteristic()));
+	}
+	
+	@Override
+	public PrimeField getBaseField() {
+		return PrimeField.getPrimeField(characteristic());
 	}
 
 	@Override

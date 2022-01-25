@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.util.Iterator;
 
 import fields.exceptions.InfinityException;
+import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractField;
 import fields.integers.Integers.IntE;
@@ -155,6 +156,11 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	@Override
 	public Real value(NFE t) {
 		return embeddingField.value(embedding(t));
+	}
+	
+	@Override
+	public Reals getReals() {
+		return embeddingField.getReals();
 	}
 	
 

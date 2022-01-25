@@ -13,6 +13,7 @@ import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractField;
 import fields.integers.Integers;
+import fields.integers.Rationals;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.FloatingPointSet;
@@ -25,7 +26,7 @@ import util.MiscAlgorithms;
 
 public class Reals extends AbstractField<Real> implements ValueField<Real>, FloatingPointSet<Real, Reals> {
 	private final int precision;
-	private Reals doublePrecision;
+	private Reals highPrecision;
 	private Real pi;
 	private Real e;
 	private Real zero;
@@ -113,12 +114,12 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 		public IntE round() {
 			if (scale >= 0) {
-				return roundDown();
+				return positive ? roundDown() : roundUp();
 			}
 			if (value.testBit(-scale - 1)) {
-				return roundUp();
+				return positive ? roundUp() : roundDown();
 			}
-			return roundDown();
+			return positive ? roundDown() : roundUp();
 		}
 
 		public Real fractionalPart() {
@@ -297,11 +298,11 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		return BigInteger.ZERO;
 	}
 
-	private Reals doublePrecision() {
-		if (doublePrecision == null) {
-			doublePrecision = withPrecision(2 * precision);
+	private Reals highPrecision() {
+		if (highPrecision == null) {
+			highPrecision = withPrecision(precision + 2);
 		}
-		return doublePrecision;
+		return highPrecision;
 	}
 
 	@Override
@@ -336,7 +337,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		if (t.compareTo(zero()) < 0) {
 			return negative(inverse(negative(t)));
 		}
-		return getEmbedding(doublePrecision().calculateInverse(t));
+		return getEmbedding(highPrecision().calculateInverse(t));
 	}
 
 	private Real calculateInverse(Real t) {
@@ -346,7 +347,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		do {
 			prev = x;
 			x = multiply(x, subtract(two, multiply(x, t)));
-		} while (!close(x, prev));
+		} while (!close(prev, x));
 		return x;
 	}
 
@@ -363,7 +364,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		if (t.compareTo(zero()) <= 0) {
 			throw new ArithmeticException("log of non positive number!");
 		}
-		return getEmbedding(doublePrecision().calculateLog(t));
+		return getEmbedding(highPrecision().calculateLog(t));
 	}
 
 	private Real calculateLog(Real t) {
@@ -408,7 +409,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	public Real pi() {
 		if (pi == null) {
-			pi = getEmbedding(doublePrecision().calculatePi());
+			pi = getEmbedding(highPrecision().calculatePi());
 		}
 		return pi;
 	}
@@ -436,34 +437,54 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	public Real positiveSqrt(Real t) {
 		return positiveRoot(t, 2);
-//		if (t.equals(zero())) {
-//			return zero();
-//		}
-//		if (t.compareTo(zero()) < 0) {
-//			throw new ArithmeticException("No square root");
-//		}
-//		Real result = one();
-//		Real prevResult;
-//		do {
-//			prevResult = result;
-//			result = divide(add(result, divide(t, result)), getInteger(2));
-//		} while (!close(result, prevResult));
-//		return result;
 	}
 
 	public Real positiveRoot(Real t, int degree) {
 		if (t.equals(zero())) {
 			return zero();
 		}
-		if (t.compareTo(zero()) < 0) {
-			throw new ArithmeticException("No positive root");
-		}
-		Real result = one();
-		Real prevResult;
+		return multiply(t, power(inverseRoot(t, degree), degree-1));
+//		if (t.compareTo(zero()) < 0) {
+//			throw new ArithmeticException("No positive root");
+//		}
+//		return getEmbedding(highPrecision().calculateRoot(t, degree));
+	}
+
+	private Real calculateRoot(Real t, int degree) {
+		Real result = getPowerOfTwo(MiscAlgorithms.DivRoundUp(t.exponent(), degree));
+		// Real prevResult;
 		do {
-			prevResult = result;
+			// prevResult = result;
 			result = divide(add(multiply(degree - 1, result), divide(t, power(result, degree - 1))),
 					getInteger(degree));
+		} while (!close(power(result, degree), t));
+		return result;
+	}
+
+	public Real inverseSqrt(Real t) {
+		return inverseRoot(t, 2);
+	}
+
+	public Real inverseRoot(Real t, int degree) {
+		if (t.compareTo(zero()) <= 0) {
+			throw new ArithmeticException("No positive root");
+		}
+		return getEmbedding(highPrecision().calculateInverseRoot(t, degree));
+	}
+
+	private Real calculateInverseRoot(Real t, int degree) {
+		Real rootEstimate = getPowerOfTwo(MiscAlgorithms.DivRoundUp(t.exponent(), degree));
+		for (int i = 0; i < 2; i++) {
+			rootEstimate = divide(add(multiply(degree - 1, rootEstimate), divide(t, power(rootEstimate, degree - 1))),
+					getInteger(degree));
+		}
+		Real result = inverse(rootEstimate);
+		Real prevResult;
+		Real coeff1 = divide(getInteger(degree + 1), getInteger(degree));
+		Real coeff2 = divide(negative(t), getInteger(degree));
+		do {
+			prevResult = result;
+			result = multiply(result, add(coeff1, multiply(coeff2, power(result, degree))));
 		} while (!close(result, prevResult));
 		return result;
 	}
@@ -476,7 +497,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		 * getInteger(2)),
 		 * doublePrecision().calculateArctan(doublePrecision().inverse(t))); }
 		 */
-		return getEmbedding(doublePrecision().calculateArctan(t));
+		return getEmbedding(highPrecision().calculateArctan(t));
 	}
 
 	private Real calculateArctan(Real t) {
@@ -594,6 +615,14 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		return getDouble(new Random().nextGaussian());
 	}
 
+	public Real getRandomElement(Real from, Real to) {
+		return add(multiply(getUniformRandomElement(), subtract(from, to)), from);
+	}
+
+	public Real getUniformRandomElement() {
+		return getDouble(new Random().nextDouble());
+	}
+
 	@Override
 	public boolean isFinite() {
 		return false;
@@ -614,6 +643,11 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		return abs(t);
 	}
 
+	@Override
+	public Reals getReals() {
+		return this;
+	}
+
 	public Iterator<IntE> continuedFraction(Real t) {
 		return MiscAlgorithms.continuedFraction(this, t, new MathMap<>() {
 
@@ -632,6 +666,21 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 				return t.roundDown();
 			}
 		});
+	}
+
+	public Fraction roundToFraction(Real t, int precision) {
+		if (close(t, zero())) {
+			return Rationals.q().zero();
+		}
+		Iterator<Fraction> it = continuedFractionApproximation(t);
+		Real epsilon = power(getInteger(2), -precision);
+		while (it.hasNext()) {
+			Fraction approximation = it.next();
+			if (abs(subtract(t, getFraction(approximation))).compareTo(epsilon) < 0) {
+				return approximation;
+			}
+		}
+		throw new ArithmeticException("Should not reach end of continued fraction before finding exact match!");
 	}
 
 	@Override

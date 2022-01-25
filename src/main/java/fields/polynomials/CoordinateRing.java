@@ -444,7 +444,12 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	public boolean isFree() {
-		throw new ArithmeticException();
+		return ideal.equals(ring.getZeroIdeal());
+	}
+
+	@Override
+	public PolynomialIdeal<T> annihilator() {
+		return ideal;
 	}
 
 	public List<CoordinateRingElement<T>> getGenerators() {
@@ -790,6 +795,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	public static class CoordinateIdeal<T extends Element<T>> extends AbstractIdeal<CoordinateRingElement<T>> {
 		private CoordinateRing<T> ring;
 		private List<CoordinateRingElement<T>> generators;
+		private List<List<CoordinateRingElement<T>>> relations;
 		private SortedMap<Integer, List<Polynomial<T>>> polynomialIdealGeneratorWeights;
 		private PolynomialIdeal<T> asPolynomialIdeal;
 
@@ -869,6 +875,35 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 		public PolynomialIdeal<T> asPolynomialIdeal() {
 			return asPolynomialIdeal;
+		}
+
+		@Override
+		public List<List<CoordinateRingElement<T>>> nonTrivialCombinations(List<CoordinateRingElement<T>> s) {
+			List<Polynomial<T>> polynomialList = new ArrayList<>();
+			for (CoordinateRingElement<T> e : s) {
+				polynomialList.add(e.getElement());
+			}
+			polynomialList.addAll(ring.getIdeal().generators());
+			List<List<Polynomial<T>>> polynomialResult = ring.getPolynomialRing().getUnitIdeal()
+					.nonTrivialCombinations(polynomialList);
+			List<List<CoordinateRingElement<T>>> result = new ArrayList<>();
+			for (List<Polynomial<T>> relation : polynomialResult) {
+				List<CoordinateRingElement<T>> row = new ArrayList<>();
+				for (int i = 0; i < s.size(); i++) {
+					Polynomial<T> coefficient = relation.get(i);
+					row.add(ring.getEmbedding(coefficient));
+				}
+				result.add(row);
+			}
+			return result;
+		}
+
+		@Override
+		public List<List<CoordinateRingElement<T>>> getModuleGeneratorRelations() {
+			if (relations == null) {
+				relations = nonTrivialCombinations(getModuleGenerators());
+			}
+			return relations;
 		}
 
 		@Override

@@ -8,6 +8,7 @@ import fields.exceptions.InfinityException;
 import fields.helper.AbstractModule;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.Ideal;
 import fields.interfaces.Ring;
 import fields.interfaces.VectorSpace;
 
@@ -56,6 +57,11 @@ public class FiniteVectorSpace<T extends Element<T>> extends AbstractModule<T, V
 		return true;
 	}
 
+	@Override
+	public Ideal<T> annihilator() {
+		return field.getZeroIdeal();
+	}
+	
 	public boolean isBasis(List<Vector<T>> s) {
 		return asModule.isBasis(s);
 	}

@@ -498,9 +498,9 @@ public class MiscAlgorithms {
 	public static List<Vector<IntE>> primitivePellsEquation(IntE d, IntE n, boolean anySign) {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
-		if (z.hasSqrt(n)) {
-			return Collections.singletonList(new Vector<>(z.sqrt(n).keySet().iterator().next(), z.zero()));
-		}
+//		if (z.hasSqrt(n)) {
+//			return Collections.singletonList(new Vector<>(z.sqrt(n).keySet().iterator().next(), z.zero()));
+//		}
 		if (z.hasSqrt(d)) {
 			return null;
 		}

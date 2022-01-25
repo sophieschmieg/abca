@@ -1,19 +1,19 @@
 package fields.integers;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import fields.helper.AbstractInnerProductSpace;
+import fields.floatingpoint.Reals;
+import fields.floatingpoint.Reals.Real;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
-import fields.interfaces.MathMap;
 import fields.interfaces.ValueField;
+import fields.vectors.AbstractRealInnerProductSpace;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
 
-public class FiniteRationalVectorSpace extends AbstractInnerProductSpace<Fraction, Vector<Fraction>> {
+public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fraction, Vector<Fraction>> {
 	private Rationals q;
 	private FiniteVectorSpace<Fraction> vectorSpace;
 	private int dimension;
@@ -26,7 +26,7 @@ public class FiniteRationalVectorSpace extends AbstractInnerProductSpace<Fractio
 
 	@Override
 	public Exactness exactness() {
-		return Exactness.FLOATING_POINT;
+		return Exactness.EXACT;
 	}
 
 	@Override
@@ -37,12 +37,32 @@ public class FiniteRationalVectorSpace extends AbstractInnerProductSpace<Fractio
 		}
 		return result;
 	}
+	
+	@Override
+	public IntE round(Fraction t) {
+		return t.round();
+	}
+	
+	@Override
+	public Fraction fromReal(Real r) {
+		return Reals.r(128).roundToFraction(r, 64);
+	}
+	
+	@Override
+	public Real asReal(Fraction t) {
+		return Reals.r(128).getFraction(t);
+	}
 
 	@Override
 	public ValueField<Fraction> getValueField() {
 		return q.withInfValue();
 	}
 
+	@Override
+	public FiniteRationalVectorSpace withDimension(int dimension) {
+		return new FiniteRationalVectorSpace(dimension);
+	}
+	
 	@Override
 	public Vector<Fraction> zero() {
 		return vectorSpace.zero();
@@ -72,6 +92,11 @@ public class FiniteRationalVectorSpace extends AbstractInnerProductSpace<Fractio
 	public Iterator<Vector<Fraction>> iterator() {
 		return vectorSpace.iterator();
 	}
+	
+	@Override
+	public Vector<Fraction> getUnitVector(int index) {
+		return vectorSpace.getUnitVector(index);
+	}
 
 	@Override
 	public List<Vector<Fraction>> getBasis() {
@@ -98,35 +123,35 @@ public class FiniteRationalVectorSpace extends AbstractInnerProductSpace<Fractio
 		return s;
 	}
 	
-	@Override
-	public List<Vector<Fraction>> latticeReduction(List<Vector<Fraction>> s) {
-		return latticeReduction(this, new MathMap<>() {
-			@Override
-			public Fraction evaluate(Fraction t) {
-				return q.getInteger(t.round());
-			}}, s);
-	}
-
-	public List<Vector<IntE>> integerLatticeReduction(List<Vector<IntE>> s) {
-		List<Vector<Fraction>> asFraction = new ArrayList<>();
-		for (Vector<IntE> v : s) {
-			List<Fraction> c = new ArrayList<>();
-			for (IntE value : v.asList()) {
-				c.add(q.getEmbedding(value));
-			}
-			asFraction.add(new Vector<>(c));
-		}
-		asFraction = latticeReduction(asFraction);
-		List<Vector<IntE>> result = new ArrayList<>();
-		for (Vector<Fraction> v : asFraction) {
-			List<IntE> c = new ArrayList<>();
-			for (Fraction value : v.asList()) {
-				c.add(value.asInteger());
-			}
-			result.add(new Vector<>(c));
-		}
-		return result;
-	}
+//	@Override
+//	public List<Vector<Fraction>> latticeReduction(List<Vector<Fraction>> s) {
+//		return latticeReduction(this, new MathMap<>() {
+//			@Override
+//			public Fraction evaluate(Fraction t) {
+//				return q.getInteger(t.round());
+//			}}, s);
+//	}
+//
+//	public List<Vector<IntE>> integerLatticeReduction(List<Vector<IntE>> s) {
+//		List<Vector<Fraction>> asFraction = new ArrayList<>();
+//		for (Vector<IntE> v : s) {
+//			List<Fraction> c = new ArrayList<>();
+//			for (IntE value : v.asList()) {
+//				c.add(q.getEmbedding(value));
+//			}
+//			asFraction.add(new Vector<>(c));
+//		}
+//		asFraction = latticeReduction(asFraction);
+//		List<Vector<IntE>> result = new ArrayList<>();
+//		for (Vector<Fraction> v : asFraction) {
+//			List<IntE> c = new ArrayList<>();
+//			for (Fraction value : v.asList()) {
+//				c.add(value.asInteger());
+//			}
+//			result.add(new Vector<>(c));
+//		}
+//		return result;
+//	}
 
 	@Override
 	public MatrixAlgebra<Fraction> matrixAlgebra() {

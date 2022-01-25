@@ -8,9 +8,9 @@ import java.util.List;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import util.MiscAlgorithms;
-import varieties.curves.EllipticCurve;
-import varieties.curves.Isogeny;
-import varieties.curves.KernelIsogeny;
+import varieties.curves.elliptic.EllipticCurve;
+import varieties.curves.elliptic.Isogeny;
+import varieties.curves.elliptic.KernelIsogeny;
 import varieties.projective.ProjectivePoint;
 
 public class TestSike<T extends Element<T>> {

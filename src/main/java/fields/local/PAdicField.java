@@ -7,8 +7,8 @@ import java.util.Random;
 import fields.exceptions.InfinityException;
 import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
-import fields.finitefields.ModularIntegerRing;
-import fields.finitefields.ModularIntegerRing.ModularIntegerRingElement;
+import fields.finitefields.ModuloIntegerRing;
+import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Reals;
@@ -32,7 +32,8 @@ import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
 import util.Identity;
 
-public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdicNumber>, DiscreteValuationField<PAdicNumber, PFE> {
+public class PAdicField extends AbstractField<PAdicNumber>
+		implements Field<PAdicNumber>, DiscreteValuationField<PAdicNumber, PFE> {
 	private BigInteger prime;
 	private PrimeField reduced;
 	private int accuracy;
@@ -124,6 +125,14 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 
 	}
 
+	public PAdicField(int prime, int accuracy) {
+		this(BigInteger.valueOf(prime), accuracy);
+	}
+
+	public PAdicField(IntE prime, int accuracy) {
+		this(prime.getValue(), accuracy);
+	}
+
 	public PAdicField(BigInteger prime, int accuracy) {
 		if (!prime.isProbablePrime(100)) {
 			throw new ArithmeticException("not a prime!");
@@ -149,22 +158,29 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	@Override
 	public Extension<PAdicNumber, PAdicNumber, Ext<PAdicNumber>, CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField>> getExtension(
 			UnivariatePolynomial<PAdicNumber> minimalPolynomial) {
-		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension.getCompleteDVRExtension(
-				minimalPolynomial, this, residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
+		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension
+				.getCompleteDVRExtension(minimalPolynomial, this,
+						residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
 		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
 	}
 
 	@Override
 	public DiscreteValuationFieldExtension<PAdicNumber, PFE, PAdicNumber, Ext<PAdicNumber>, FFE, CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField>> getUniqueExtension(
 			UnivariatePolynomial<PAdicNumber> minimalPolynomial) {
-		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension.getCompleteDVRExtension(
-				minimalPolynomial, this, residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
-		return new DiscreteValuationFieldExtension<>(this, extension, extension.getEmbeddingMap(), extension.asVectorMap());
+		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension
+				.getCompleteDVRExtension(minimalPolynomial, this,
+						residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
+		return new DiscreteValuationFieldExtension<>(this, extension, extension.getEmbeddingMap(),
+				extension.asVectorMap());
 	}
 
 	@Override
 	public int getAccuracy() {
 		return accuracy;
+	}
+
+	public IntE getPrime() {
+		return Integers.z().getInteger(prime);
 	}
 
 	@Override
@@ -185,9 +201,9 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	public PrimeField residueField() {
 		return reduced;
 	}
-	
-	public ModularIntegerRing reduction(int numDigits) {
-		return new ModularIntegerRing(prime.pow(numDigits));
+
+	public ModuloIntegerRing reduction(int numDigits) {
+		return new ModuloIntegerRing(prime.pow(numDigits));
 	}
 
 	@Override
@@ -238,7 +254,11 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 			return r.zero();
 		}
 		return r.exp(r.divide(r.log(r.getInteger(prime)), r.getInteger(valuation(t).value())));
-
+	}
+	
+	@Override
+	public Reals getReals() {
+		return r;
 	}
 
 	@Override
@@ -300,15 +320,15 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 		return reduced.getElement(t.value);
 	}
 
-	public ModularIntegerRingElement reduce(PAdicNumber n, int numDigits) {
+	public ModuloIntegerRingElement reduce(PAdicNumber n, int numDigits) {
 		PAdicNumber t = (PAdicNumber) n;
 		if (t.lowestPower < 0) {
 			throw new ArithmeticException("Not an integer");
 		}
-		ModularIntegerRing ring = reduction(numDigits);
+		ModuloIntegerRing ring = reduction(numDigits);
 		return ring.getElement(t.value.multiply(prime.pow(t.lowestPower)));
 	}
-	
+
 	@Override
 	public PAdicNumber upToUniformizerPower(PAdicNumber t) {
 		return getInteger(t.value);
@@ -344,7 +364,8 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 	}
 
 	@Override
-	public FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> factorization(UnivariatePolynomial<PAdicNumber> t) {
+	public FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> factorization(
+			UnivariatePolynomial<PAdicNumber> t) {
 		return ringOfIntegers().factorization(t, true, getAccuracy());
 	}
 
@@ -432,11 +453,12 @@ public class PAdicField extends AbstractField<PAdicNumber> implements Field<PAdi
 
 	@Override
 	public boolean equals(Object obj) {
-	if (!(obj instanceof PAdicField)) {
-		return false;}
-		return prime.equals(((PAdicField)obj).prime);
+		if (!(obj instanceof PAdicField)) {
+			return false;
+		}
+		return prime.equals(((PAdicField) obj).prime);
 	}
-	
+
 	@Override
 	public PAdicNumber uniformizer() {
 		return new PAdicNumber(1, BigInteger.ONE);

@@ -30,6 +30,9 @@ import fields.local.TrivialDiscreteValuationField;
 import fields.local.Value;
 import fields.polynomials.GenericUnivariatePolynomialRing;
 import fields.polynomials.Monomial;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.TrivialPivotStrategy;
 import util.ConstantMap;
@@ -634,7 +637,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals) {
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<? extends Ideal<T>> ideals) {
 		if (ideals.size() > 1) {
 			throw new ArithmeticException("Not coprime proper ideals!");
 		}
@@ -645,6 +648,15 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 			return new ChineseRemainderPreparation<>(ideals, getZeroIdeal(), Collections.singletonList(one()));
 		}
 		return new ChineseRemainderPreparation<>(ideals, getZeroIdeal(), Collections.emptyList());
+	}
+	
+	@Override
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheoremModuli(List<T> moduli) {
+		List<Ideal<T>> asIdeals = new ArrayList<>();
+		for (T t : moduli) {
+			asIdeals.add(getIdeal(Collections.singletonList(t)));
+		}
+		return prepareChineseRemainderTheorem(asIdeals);
 	}
 
 	@Override
@@ -659,7 +671,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals) {
+	public T chineseRemainderTheorem(List<T> elements, List<? extends Ideal<T>> ideals) {
 		if (elements.size() != ideals.size()) {
 			throw new ArithmeticException("Mismatched multipliers!");
 		}
@@ -667,6 +679,11 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 			return zero();
 		}
 		return elements.get(0);
+	}
+
+	@Override
+	public T chineseRemainderTheoremModuli(List<T> elements, List<T> moduli) {
+		return chineseRemainderTheorem(elements, prepareChineseRemainderTheoremModuli(moduli));
 	}
 
 	@Override
@@ -954,7 +971,19 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		public boolean contains(T t) {
 			return !isZero || t.equals(zero());
 		}
-
+		
+		@Override
+		public List<List<T>> nonTrivialCombinations(List<T> s) {
+			Matrix<T> m = new Matrix<>(Collections.singletonList(s));
+			MatrixModule<T> mm = new MatrixModule<>(field, 1, s.size());
+			List<Vector<T>> kernelBasis = mm.kernelBasis(m);
+			List<List<T>> result = new ArrayList<>();
+			for (Vector<T> basisVector : kernelBasis) {
+				result.add(basisVector.asList());
+			}
+			return result;
+		}
+		
 		@Override
 		public Value maximumPowerContains(T t) {
 			if (!isZero || t.equals(zero())) {

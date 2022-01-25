@@ -43,6 +43,117 @@ import util.MiscAlgorithms;
 
 class NumberFieldTest {
 
+	@Test
+	void numberFieldNoPowerBasisTest() {
+		Rationals q = Rationals.q();
+		Integers z = Integers.z();
+		UnivariatePolynomialRing<Fraction> rationalPolynomialRing = q.getUnivariatePolynomialRing();
+		NumberField nf = new NumberField(
+				rationalPolynomialRing.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
+		NumberFieldIntegers order = nf.maximalOrder();
+		List<NumberFieldIdeal> ideals = order.idealsOver(z.getIdeal(z.getInteger(2)));
+		for (NumberFieldIdeal primeIdeal : ideals) {
+			NumberFieldIdeal newlyGenerated = order.getIdeal(primeIdeal.generators());
+			assertEquals(newlyGenerated, primeIdeal);
+			NumberFieldIdeal primePower = order.power(primeIdeal, 2);
+			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(primePower);
+			assertEquals(1, factorization.primeFactors().size());
+			assertEquals(2, factorization.multiplicity(primeIdeal));
+			NumberFieldIdeal newlyGeneratedPower = order.getIdeal(primePower.generators());
+			assertEquals(newlyGeneratedPower, primePower);
+		}
+	}
+
+	@Test
+	void testNoPowerBasisIdeals() {
+		Integers z = Integers.z();
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+		NumberField nf = new NumberField(
+				polynomials.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
+		NumberFieldIntegers order = nf.maximalOrder();
+		List<IntE> primes = new ArrayList<>();
+		primes.add(new IntE(2));
+		primes.add(new IntE(3));
+		primes.add(new IntE(5));
+		primes.add(new IntE(7));
+		primes.add(new IntE(31));
+		primes.add(new IntE(1741));
+		primes.add(new IntE(257));
+		primes.add(new IntE(503));
+		primes.add(new IntE(65537));
+		List<NFE> toGenerate = new ArrayList<>();
+		toGenerate.add(nf.one());
+		toGenerate.add(nf.alpha());
+		toGenerate.add(nf.getInteger(2));
+		toGenerate.add(nf.getInteger(3));
+		toGenerate.add(nf.getInteger(4));
+		toGenerate.add(nf.getInteger(5));
+		toGenerate.add(nf.getInteger(6));
+		toGenerate.add(nf.add(nf.alpha(), nf.one()));
+		toGenerate.add(nf.add(nf.alpha(), nf.getInteger(2)));
+		toGenerate.add(nf.add(nf.alpha(), nf.getInteger(3)));
+		toGenerate.add(nf.add(nf.alpha(), nf.getInteger(4)));
+		toGenerate.add(nf.add(nf.alpha(), nf.getInteger(5)));
+		toGenerate.add(nf.add(nf.multiply(-3, nf.alpha()), nf.getInteger(3)));
+		for (IntE prime : primes) {
+			List<NumberFieldIdeal> ideals = order.idealsOver(z.getIdeal(Collections.singletonList(prime)));
+			for (Ideal<NFE> ideal : ideals) {
+				for (NFE g : toGenerate) {
+					List<NFE> coefficients = ideal.generate(g);
+					NFE reconstructed = ideal.residue(g);
+					if (ideal.contains(g)) {
+						assertEquals(order.zero(), reconstructed);
+					}
+					for (int i = 0; i < coefficients.size(); i++) {
+						assertTrue(nf.isInteger(coefficients.get(i)));
+						reconstructed = nf.add(reconstructed,
+								nf.multiply(coefficients.get(i), ideal.generators().get(i)));
+					}
+					assertEquals(g, reconstructed);
+				}
+			}
+		}
+	}
+
+	@Test
+	void testNoPowerBasisIdealFactorization() {
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+		NumberField nf = new NumberField(
+				polynomials.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
+		NumberFieldIntegers order = nf.maximalOrder();
+		List<NFE> toFactorize = new ArrayList<>();
+		toFactorize.add(nf.one());
+		toFactorize.add(nf.getInteger(2));
+		toFactorize.add(nf.getInteger(3));
+		toFactorize.add(nf.getInteger(4));
+		toFactorize.add(nf.getInteger(5));
+		toFactorize.add(nf.getInteger(6));
+		toFactorize.add(nf.alpha());
+		toFactorize.add(nf.add(nf.alpha(), nf.one()));
+		toFactorize.add(nf.add(nf.alpha(), nf.getInteger(2)));
+		toFactorize.add(nf.add(nf.alpha(), nf.getInteger(3)));
+		toFactorize.add(nf.add(nf.alpha(), nf.getInteger(4)));
+		toFactorize.add(nf.add(nf.alpha(), nf.getInteger(5)));
+		toFactorize.add(nf.add(nf.multiply(-3, nf.alpha()), nf.getInteger(3)));
+		for (NFE factorize : toFactorize) {
+			Ideal<NFE> ideal = order.getIdeal(factorize);
+			for (NFE g : toFactorize) {
+				List<NFE> coefficients = ideal.generate(g);
+				NFE reconstructed = ideal.residue(g);
+				if (ideal.contains(g)) {
+					assertEquals(order.zero(), reconstructed);
+				}
+				for (int i = 0; i < coefficients.size(); i++) {
+					assertTrue(nf.isInteger(coefficients.get(i)));
+					reconstructed = nf.add(reconstructed, nf.multiply(coefficients.get(i), ideal.generators().get(i)));
+				}
+				assertEquals(g, reconstructed);
+			}
+		}
+	}
+
 	private <T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> boolean checkUniformizer(
 			DiscreteValuationRing<T, S> ring, OkutsuType<T, S, R, RE, RFE> type) {
 		int[] logUniformizer = type.uniformizer();
@@ -249,29 +360,43 @@ class NumberFieldTest {
 		}
 	}
 
+	private long lastTime;
+
+	private void printTime(String name, long current, long start) {
+		long diff = current - start;
+		double seconds = (double) diff / 1000.0;
+		long diffLast = current - lastTime;
+		double secondsLast = (double) diffLast / 1000.0;
+		lastTime = current;
+		System.out.printf("%1.3f, %1.3f: %s\n", secondsLast, seconds, name);
+	}
+
 	@Test
 	void testHiddenFieldIdeals() {
+		long start = System.currentTimeMillis();
+		lastTime = start;
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		List<UnivariatePolynomial<Fraction>> minimalPolynomials = new ArrayList<>();
-		minimalPolynomials.add(
-				polynomials.getPolynomial(q.getInteger(7), q.getInteger(0), q.getInteger(5), q.getInteger(0), q.one()));
+	//	minimalPolynomials.add(
+	//			polynomials.getPolynomial(q.getInteger(7), q.getInteger(0), q.getInteger(5), q.getInteger(0), q.one()));
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(93), q.getInteger(63), q.getInteger(58),
 				q.getInteger(39), q.getInteger(14), q.getInteger(3), q.one()));
+		printTime("Setup", System.currentTimeMillis(), start);
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
 			NumberField nf = new NumberField(minimalPolynomial);
-			System.out.println(nf);
+			// System.out.println(nf);
 			NumberFieldIntegers order = new NumberFieldIntegers(nf);
 			List<IntE> primes = new ArrayList<>();
 			primes.add(new IntE(2));
-			primes.add(new IntE(3));
-			primes.add(new IntE(5));
-			primes.add(new IntE(7));
+//			primes.add(new IntE(3));
+//			primes.add(new IntE(5));
+//			primes.add(new IntE(7));
 			primes.add(new IntE(31));
 			primes.add(new IntE(1741));
 			primes.add(new IntE(257));
-			primes.add(new IntE(65537));
+//			primes.add(new IntE(65537));
 			List<NFE> toGenerate = new ArrayList<>();
 			toGenerate.add(nf.one());
 			toGenerate.add(nf.alpha());
@@ -281,26 +406,34 @@ class NumberFieldTest {
 			toGenerate.add(nf.add(nf.alpha(), nf.getInteger(4)));
 			toGenerate.add(nf.add(nf.alpha(), nf.getInteger(5)));
 			toGenerate.add(nf.add(nf.multiply(-3, nf.alpha()), nf.getInteger(3)));
+			printTime("Setup " + nf, System.currentTimeMillis(), start);
 			for (IntE prime : primes) {
+				printTime("Start prime " + prime, System.currentTimeMillis(), start);
 				List<NumberFieldIdeal> ideals = order.idealsOver(z.getIdeal(prime));
+				printTime("Ideals prime " + prime, System.currentTimeMillis(), start);
 				for (Ideal<NFE> ideal : ideals) {
-					System.out.println(ideal);
+					// printTime("Start ideal " + ideal, System.currentTimeMillis(), start);
+					// System.out.println(ideal);
 					for (NFE g : toGenerate) {
 						List<NFE> coefficients = ideal.generate(g);
 						NFE reconstructed = ideal.residue(g);
-						System.out.print(g + " = " + reconstructed);
+						// System.out.print(g + " = " + reconstructed);
 						for (int i = 0; i < coefficients.size(); i++) {
-							System.out.print(" + (" + coefficients.get(i) + ")*(" + ideal.generators().get(i) + ")");
+							// System.out.print(" + (" + coefficients.get(i) + ")*(" +
+							// ideal.generators().get(i) + ")");
 							assertTrue(nf.isInteger(coefficients.get(i)));
 							reconstructed = nf.add(reconstructed,
 									nf.multiply(coefficients.get(i), ideal.generators().get(i)));
 						}
-						System.out.println();
+						// System.out.println();
 						assertEquals(g, reconstructed);
 					}
+					// printTime("End ideal " + ideal, System.currentTimeMillis(), start);
 				}
 			}
+			printTime("End " + nf, System.currentTimeMillis(), start);
 		}
+		printTime("End", System.currentTimeMillis(), start);
 	}
 
 	@Test
@@ -319,7 +452,6 @@ class NumberFieldTest {
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(6), q.zero(), q.one()));
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
 			NumberField nf = new NumberField(minimalPolynomial);
-			System.out.println(nf);
 			NumberFieldIntegers order = nf.maximalOrder();
 			List<IntE> primes = new ArrayList<>();
 			primes.add(new IntE(2));
@@ -329,6 +461,11 @@ class NumberFieldTest {
 			List<NFE> toGenerate = new ArrayList<>();
 			toGenerate.add(nf.one());
 			toGenerate.add(nf.alpha());
+			toGenerate.add(nf.getInteger(2));
+			toGenerate.add(nf.getInteger(3));
+			toGenerate.add(nf.getInteger(4));
+			toGenerate.add(nf.getInteger(5));
+			toGenerate.add(nf.getInteger(6));
 			toGenerate.add(nf.add(nf.alpha(), nf.one()));
 			toGenerate.add(nf.add(nf.alpha(), nf.getInteger(2)));
 			toGenerate.add(nf.add(nf.alpha(), nf.getInteger(3)));
@@ -338,18 +475,17 @@ class NumberFieldTest {
 			for (IntE prime : primes) {
 				List<NumberFieldIdeal> ideals = order.idealsOver(z.getIdeal(Collections.singletonList(prime)));
 				for (Ideal<NFE> ideal : ideals) {
-					System.out.println(ideal);
 					for (NFE g : toGenerate) {
 						List<NFE> coefficients = ideal.generate(g);
 						NFE reconstructed = ideal.residue(g);
-						System.out.print(g + " = " + reconstructed);
+						if (ideal.contains(g)) {
+							assertEquals(order.zero(), reconstructed);
+						}
 						for (int i = 0; i < coefficients.size(); i++) {
-							System.out.print(" + (" + coefficients.get(i) + ")*(" + ideal.generators().get(i) + ")");
 							assertTrue(nf.isInteger(coefficients.get(i)));
 							reconstructed = nf.add(reconstructed,
 									nf.multiply(coefficients.get(i), ideal.generators().get(i)));
 						}
-						System.out.println();
 						assertEquals(g, reconstructed);
 					}
 				}
@@ -372,36 +508,34 @@ class NumberFieldTest {
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(6), q.zero(), q.one()));
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
 			NumberField nf = new NumberField(minimalPolynomial);
-			System.out.println(nf);
 			NumberFieldIntegers order = nf.maximalOrder();
 			List<NFE> toFactorize = new ArrayList<>();
-			// toFactorize.add(nf.one());
-//			toFactorize.add(nf.getInteger(2));
-//			toFactorize.add(nf.getInteger(3));
-//			toFactorize.add(nf.getInteger(4));
-//			toFactorize.add(nf.getInteger(5));
-//			toFactorize.add(nf.getInteger(6));
+			toFactorize.add(nf.one());
+			toFactorize.add(nf.getInteger(2));
+			toFactorize.add(nf.getInteger(3));
+			toFactorize.add(nf.getInteger(4));
+			toFactorize.add(nf.getInteger(5));
+			toFactorize.add(nf.getInteger(6));
 			toFactorize.add(nf.alpha());
-//			toFactorize.add(nf.add(nf.alpha(), nf.one()));
-//			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(2)));
-//			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(3)));
-//			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(4)));
-//			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(5)));
+			toFactorize.add(nf.add(nf.alpha(), nf.one()));
+			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(2)));
+			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(3)));
+			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(4)));
+			toFactorize.add(nf.add(nf.alpha(), nf.getInteger(5)));
 			toFactorize.add(nf.add(nf.multiply(-3, nf.alpha()), nf.getInteger(3)));
 			for (NFE factorize : toFactorize) {
 				Ideal<NFE> ideal = order.getIdeal(factorize);
-				System.out.println(ideal + " = " + order.idealFactorization(ideal));
 				for (NFE g : toFactorize) {
 					List<NFE> coefficients = ideal.generate(g);
 					NFE reconstructed = ideal.residue(g);
-					System.out.print(g + " = " + reconstructed);
+					if (ideal.contains(g)) {
+						assertEquals(order.zero(), reconstructed);
+					}
 					for (int i = 0; i < coefficients.size(); i++) {
-						System.out.print(" + (" + coefficients.get(i) + ")*(" + ideal.generators().get(i) + ")");
 						assertTrue(nf.isInteger(coefficients.get(i)));
 						reconstructed = nf.add(reconstructed,
 								nf.multiply(coefficients.get(i), ideal.generators().get(i)));
 					}
-					System.out.println();
 					assertEquals(g, reconstructed);
 				}
 			}

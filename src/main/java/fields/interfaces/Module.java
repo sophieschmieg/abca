@@ -12,6 +12,8 @@ public interface Module<T extends Element<T>, S extends Element<S>> extends Math
 	public S negative(S s);
 	public S scalarMultiply(T t, S s);
 	public boolean isFree();
+	public boolean isTorsionFree();
+	public Ideal<T> annihilator();
 	public Group<S> getAdditiveGroup();
 	public S add(S s1, S s2, S s3);
 	public S subtract(S minuend, S subtrahend);
@@ -27,6 +29,9 @@ public interface Module<T extends Element<T>, S extends Element<S>> extends Math
 	public List<T> nonTrivialCombination(List<S> s);
 	public List<List<T>> nonTrivialCombinations(List<S> s);
 	public List<S> getModuleGenerators();
+	public default List<List<T>> getModuleGeneratorRelations() {
+		return nonTrivialCombinations(getModuleGenerators());
+	}
 	public Vector<T> asVector(S s);
 	public S fromVector(Vector<T> vector);
 }

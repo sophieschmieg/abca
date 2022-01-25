@@ -2,6 +2,7 @@ package fields.vectors;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -9,25 +10,68 @@ import fields.exceptions.InfinityException;
 import fields.helper.AbstractModule;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.Ideal;
 import fields.interfaces.Ring;
 import fields.interfaces.VectorSpace;
 
 public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends AbstractModule<T, S>
 		implements VectorSpace<T, S> {
 	private VectorSpace<T, S> space;
+	private Matrix<T> baseChange;
+	private MatrixModule<T> matrixModule;
 	private List<S> generators;
 	private FiniteVectorSpace<T> asFiniteVectorSpace;
+	private int embeddingDimension;
 
-	public SubVectorSpace(VectorSpace<T, S> space, List<S> generators) {
+	public SubVectorSpace(VectorSpace<T, S> space, List<S> generators, boolean checkBasis) {
 		this.space = space;
-		this.generators = new ArrayList<>();
+		if (generators.size() == 0) {
+			this.generators = Collections.emptyList();
+			return;
+		}
+		List<Vector<T>> asVectors = new ArrayList<>();
+		embeddingDimension = 0;
+		boolean differentEmbeddingDimensions = false;
 		for (S s : generators) {
-			this.generators.add(s);
-			if (!space.isLinearIndependent(this.generators)) {
-				this.generators.remove(this.generators.size() - 1);
+			Vector<T> vector = space.asVector(s);
+			asVectors.add(vector);
+			if (embeddingDimension != 0 && embeddingDimension != vector.dimension()) {
+				differentEmbeddingDimensions = true;
+			}
+			if (embeddingDimension < vector.dimension()) {
+				embeddingDimension = vector.dimension();
 			}
 		}
+		if (differentEmbeddingDimensions) {
+			asVectors.clear();
+			for (S s : generators) {
+				Vector<T> vector = space.asVector(s);
+				List<T> asList = new ArrayList<>();
+				asList.addAll(vector.asList());
+				while (asList.size() < embeddingDimension) {
+					asList.add(space.getField().zero());
+				}
+				asVectors.add(new Vector<>(asList));
+			}
+		}
+		Matrix<T> asMatrix = Matrix.fromColumns(asVectors);
+		this.matrixModule = asMatrix.getModule(space.getField());
+		List<Vector<T>> basisVectors = matrixModule.imageBasis(asMatrix);
+		this.baseChange = Matrix.fromColumns(basisVectors);
+		this.matrixModule = baseChange.getModule(space.getField());
+		this.generators = new ArrayList<>();
+		for (Vector<T> basisVector : basisVectors) {
+			this.generators.add(space.fromVector(basisVector));
+		}
 		this.asFiniteVectorSpace = new FiniteVectorSpace<>(space.getField(), this.generators.size());
+	}
+
+	public SubVectorSpace(VectorSpace<T, S> space, List<S> generators) {
+		this(space, generators, true);
+	}
+	
+	public int getEmbeddingDimension() {
+		return embeddingDimension;
 	}
 
 	@Override
@@ -66,6 +110,11 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	}
 
 	@Override
+	public Ideal<T> annihilator() {
+		return space.getRing().getZeroIdeal();
+	}
+
+	@Override
 	public boolean isLinearIndependent(List<S> s) {
 		return space.isLinearIndependent(s);
 	}
@@ -76,10 +125,10 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	}
 
 	public boolean contains(S s) {
-		List<S> added = new ArrayList<>();
-		added.addAll(generators);
-		added.add(s);
-		return !space.isLinearIndependent(added);
+		if (generators.isEmpty()) {
+			return s.equals(space.zero());
+		}
+		return matrixModule.hasSolution(baseChange, space.asVector(s));
 	}
 
 	public SubVectorSpace<T, S> intersection(SubVectorSpace<T, S> other) {
@@ -110,17 +159,19 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 		if (s.size() < dimension()) {
 			return false;
 		}
-		List<S> independent = new ArrayList<>();
-		for (S v : s) {
-			if (!contains(v)) {
+		if (generators.size() == 0) {
+			return true;
+		}
+		List<Vector<T>> asVectors = new ArrayList<>();
+		for (S t : s) {
+			if (!contains(t)) {
 				return false;
 			}
-			independent.add(v);
-			if (!space.isLinearIndependent(independent)) {
-				independent.remove(independent.size() - 1);
-			}
+			asVectors.add(space.asVector(t));
 		}
-		return independent.size() == dimension();
+		Matrix<T> asMatrix = Matrix.fromColumns(asVectors);
+		int rank = asMatrix.getModule(space.getField()).rank(asMatrix);
+		return rank == dimension();
 	}
 
 	@Override
@@ -130,6 +181,9 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 
 	@Override
 	public S getRandomElement() {
+		if (generators.isEmpty()) {
+			return space.zero();
+		}
 		Vector<T> rng = asFiniteVectorSpace.getRandomElement();
 		return fromVector(rng);
 	}
@@ -146,6 +200,9 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 
 	@Override
 	public Iterator<S> iterator() {
+		if (generators.isEmpty()) {
+			return Collections.singletonList(space.zero()).iterator();
+		}
 		return new Iterator<S>() {
 			private Iterator<Vector<T>> it = asFiniteVectorSpace.iterator();
 
@@ -168,22 +225,21 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	}
 
 	@Override
+	public S getUnitVector(int index) {
+		return generators.get(index - 1);
+	}
+
+	@Override
 	public List<S> getBasis() {
 		return generators;
 	}
 
 	@Override
 	public Vector<T> asVector(S s) {
-		List<S> columns = new ArrayList<>();
-		columns.addAll(generators);
-		columns.add(s);
-		List<T> nonTrivial = space.nonTrivialCombination(columns);
-		T last = nonTrivial.get(dimension());
-		if (last.equals(space.getField().zero())) {
-			throw new ArithmeticException("generators not linear independent!");
+		if (generators.isEmpty()) {
+			return new Vector<>();
 		}
-		Vector<T> asVector = new Vector<>(nonTrivial.subList(0, dimension()));
-		return asFiniteVectorSpace.scalarMultiply(space.getField().negative(space.getField().inverse(last)), asVector);
+		return matrixModule.solve(baseChange, space.asVector(s));
 	}
 
 	@Override

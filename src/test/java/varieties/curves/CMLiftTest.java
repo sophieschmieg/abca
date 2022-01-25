@@ -1,59 +1,94 @@
 package varieties.curves;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 
 import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
-import fields.interfaces.Polynomial;
-import fields.interfaces.PolynomialRing;
-import fields.local.Value;
-import fields.polynomials.AbstractPolynomialRing;
-import fields.polynomials.CoordinateRing;
-import fields.polynomials.LocalizedCoordinateRing;
-import fields.polynomials.Monomial;
-import fields.polynomials.PolynomialIdeal;
-import fields.polynomials.CoordinateRing.CoordinateRingElement;
-import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
+import util.graph.Edge;
+import util.graph.Graph;
+import varieties.curves.elliptic.EllipticCurve;
+import varieties.curves.elliptic.Isogeny;
 
 class CMLiftTest {
 
 	@Test
-	void testSaturation() {
-		FiniteField fq = FiniteField.getFiniteField(25);
-		PolynomialRing<FFE> p = AbstractPolynomialRing.getPolynomialRing(fq, 2, Monomial.LEX);
-		Polynomial<FFE> mod = p.subtract(p.getVarPower(2, 2), p.add(p.getVarPower(1, 3), p.getVar(1), p.one()));
-		PolynomialIdeal<FFE> ideal = p.getIdeal(Collections.singletonList(mod));
-		System.out.println("Ring: " + p);
-		System.out.println("Ideal: " + ideal);
-		CoordinateRing<FFE> ring = ideal.divideOut();
-		List<CoordinateRingElement<FFE>> list = new ArrayList<>();
-		list.add(ring.getEmbedding(p.getVar(1)));
-		list.add(ring.getEmbedding(p.subtract(p.getVar(2), p.one())));
-		LocalizedCoordinateRing<FFE> lcr = new LocalizedCoordinateRing<>(fq, ring, ring.getIdeal(list));
-		LocalizedElement<FFE> le1 = lcr.getEmbedding(p.subtract(p.getVar(2), p.one()));
+	void testCMCurves() {
+//		Rationals q = Rationals.q();
+//		Integers z = Integers.z();
+//		NumberField nf = new NumberField(
+//				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
+//		UnivariatePolynomialRing<NFE> nfPolynomials = nf.getUnivariatePolynomialRing();
+//		NumberFieldIntegers order = nf.maximalOrder();
+//		NumberFieldIdeal ideal = order.idealsOver(2).get(0);
+//		NumberFieldIdeal idealSquared = order.multiply(ideal, ideal);
+//		FieldEmbedding<Fraction, NFE, NumberField> fieldEmbedding = nf.getEmbeddedExtension(
+//				nfPolynomials.getPolynomial(idealSquared.generators().get(0), nf.zero(), nf.one()));
+//		System.out.println(fieldEmbedding.getField().maximalOrder().discriminantOver(fieldEmbedding));
+//		ideal = order.idealsOver(3).get(0);
+//		idealSquared = order.multiply(ideal, ideal);
+//		fieldEmbedding = nf.getEmbeddedExtension(
+//				nfPolynomials.getPolynomial(idealSquared.generators().get(0), nf.zero(), nf.one()));
+//		System.out.println(fieldEmbedding.getField().maximalOrder().discriminantOver(fieldEmbedding));
 
-		assertEquals(Value.ONE, lcr.valuation(le1));
-		Polynomial<FFE> mod2 = p.subtract(
-				p.add(p.getVarPower(1, 3), p.getVarPower(2, 3), p.multiply(p.getVar(1), p.getVarPower(2, 2))),
-				p.getVar(2));
-		CoordinateRing<FFE> ring2 = p.getIdeal(Collections.singletonList(mod2)).divideOut();
-		List<CoordinateRingElement<FFE>> list2 = new ArrayList<>();
-		list2.add(ring.getEmbedding(p.getVar(1)));
-		list2.add(ring.getEmbedding(p.getVar(2)));
-		LocalizedCoordinateRing<FFE> lcr2 = new LocalizedCoordinateRing<>(fq, ring2, ring2.getIdeal(list2));
-		assertEquals(new Value(3), lcr2.valuation(lcr2.getEmbedding(p.getVar(2))));
-		assertEquals(new Value(12), lcr2.valuation(lcr2.getEmbedding(p.getVarPower(2, 4))));
-		LocalizedElement<FFE> testElement = lcr2.divide(lcr2.getEmbedding(p.getVarPower(2, 4)),
-				lcr2.getEmbedding(p.getVarPower(1, 12)));
-		assertEquals(Value.ZERO, lcr2.valuation(testElement));
-		assertEquals(fq.one(), lcr2.reduce(testElement));
+		FiniteField fq = FiniteField.getFiniteField(83*83);
+		
+		EllipticCurve<FFE> curve = EllipticCurve.fromJInvariant(fq, fq.getInteger(8000));
+		System.out.println(curve);
+		System.out.println(curve.isSupersingular());
+		System.out.println(curve.getNumberOfElements());
+		System.out.println(curve.trace());
+		System.out.println(curve.getTorsionPoints(2));
+		Graph<EllipticCurve<FFE>, Isogeny<FFE>> isogenyGraph = curve.isogenyGraph(3);
+		for (EllipticCurve<FFE> vertex : isogenyGraph.vertexSet()) {
+			for (Edge<EllipticCurve<FFE>, Isogeny<FFE>> edge : isogenyGraph.edges(vertex)) {
+			System.out.println(edge.firstVertex().jInvariant()+"-->"+edge.secondVertex().jInvariant());
+			}
+		}
+				
+//		Complex c = Complex.c(40);
+//		Map<ComplexNumber, Integer> sqrts2 = c.roots(c.getUnivariatePolynomialRing().getPolynomial(c.getInteger(5), c.zero(), c.one()));
+//		ComplexNumber sqrt2 = null;
+//		for (ComplexNumber t : sqrts2.keySet()) {
+//			if (t.complexPart().compareTo(c.getField().zero()) > 0) {
+//				sqrt2 = t;
+//				break;
+//			}
+//		} // sqrt(-2) => 8000
+//		//	 sqrt(-5) => 308736+.7i
+//		System.out.println(EllipticCurve.fromTau(c, sqrt2).getCurve().jInvariant());
 	}
+
+//	@Test
+//	void testSaturation() {
+//		FiniteField fq = FiniteField.getFiniteField(25);
+//		PolynomialRing<FFE> p = AbstractPolynomialRing.getPolynomialRing(fq, 2, Monomial.LEX);
+//		Polynomial<FFE> mod = p.subtract(p.getVarPower(2, 2), p.add(p.getVarPower(1, 3), p.getVar(1), p.one()));
+//		PolynomialIdeal<FFE> ideal = p.getIdeal(Collections.singletonList(mod));
+//		System.out.println("Ring: " + p);
+//		System.out.println("Ideal: " + ideal);
+//		CoordinateRing<FFE> ring = ideal.divideOut();
+//		List<CoordinateRingElement<FFE>> list = new ArrayList<>();
+//		list.add(ring.getEmbedding(p.getVar(1)));
+//		list.add(ring.getEmbedding(p.subtract(p.getVar(2), p.one())));
+//		LocalizedCoordinateRing<FFE> lcr = new LocalizedCoordinateRing<>(fq, ring, ring.getIdeal(list));
+//		LocalizedElement<FFE> le1 = lcr.getEmbedding(p.subtract(p.getVar(2), p.one()));
+//
+//		assertEquals(Value.ONE, lcr.valuation(le1));
+//		Polynomial<FFE> mod2 = p.subtract(
+//				p.add(p.getVarPower(1, 3), p.getVarPower(2, 3), p.multiply(p.getVar(1), p.getVarPower(2, 2))),
+//				p.getVar(2));
+//		CoordinateRing<FFE> ring2 = p.getIdeal(Collections.singletonList(mod2)).divideOut();
+//		List<CoordinateRingElement<FFE>> list2 = new ArrayList<>();
+//		list2.add(ring.getEmbedding(p.getVar(1)));
+//		list2.add(ring.getEmbedding(p.getVar(2)));
+//		LocalizedCoordinateRing<FFE> lcr2 = new LocalizedCoordinateRing<>(fq, ring2, ring2.getIdeal(list2));
+//		assertEquals(new Value(3), lcr2.valuation(lcr2.getEmbedding(p.getVar(2))));
+//		assertEquals(new Value(12), lcr2.valuation(lcr2.getEmbedding(p.getVarPower(2, 4))));
+//		LocalizedElement<FFE> testElement = lcr2.divide(lcr2.getEmbedding(p.getVarPower(2, 4)),
+//				lcr2.getEmbedding(p.getVarPower(1, 12)));
+//		assertEquals(Value.ZERO, lcr2.valuation(testElement));
+//		assertEquals(fq.one(), lcr2.reduce(testElement));
+//	}
 
 //	@Test
 //	void testMultiplicationMorphism() {

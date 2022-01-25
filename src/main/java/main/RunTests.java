@@ -44,7 +44,7 @@ import fields.vectors.Vector;
 import util.MiscAlgorithms;
 import varieties.FunctionField;
 import varieties.RationalFunction;
-import varieties.curves.EllipticCurve;
+import varieties.curves.elliptic.EllipticCurve;
 import varieties.projective.ProjectivePoint;
 
 public class RunTests {
@@ -433,19 +433,7 @@ public class RunTests {
 		UnivariatePolynomialRing<PFE> ring = base.getUnivariatePolynomialRing();
 		UnivariatePolynomial<PFE> mini = ring.getPolynomial(base.getElement(2), base.getElement(0), base.getElement(1));
 		FiniteField f25 = FiniteField.getFiniteField(mini, base);
-		FFE a = f25.getRandomElement();
-		FFE b = f25.getRandomElement();
 		// MatrixAlgebra<PrimeFieldElement> algebra = new MatrixAlgebra<>(base, 2);
-		new TestMatrix<>(base, 2, 3);
-		new TestMatrix<>(Integers.z(), 2, 3);
-		new TestMatrix<>(Integers.z(), 3, 3);
-		new TestMatrix<>(f25, 3, 3);
-		new TestMatrix<>(f25.getUnivariatePolynomialRing(), 2, 3);
-		new TestMatrix<>(base, 2, 2);
-		new TestMatrix<>(Integers.z(), 2, 2);
-		new TestMatrix<>(Integers.z(), 3, 2);
-		new TestMatrix<>(f25, 3, 2);
-		new TestMatrix<>(f25.getUnivariatePolynomialRing(), 2, 2);
 		System.exit(0);
 		new TestEllipticCurve<>(f25, f25.one(), f25.one());
 		new TestEllipticCurve<>(f25, f25.negative(f25.one()), f25.zero());

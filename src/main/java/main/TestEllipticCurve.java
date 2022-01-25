@@ -9,7 +9,7 @@ import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
 import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.UnivariatePolynomialRing;
-import varieties.curves.EllipticCurve;
+import varieties.curves.elliptic.EllipticCurve;
 import varieties.projective.ProjectivePoint;
 
 public class TestEllipticCurve<T extends Element<T>> {

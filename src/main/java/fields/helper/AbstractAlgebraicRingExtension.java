@@ -204,6 +204,11 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	public final boolean isFree() {
 		return true;
 	}
+	
+	@Override
+	public Ideal<T> annihilator() {
+		return baseRing.getZeroIdeal();
+	}
 
 	@Override
 	public final boolean isLinearIndependent(List<S> s) {
@@ -804,6 +809,24 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		@Override
 		public boolean isMaximal() {
 			return polynomialIdeal.isMaximal();
+		}
+		
+		@Override
+		public List<List<S>> nonTrivialCombinations(List<S> s) {
+			List<Polynomial<T>> asPolynomials = new ArrayList<>();
+			for (S e : s) {
+				asPolynomials.add(asPolynomial(e));
+			}
+			List<List<S>> result = new ArrayList<>();
+			List<List<Polynomial<T>>> combinations = polynomialIdeal.nonTrivialCombinations(asPolynomials);
+			for (List<Polynomial<T>> combination : combinations) {
+				List<S> row = new ArrayList<>();
+				for (Polynomial<T> e : combination) {
+					row.add(fromPolynomial(polynomials.toUnivariate(e)));
+				}
+				result.add(row);
+			}
+			return result;
 		}
 
 		@Override

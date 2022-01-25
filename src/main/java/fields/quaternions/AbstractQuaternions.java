@@ -215,6 +215,11 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	}
 
 	@Override
+	public Ideal<T> annihilator() {
+		return base.getZeroIdeal();
+	}
+
+	@Override
 	public boolean isLinearIndependent(List<Quaternion<T>> s) {
 		return asVectorSpace.isLinearIndependent(asVectors(s));
 	}
@@ -585,6 +590,11 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	@Override
 	public Field<T> getRing() {
 		return base;
+	}
+	
+	@Override
+	public Quaternion<T> getUnitVector(int index) {
+		return fromVector(asVectorSpace.getUnitVector(index));
 	}
 
 	@Override

@@ -1,16 +1,17 @@
-package varieties.curves;
+package varieties.curves.elliptic;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 
-public class CompositionIsogeny<T extends Element<T>> implements Isogeny<T> {
+public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Isogeny<T>> implements Isogeny<T> {
 	private Isogeny<T> firstIsogeny;
 	private Isogeny<T> secondIsogeny;
 	private ProjectiveMorphism<T> asMorphism;
@@ -21,6 +22,24 @@ public class CompositionIsogeny<T extends Element<T>> implements Isogeny<T> {
 		}
 		this.firstIsogeny = firstIsogeny;
 		this.secondIsogeny = secondIsogeny;
+	}
+	
+	@Override
+	public String toString() {
+		return firstIsogeny.toString() + " o " + secondIsogeny.toString();
+	}
+	
+	@Override
+	public int compareTo(Isogeny<T> o) {
+		if (o instanceof CompositionIsogeny<?>) {
+			CompositionIsogeny<T> other = (CompositionIsogeny<T>) o;
+			int cmp = firstIsogeny.compareTo(other.firstIsogeny);
+			if (cmp != 0) {
+				return cmp;
+			}
+			return secondIsogeny.compareTo(other.secondIsogeny);
+		}
+		return getClass().getName().compareTo(o.getClass().getName());
 	}
 
 	@Override

@@ -271,6 +271,11 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		}
 		return r.exp(r.getInteger(-valuation(t).value()));
 	}
+	
+	@Override
+	public Reals getReals() {
+		return r;
+	}
 
 	@Override
 	public LocalizedElement<T> zero() {

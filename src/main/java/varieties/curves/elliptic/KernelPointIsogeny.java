@@ -1,9 +1,11 @@
-package varieties.curves;
+package varieties.curves.elliptic;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
+import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.Polynomial;
@@ -11,7 +13,7 @@ import fields.interfaces.PolynomialRing;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 
-public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
+public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Isogeny<T>> implements Isogeny<T> {
 	private Field<T> field;
 	private EllipticCurve<T> domain;
 	private EllipticCurve<T> range;
@@ -25,7 +27,7 @@ public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 		this.field = domain.getField();
 		this.domain = domain;
 		if (!domain.multiply(kernelDegree, kernelGenerator).equals(domain.neutral())) {
-			throw new ArithmeticException("kernel degree wrong!");
+			throw new ArithmeticException("kernel degree wrong! [" + kernelDegree + "]" + kernelGenerator +" = " + domain.multiply(kernelDegree, kernelGenerator));
 		}
 		this.kernelGenerator = kernelGenerator;
 		this.kernelDegree = kernelDegree;
@@ -62,8 +64,27 @@ public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 		T rangeA = field.subtract(a, field.multiply(5, v));
 		T rangeB = field.subtract(b, field.multiply(7, w));
 		this.range = new EllipticCurve<T>(field, rangeA, rangeB);
+		this.range.setNumberOfPointsFrom(domain, this);
 	}
 
+	@Override
+	public int compareTo(Isogeny<T> o) {
+		if (o instanceof KernelPointIsogeny<?>) {
+			KernelPointIsogeny<T> other = (KernelPointIsogeny<T>) o;
+			int cmp = domain.compareTo(other.domain);
+			if (cmp != 0) {
+				return cmp;
+			}
+			return kernelGenerator.compareTo(other.kernelGenerator);
+		}
+		return getClass().getName().compareTo(o.getClass().getName());
+	}
+
+	@Override
+	public String toString() {
+		return "Ker = <" + kernelGenerator.toString() + ">";
+	}
+	
 	public EllipticCurve<T> getDomain() {
 		return domain;
 	}
@@ -126,7 +147,8 @@ public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 			result.add(x);
 			result.add(y);
 			result.add(z);
-			asMorphism = new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(), result);
+			asMorphism = new ProjectiveMorphism<>(domain.asGenericProjectiveScheme(), range.asGenericProjectiveScheme(),
+					result);
 		}
 		return asMorphism;
 	}
@@ -148,5 +170,10 @@ public class KernelPointIsogeny<T extends Element<T>> implements Isogeny<T> {
 			throw new ArithmeticException("Dual isogeny not definied over this field. Please extend the field.");
 		}
 		return new KernelPointIsogeny<T>(range, dualKernelPoint, kernelDegree);
+	}
+	
+//	@Override
+	public List<ProjectivePoint<T>> kernelGenerators() {
+		return Collections.singletonList(kernelGenerator);
 	}
 }

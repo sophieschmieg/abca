@@ -4,14 +4,14 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.floatingpoint.Reals.Real;
-import fields.helper.AbstractInnerProductSpace;
-import fields.interfaces.MathMap;
+import fields.integers.Integers.IntE;
 import fields.interfaces.ValueField;
+import fields.vectors.AbstractRealInnerProductSpace;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
 
-public class FiniteRealVectorSpace extends AbstractInnerProductSpace<Real, Vector<Real>> {
+public class FiniteRealVectorSpace extends AbstractRealInnerProductSpace<Real, Vector<Real>> {
 	private Reals r;
 	private FiniteVectorSpace<Real> vectorSpace;
 	private int dimension;
@@ -20,6 +20,10 @@ public class FiniteRealVectorSpace extends AbstractInnerProductSpace<Real, Vecto
 		this.r = r;
 		this.dimension = dimension;
 		this.vectorSpace = new FiniteVectorSpace<>(this.r, this.dimension);
+	}
+	
+	public String toString() {
+		return "R^" + dimension;
 	}
 
 	@Override
@@ -39,6 +43,11 @@ public class FiniteRealVectorSpace extends AbstractInnerProductSpace<Real, Vecto
 	@Override
 	public ValueField<Real> getValueField() {
 		return r;
+	}
+	
+	@Override
+	public FiniteRealVectorSpace withDimension(int dimension) {
+		return new FiniteRealVectorSpace(r, dimension);
 	}
 
 	@Override
@@ -70,15 +79,15 @@ public class FiniteRealVectorSpace extends AbstractInnerProductSpace<Real, Vecto
 	public Iterator<Vector<Real>> iterator() {
 		return vectorSpace.iterator();
 	}
+	
+	@Override
+	public Vector<Real> getUnitVector(int index) {
+		return vectorSpace.getUnitVector(index);
+	}
 
 	@Override
 	public List<Vector<Real>> getBasis() {
 		return vectorSpace.getBasis();
-	}
-
-	@Override
-	public boolean isLinearIndependent(List<Vector<Real>> s) {
-		return vectorSpace.isLinearIndependent(s);
 	}
 
 	@Override
@@ -90,6 +99,11 @@ public class FiniteRealVectorSpace extends AbstractInnerProductSpace<Real, Vecto
 	public List<Vector<Real>> getModuleGenerators() {
 		return vectorSpace.getModuleGenerators();
 	}
+	
+	@Override
+	public Vector<Real> fromVector(Vector<Real> vector) {
+		return vector;
+	}
 
 	@Override
 	public Vector<Real> asVector(Vector<Real> s) {
@@ -97,12 +111,18 @@ public class FiniteRealVectorSpace extends AbstractInnerProductSpace<Real, Vecto
 	}
 	
 	@Override
-	public List<Vector<Real>> latticeReduction(List<Vector<Real>> s) {
-		return latticeReduction(this, new MathMap<>() {
-			@Override
-			public Real evaluate(Real t) {
-				return r.getInteger(t.round());
-			}}, s);
+	public IntE round(Real t) {
+		return t.round();
+	}
+	
+	@Override
+	public Real fromReal(Real r) {
+		return r;
+	}
+	
+	@Override
+	public Real asReal(Real t) {
+		return t;
 	}
 
 	@Override

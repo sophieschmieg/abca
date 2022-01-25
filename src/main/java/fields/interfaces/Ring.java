@@ -389,6 +389,10 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public T power(T t, int n);
 
 	public T power(T t, BigInteger n);
+	
+	default public T power(T t, IntE n) {
+		return power(t, n.getValue());
+	}
 
 	public T projectToUnit(T t);
 
@@ -489,17 +493,17 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public Pair<T, T> bezoutIdentity(T t1, T t2);
 
 	public static class ChineseRemainderPreparation<T extends Element<T>> {
-		private List<Ideal<T>> ideals;
+		private List<? extends Ideal<T>> ideals;
 		private Ideal<T> product;
 		private List<T> multipliers;
 
-		public ChineseRemainderPreparation(List<Ideal<T>> ideals, Ideal<T> product, List<T> multipliers) {
+		public ChineseRemainderPreparation(List<? extends Ideal<T>> ideals, Ideal<T> product, List<T> multipliers) {
 			this.ideals = ideals;
 			this.product = product;
 			this.multipliers = multipliers;
 		}
 
-		public List<Ideal<T>> getIdeals() {
+		public List<? extends Ideal<T>> getIdeals() {
 			return ideals;
 		}
 
@@ -513,11 +517,15 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	}
 
-	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<Ideal<T>> ideals);
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<? extends Ideal<T>> ideals);
+
+	public ChineseRemainderPreparation<T> prepareChineseRemainderTheoremModuli(List<T> moduli);
 
 	public T chineseRemainderTheorem(List<T> elements, ChineseRemainderPreparation<T> preparation);
 
-	public T chineseRemainderTheorem(List<T> elements, List<Ideal<T>> ideals);
+	public T chineseRemainderTheorem(List<T> elements, List<? extends Ideal<T>> ideals);
+
+	public T chineseRemainderTheoremModuli(List<T> elements, List<T> moduli);
 
 	public boolean coprime(T t1, T t2);
 

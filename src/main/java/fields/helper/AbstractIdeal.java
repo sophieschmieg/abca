@@ -27,7 +27,7 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 	public Ring<T> getRing() {
 		return r;
 	}
-	
+
 	@Override
 	public boolean isRadical() {
 		return r.radical(this).equals(this);
@@ -53,13 +53,24 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 		return r.multiply(s, t);
 	}
 
-	public final boolean isPrincipal() {
+	public boolean isPrincipal() {
 		return this.generators().size() == 1;
 	}
 
 	@Override
 	public final boolean isFree() {
 		return isPrincipal();
+	}
+
+	@Override
+	public Ideal<T> annihilator() {
+		if (r.isIntegral()) {
+			if (r.getZeroIdeal().contains(this)) {
+				return r.getUnitIdeal();
+			}
+			return r.getZeroIdeal();
+		}
+		throw new UnsupportedOperationException("not implemented");
 	}
 
 	@Override
@@ -139,40 +150,13 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 			return true;
 		}
 		List<T> generators = generators();
-		if (generators.isEmpty() ||( generators.size() == 1 && generators.get(0).equals(r.zero()))) {
+		if (generators.isEmpty() || (generators.size() == 1 && generators.get(0).equals(r.zero()))) {
 			return true;
 		}
 		if (s.size() > 1) {
 			return false;
 		}
 		return r.isZeroDivisor(s.get(0));
-	}
-
-	@Override
-	public final List<List<T>> nonTrivialCombinations(List<T> s) {
-		if (s.size() > 1) {
-			List<List<T>> result = new ArrayList<>();
-			for (int i = 1; i < s.size(); i++) {
-				List<T> here = new ArrayList<>();
-				here.add(s.get(i));
-				for (int j = 2; j < i; j++) {
-					here.add(r.zero());
-				}
-				here.add(r.negative(s.get(0)));
-				for (int j = i + 1; j < s.size(); j++) {
-					here.add(r.zero());
-				}
-				result.add(here);
-			}
-			return result;
-		}
-		if (s.isEmpty() || !r.isZeroDivisor(s.get(0))) {
-			throw new ArithmeticException("List is independent");
-		}
-		if (s.get(0).equals(r.zero())) {
-			return Collections.singletonList(Collections.singletonList(r.one()));
-		}
-		throw new UnsupportedOperationException();
 	}
 
 	@Override
