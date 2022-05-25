@@ -41,7 +41,7 @@ public class FiniteRealVectorSpace extends AbstractRealInnerProductSpace<Real, V
 	}
 
 	@Override
-	public ValueField<Real> getValueField() {
+	public Reals getValueField() {
 		return r;
 	}
 	
@@ -136,7 +136,7 @@ public class FiniteRealVectorSpace extends AbstractRealInnerProductSpace<Real, V
 	}
 
 	@Override
-	public List<List<Real>> nonTrivialCombinations(List<Vector<Real>> s) {
+	public List<Vector<Real>> nonTrivialCombinations(List<Vector<Real>> s) {
 		return vectorSpace.nonTrivialCombinations(s);
 	}
 

@@ -26,6 +26,9 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.GenericUnivariatePolynomialRing;
 import fields.polynomials.Monomial;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import fields.vectors.pivot.DivisionPivotStrategy;
 import fields.vectors.pivot.EuclidPivotStrategy;
 import fields.vectors.pivot.PivotStrategy;
@@ -245,10 +248,13 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			square = t;
 		}
 		T result = one();
-		for (int i = 0; i <= n.bitLength(); i++) {
-			if (n.testBit(i))
+		for (int i = 0; i < n.bitLength(); i++) {
+			if (n.testBit(i)) {
 				result = this.multiply(result, square);
-			square = this.multiply(square, square);
+			}
+			if (i < n.bitLength() - 1) {
+				square = this.multiply(square, square);
+			}
 		}
 		return result;
 	}
@@ -451,6 +457,12 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			}
 			return gcd;
 		}
+		if (this.isPrincipalIdealDomain()) {
+			Ideal<T> ideal1 = this.getIdeal(Collections.singletonList(t1));
+			Ideal<T> ideal2 = this.getIdeal(Collections.singletonList(t2));
+			Ideal<T> ideal = this.add(ideal1, ideal2);
+			return ideal.generators().get(0);
+		}
 		throw new RuntimeException("Not possible");
 	}
 
@@ -600,7 +612,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<T, ?> moduloMaximalIdeal(Ideal<T> ideal) {
+	public ModuloMaximalIdealResult<T, ?, ?, ?, ?> moduloMaximalIdeal(Ideal<T> ideal) {
 		throw new UnsupportedOperationException("Not implemented!");
 	}
 
@@ -732,6 +744,86 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	@Override
 	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t) {
 		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		if (!isPrincipalIdealDomain()) {
+			throw new ArithmeticException("Not a principal ideal domain!");
+		}
+		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
+		Vector<T> rhs = module.codomainAlgebra().multiply(gauss.getRowOperationsInverse(), b);
+		for (int i = 0; i < m.rows(); i++) {
+			if (i < m.columns() && !isDivisible(rhs.get(i + 1), gauss.getDiagonalMatrix().entry(i + 1, i + 1))) {
+				return false;
+			}
+			if (i >= m.columns() && !rhs.get(i + 1).equals(zero())) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		if (!isPrincipalIdealDomain()) {
+			throw new ArithmeticException("Not a principal ideal domain!");
+		}
+		List<T> result = new ArrayList<>();
+		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
+		Vector<T> rhs = module.codomainAlgebra().multiply(gauss.getRowOperationsInverse(), b);
+		for (int i = 0; i < m.columns(); i++) {
+			if (i < m.rows() && (!rhs.get(i + 1).equals(zero())
+					|| !gauss.getDiagonalMatrix().entry(i + 1, i + 1).equals(zero()))) {
+				T r = divideChecked(rhs.get(i + 1), gauss.getDiagonalMatrix().entry(i + 1, i + 1));
+				result.add(r);
+			} else {
+				result.add(zero());
+			}
+		}
+		return module.domainAlgebra().multiply(gauss.getColOperationsInverse(), new Vector<>(result));
+	}
+
+	@Override
+	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m) {
+		if (!isPrincipalIdealDomain()) {
+			throw new ArithmeticException("Not a principal ideal domain!");
+		}
+		List<Vector<T>> result = new ArrayList<>();
+		MatrixModule<T>.SmithNormalFormResult smith = module.smithNormalForm(m);
+		for (int i = 0; i < m.columns(); i++) {
+			if (i >= m.rows() || smith.getDiagonalMatrix().entry(i + 1, i + 1).equals(zero())) {
+				result.add(smith.getColOperationsInverse().column(i + 1));
+			}
+		}
+		return result;
+	}
+
+	@Override
+	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m) {
+		if (!isPrincipalIdealDomain()) {
+			List<Vector<T>> result = new ArrayList<>();
+			for (int i = 0; i < m.columns(); i++) {
+				result.add(m.column(i+1));
+			}
+			return result;
+		}
+		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
+		List<List<T>> result = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			List<T> row = new ArrayList<>();
+			for (int j = 0; j < gauss.getRank(); j++) {
+				row.add(gauss.getDiagonalMatrix().entry(i + 1, j + 1));
+			}
+			result.add(row);
+		}
+		Matrix<T> asMatrix = new MatrixModule<>(this, m.rows(), gauss.getRank()).multiply(gauss.getRowOperations(),
+				new Matrix<>(result));
+		List<Vector<T>> asVectors = new ArrayList<>();
+		for (int i = 0; i < gauss.getRank(); i++) {
+			asVectors.add(asMatrix.column(i + 1));
+		}
+		return asVectors;
 	}
 
 	@Override

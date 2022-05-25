@@ -148,21 +148,21 @@ class FactorizationTest {
 	void testFactorizationGauss() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> ring = q.getUnivariatePolynomialRing();
-		testFactorizationOfRing(new NumberField(ring.getPolynomial(q.one(), q.zero(), q.one())));
+		testFactorizationOfRing(NumberField.getNumberField(ring.getPolynomial(q.one(), q.zero(), q.one())));
 	}
 
 	@Test
 	void testFactorizationEisenstein() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> ring = q.getUnivariatePolynomialRing();
-		testFactorizationOfRing(new NumberField(ring.getPolynomial(q.one(), q.one(), q.one())));
+		testFactorizationOfRing(NumberField.getNumberField(ring.getPolynomial(q.one(), q.one(), q.one())));
 	}
 
 	@Test
 	void testFactorizationSqrt5() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> ring = q.getUnivariatePolynomialRing();
-		testFactorizationOfRing(new NumberField(ring.getPolynomial(q.getInteger(5), q.zero(), q.one())));
+		testFactorizationOfRing(NumberField.getNumberField(ring.getPolynomial(q.getInteger(5), q.zero(), q.one())));
 	}
 
 	@Test

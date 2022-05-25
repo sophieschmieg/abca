@@ -28,17 +28,18 @@ import fields.polynomials.CoordinateRing.CoordinateIdeal;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
+import fields.vectors.Vector;
 
 class IdealRelationsTest {
 
 	private <T extends Element<T>> void testIdeal(Ring<T> ring, Ideal<T> ideal) {
 		List<T> generators = ideal.generators();
-		List<List<T>> relations = ideal.getModuleGeneratorRelations();
-		for (List<T> relation : relations) {
-			assertEquals(generators.size(), relation.size());
+		List<Vector<T>> relations = ideal.getSyzygies();
+		for (Vector<T> relation : relations) {
+			assertEquals(generators.size(), relation.dimension());
 			T result = ring.zero();
 			for (int i = 0; i < generators.size(); i++) {
-				result = ring.add(ring.multiply(relation.get(i), generators.get(i)), result);
+				result = ring.add(ring.multiply(relation.get(i + 1), generators.get(i)), result);
 			}
 			assertEquals(ring.zero(), result);
 		}
@@ -77,8 +78,8 @@ class IdealRelationsTest {
 	@Test
 	void numberFieldIdealSqrtMinus5RelationsTest() {
 		Rationals q = Rationals.q();
-		NumberField nf = new NumberField(
-				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<NFE> generators = new ArrayList<>();
 		generators.add(order.getInteger(2));
@@ -91,7 +92,7 @@ class IdealRelationsTest {
 	void numberFieldIdealDegree3RelationsTest() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> rationalPolynomialRing = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				rationalPolynomialRing.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<NFE> generators = new ArrayList<>();
@@ -104,8 +105,8 @@ class IdealRelationsTest {
 	@Test
 	void numberFieldIdealSqrt5RelationsTest() {
 		Rationals q = Rationals.q();
-		NumberField nf = new NumberField(
-				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-5), q.zero(), q.one()));
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-5), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<NFE> generators = new ArrayList<>();
 		generators.add(order.getInteger(2));
@@ -117,7 +118,8 @@ class IdealRelationsTest {
 	@Test
 	void numberFieldIdealGaussianIntegersRelationsTest() {
 		Rationals q = Rationals.q();
-		NumberField nf = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<NFE> generators = new ArrayList<>();
 		generators.add(order.getInteger(2));

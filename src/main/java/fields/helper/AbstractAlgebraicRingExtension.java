@@ -1,5 +1,6 @@
 package fields.helper;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +37,7 @@ import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
+import util.PeekableReader;
 
 public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S extends AlgebraicExtensionElement<T, S>, Ext extends AlgebraicRingExtension<T, S, Ext>>
 		extends AbstractAlgebra<T, S> implements AlgebraicRingExtension<T, S, Ext> {
@@ -57,10 +59,13 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	private FactorizationResult<Polynomial<T>, T> factorizedMinimalPolynomial;
 	private List<Ext> asIrreducibleProduct;
 	private List<S> irreducibleProductInverses;
+	private String variableName;
 
-	public AbstractAlgebraicRingExtension(UnivariatePolynomial<T> minimalPolynomial, Ring<T> baseRing) {
+	public AbstractAlgebraicRingExtension(UnivariatePolynomial<T> minimalPolynomial, Ring<T> baseRing,
+			String variableName) {
 		this.baseRing = baseRing;
-		this.polynomials = baseRing.getUnivariatePolynomialRing();
+		this.polynomials = baseRing.getUnivariatePolynomialRing().withVariableName(variableName);
+		this.variableName = variableName;
 		this.minimalPolynomial = minimalPolynomial;
 		this.degree = this.minimalPolynomial.degree();
 		this.zero = fromSmallDegreePolynomial(polynomials.zero());
@@ -81,12 +86,17 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	}
 
 	public AbstractAlgebraicRingExtension(Ring<T> baseRing) {
-		this(baseRing.getUnivariatePolynomialRing().getVar(), baseRing);
+		this(baseRing.getUnivariatePolynomialRing().getVar(), baseRing, "X");
 	}
 
 	@Override
 	public Exactness exactness() {
 		return baseRing.exactness();
+	}
+
+	@Override
+	public String getVariableName() {
+		return variableName;
 	}
 
 	public PolynomialRing<T> genericPolynomialRing() {
@@ -141,7 +151,12 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		if (degree() == 1) {
 			return baseRing.toString();
 		}
-		return polynomials.toString() + "/(" + minimalPolynomial.toString() + ")";
+		return baseRing.getUnivariatePolynomialRing().toString() + "/(" + minimalPolynomial.toString() + ")";
+	}
+
+	@Override
+	public S parse(PeekableReader reader) throws IOException {
+		return fromPolynomial(polynomials.toUnivariate(polynomials.parse(reader)));
 	}
 
 	@Override
@@ -178,7 +193,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	}
 
 	@Override
-	public final S fromPolynomial(UnivariatePolynomial<T> polynomial) {
+	public S fromPolynomial(UnivariatePolynomial<T> polynomial) {
 		if (polynomial.degree() < degree()) {
 			return fromSmallDegreePolynomial(polynomial);
 		}
@@ -204,7 +219,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	public final boolean isFree() {
 		return true;
 	}
-	
+
 	@Override
 	public Ideal<T> annihilator() {
 		return baseRing.getZeroIdeal();
@@ -220,12 +235,17 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	}
 
 	@Override
-	public final List<List<T>> nonTrivialCombinations(List<S> s) {
+	public final List<Vector<T>> nonTrivialCombinations(List<S> s) {
 		List<Vector<T>> asVectors = new ArrayList<>();
 		for (S t : s) {
 			asVectors.add(asVector(t));
 		}
 		return asFreeModule.nonTrivialCombinations(asVectors);
+	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
 	@Override
@@ -741,7 +761,15 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 			}
 			expressions.add(fromPolynomial);
 		}
-		return new IdealResult<>(expressions, generators, ideal);
+		List<Vector<S>> syzygies = new ArrayList<>();
+		for (Vector<Polynomial<T>> syzygy : polynomialIdealResult.getSyzygies()) {
+			List<S> fromPolynomial = new ArrayList<>();
+			for (Polynomial<T> p : syzygy.asList()) {
+				fromPolynomial.add(fromPolynomial(polynomials.toUnivariate(p)));
+			}
+			syzygies.add(new Vector<>(fromPolynomial));
+		}
+		return new IdealResult<>(expressions, generators, ideal, syzygies);
 	}
 
 	@Override
@@ -810,24 +838,24 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		public boolean isMaximal() {
 			return polynomialIdeal.isMaximal();
 		}
-		
-		@Override
-		public List<List<S>> nonTrivialCombinations(List<S> s) {
-			List<Polynomial<T>> asPolynomials = new ArrayList<>();
-			for (S e : s) {
-				asPolynomials.add(asPolynomial(e));
-			}
-			List<List<S>> result = new ArrayList<>();
-			List<List<Polynomial<T>>> combinations = polynomialIdeal.nonTrivialCombinations(asPolynomials);
-			for (List<Polynomial<T>> combination : combinations) {
-				List<S> row = new ArrayList<>();
-				for (Polynomial<T> e : combination) {
-					row.add(fromPolynomial(polynomials.toUnivariate(e)));
-				}
-				result.add(row);
-			}
-			return result;
-		}
+
+//		@Override
+//		public List<Vector<S>> nonTrivialCombinations(List<S> s) {
+//			List<Polynomial<T>> asPolynomials = new ArrayList<>();
+//			for (S e : s) {
+//				asPolynomials.add(asPolynomial(e));
+//			}
+//			List<Vector<S>> result = new ArrayList<>();
+//			List<Vector<Polynomial<T>>> combinations = polynomials.syzygyProblem(asPolynomials);
+//			for (Vector<Polynomial<T>> combination : combinations) {
+//				List<S> row = new ArrayList<>();
+//				for (Polynomial<T> e : combination.asList()) {
+//					row.add(fromPolynomial(polynomials.toUnivariate(e)));
+//				}
+//				result.add(new Vector<>(row));
+//			}
+//			return result;
+//		}
 
 		@Override
 		public List<S> generators() {

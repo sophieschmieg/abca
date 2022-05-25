@@ -11,6 +11,9 @@ import varieties.affine.AffinePoint;
 
 public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynomial<T>> {
 	public int numberOfVariables();
+	public PolynomialRing<T> withVariableNames(String[] variableNames);
+	public void setVariableNames(String[] variableNames);
+	public String[] getVariableNames();
 	public Comparator<Monomial> getComparator();
 	public Polynomial<T> getPolynomial(Map<Monomial, T> t);
 	public Monomial getMonomial(int[] exponents);
@@ -21,6 +24,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Polynomial<T> getLinear(List<T> coeff);
 	public Polynomial<T> getLinear(@SuppressWarnings("unchecked") T... coeff);
 	public Polynomial<T> getRandomElement(int degree);
+	public ModuloMaximalIdealResult<Polynomial<T>, ?, PolynomialRing<T>, PolynomialIdeal<T>, ?> moduloMaximalIdeal(Ideal<Polynomial<T>> ideal);
 
 	public PolynomialRing<T> eliminateVariable();
 	public UnivariatePolynomial<Polynomial<T>> asUnivariatePolynomial(Polynomial<T> t, int variable);
@@ -55,10 +59,12 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public static class GroebnerBasis<T extends Element<T>> {
 		private List<Polynomial<T>> basis;
 		private List<List<Polynomial<T>>> expression;
+		private List<Vector<Polynomial<T>>> syzygies;
 
-		public GroebnerBasis(List<Polynomial<T>> basis, List<List<Polynomial<T>>> expression) {
+		public GroebnerBasis(List<Polynomial<T>> basis, List<List<Polynomial<T>>> expression, List<Vector<Polynomial<T>>> syzygies) {
 			this.basis = basis;
 			this.expression = expression;
+			this.syzygies = syzygies;
 		}
 
 		public List<Polynomial<T>> getBasis() {
@@ -68,11 +74,16 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 		public List<List<Polynomial<T>>> getExpression() {
 			return expression;
 		}
+		
+		public List<Vector<Polynomial<T>>> getSyzygies() {
+			return syzygies;
+		}
 	}
 	public GroebnerBasis<T> buchberger(List<Polynomial<T>> generators);
 	public GroebnerBasis<T> reduceBasis(GroebnerBasis<T> basis);
 	
 	public List<AffinePoint<T>> solve(List<Polynomial<T>> polynomials);
+	public List<AffinePoint<T>> solve(PolynomialIdeal<T> ideal);
 	
 	public IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransforms(List<Polynomial<T>> generators);
 	public IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransforms(@SuppressWarnings("unchecked") Polynomial<T>... generators);

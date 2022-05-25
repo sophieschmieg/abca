@@ -2,6 +2,7 @@ package fields.vectors;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -15,25 +16,56 @@ import fields.integers.Integers.IntE;
 import fields.integers.Integers.IntegerIdeal;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
-import fields.interfaces.InnerProductSpace;
 import fields.interfaces.Lattice;
-import fields.interfaces.RealInnerProductSpace;
+import fields.interfaces.MathMap;
 
 public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 		implements Lattice<Vector<Real>, Real, Vector<Real>> {
-	private RealInnerProductSpace<Real, Vector<Real>> space;
+	private FiniteRealVectorSpace space;
 	private List<Vector<Real>> basis;
 	private Matrix<Real> baseChangeMatrix;
 	private MatrixModule<Real> matrixModule;
 	private FreeModule<IntE> asIntModule;
 
+	public static RealLattice fromIntegerLattice(Reals r, int dimension, List<Vector<IntE>> generators) {
+		return fromIntegerLattice(r, dimension, generators, 0.75);
+	}
+
+	public static RealLattice fromIntegerLattice(Reals r, int dimension, List<Vector<IntE>> generators, double delta) {
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, dimension);
+		List<Vector<Real>> realGenerators = new ArrayList<>();
+		MathMap<IntE, Real> embeddingMap = new MathMap<>() {
+			@Override
+			public Real evaluate(IntE t) {
+				return r.getInteger(t);
+			}
+		};
+		for (Vector<IntE> generator : generators) {
+			realGenerators.add(Vector.mapVector(embeddingMap, generator));
+		}
+		return new RealLattice(space, realGenerators);
+	}
+
 	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators) {
+		this(space, generators, false);
+	}
+
+	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, double delta) {
+		this(space, generators, delta, false);
+	}
+
+	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, boolean skipBasisCheck) {
+		this(space, generators, 0.75, skipBasisCheck);
+	}
+
+	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, double delta,
+			boolean skipBasisCheck) {
 		this.space = space;
 		Matrix<Real> generatorMatrix = Matrix.fromColumns(generators);
 		MatrixModule<Real> generatorMatrixModule = new MatrixModule<>(space.getField(), space.dimension(),
 				generators.size());
 		this.basis = new ArrayList<>();
-		if (generatorMatrixModule.rank(generatorMatrix) < generators.size()) {
+		if (!skipBasisCheck && generatorMatrixModule.rank(generatorMatrix) < generators.size()) {
 			Integers z = Integers.z();
 			Rationals q = Rationals.q();
 			Reals r = space.getValueField().getReals();
@@ -56,7 +88,7 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 				List<Fraction> asFractions = new ArrayList<>();
 				IntE lcm = z.one();
 				for (Real coefficient : inBasis.asList()) {
-					Fraction asFraction = r.roundToFraction(coefficient, r.precision()/2);
+					Fraction asFraction = r.roundToFraction(coefficient, r.precision() / 2);
 					asFractions.add(asFraction);
 					lcm = z.lcm(asFraction.getDenominator(), lcm);
 				}
@@ -66,7 +98,8 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 				}
 				integerRelation.set(i, z.negative(lcm));
 				for (int j = 0; j < independentSubset.size(); j++) {
-					integerRelation.set(subSetIndeces[j], z.add(integerRelation.get(subSetIndeces[j]), q.multiply(lcm, asFractions.get(j)).asInteger()));
+					integerRelation.set(subSetIndeces[j], z.add(integerRelation.get(subSetIndeces[j]),
+							q.multiply(lcm, asFractions.get(j)).asInteger()));
 				}
 				integerKernel.add(integerRelation);
 			}
@@ -112,7 +145,7 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 		} else {
 			this.basis.addAll(generators);
 		}
-		this.basis = space.latticeReduction(this);
+		this.basis = space.latticeReduction(this, delta);
 		this.baseChangeMatrix = Matrix.fromColumns(basis);
 		this.matrixModule = new MatrixModule<>(space.getField(), space.dimension(), basis.size());
 		this.asIntModule = new FreeModule<>(Integers.z(), basis.size());
@@ -162,6 +195,11 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 	public IntegerIdeal annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<Vector<Real>> s) {
@@ -174,7 +212,7 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<Vector<Real>> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<Vector<Real>> s) {
 		return asIntModule.nonTrivialCombinations(asIntVectors(s));
 	}
 
@@ -247,7 +285,7 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 	}
 
 	@Override
-	public InnerProductSpace<Real, Vector<Real>> getVectorSpace() {
+	public FiniteRealVectorSpace getVectorSpace() {
 		return space;
 	}
 

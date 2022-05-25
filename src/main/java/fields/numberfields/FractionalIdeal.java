@@ -182,6 +182,11 @@ public class FractionalIdeal extends AbstractModule<IntE, NFE>
 	public Ideal<IntE> annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	private List<Vector<IntE>> asVectors(List<NFE> s) {
 		List<Vector<IntE>> result = new ArrayList<>();
@@ -202,7 +207,7 @@ public class FractionalIdeal extends AbstractModule<IntE, NFE>
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<NFE> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<NFE> s) {
 		return new FreeModule<>(Integers.z(), field.degree()).nonTrivialCombinations(asVectors(s));
 	}
 
@@ -221,7 +226,7 @@ public class FractionalIdeal extends AbstractModule<IntE, NFE>
 			for (NFE numeratorGenerator : freeSubModule.getModuleGenerators()) {
 				unreducedBasis.add(field.divide(numeratorGenerator, field.getEmbedding(cleared.getSecond())));
 			}
-			this.basis = field.minkowskiEmbeddingSpace().latticeReduction(unreducedBasis, this);
+			this.basis = field.minkowskiEmbeddingSpace().latticeReduction(unreducedBasis, this, 1.0);
 			List<Vector<Fraction>> basisAsVectors = new ArrayList<>();
 			for (NFE basisVector : basis) {
 				basisAsVectors.add(field.asVector(basisVector));

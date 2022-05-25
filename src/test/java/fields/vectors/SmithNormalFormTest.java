@@ -2,7 +2,6 @@ package fields.vectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,10 +9,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import fields.finitefields.FiniteField;
+import fields.finitefields.ModuloIntegerRing;
+import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
-import fields.floatingpoint.Reals;
 import fields.integers.Integers;
+import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Element;
@@ -28,9 +29,6 @@ public class SmithNormalFormTest<T extends Element<T>> {
 		MatrixModule<T> module = new MatrixModule<>(ring, rows, cols);
 		Matrix<T> random = module.getRandomElement();
 		System.out.println(random);
-		if (!ring.isEuclidean()) {
-			return;
-		}
 		MatrixModule<T>.SmithNormalFormResult decomp = module.smithNormalForm(random);
 		for (int i = 0; i < rows; i++) {
 			for (int j = 0; j < cols; j++) {
@@ -124,7 +122,7 @@ public class SmithNormalFormTest<T extends Element<T>> {
 		smithNormalFormTest(q.getUnivariatePolynomialRing(), 2, 2);
 		UnivariatePolynomialRing<Fraction> ring = q.getUnivariatePolynomialRing();
 		UnivariatePolynomial<Fraction> mini = ring.getPolynomial(q.getInteger(2), q.getInteger(0), q.getInteger(1));
-		NumberField nf = new NumberField(mini);
+		NumberField nf = NumberField.getNumberField(mini);
 		smithNormalFormTest(nf, 3, 3);
 		smithNormalFormTest(nf.getUnivariatePolynomialRing(), 2, 3);
 		smithNormalFormTest(nf, 3, 2);
@@ -133,6 +131,19 @@ public class SmithNormalFormTest<T extends Element<T>> {
 
 	@Test
 	void testIntegers() {
+		Integers z = Integers.z();
+		List<List<IntE>> m = new ArrayList<>();
+		List<IntE> row1 = new ArrayList<>();
+		row1.add(z.getInteger(4));
+		row1.add(z.zero());
+		List<IntE> row2 = new ArrayList<>();
+		row2.add(z.zero());
+		row2.add(z.getInteger(6));
+		m.add(row1);
+		m.add(row2);
+		Matrix<IntE> matrix = new Matrix<>(m);
+		MatrixModule<IntE> mm = matrix.getModule(z);
+		mm.smithNormalForm(matrix);
 		smithNormalFormTest(Integers.z(), 2, 3);
 		smithNormalFormTest(Integers.z(), 3, 3);
 		smithNormalFormTest(Integers.z(), 2, 3);
@@ -142,8 +153,37 @@ public class SmithNormalFormTest<T extends Element<T>> {
 	}
 
 	@Test
+	void testIntegersModulo() {
+		ModuloIntegerRing mod = new ModuloIntegerRing(625);
+		List<List<ModuloIntegerRingElement>> m = new ArrayList<>();
+		List<ModuloIntegerRingElement> row1 = new ArrayList<>();
+		row1.add(mod.getInteger(25));
+		row1.add(mod.getInteger(10));
+		List<ModuloIntegerRingElement> row2 = new ArrayList<>();
+		row2.add(mod.getInteger(125));
+		row2.add(mod.getInteger(25));
+		m.add(row1);
+		m.add(row2);
+		Matrix<ModuloIntegerRingElement> matrix = new Matrix<>(m);
+		MatrixModule<ModuloIntegerRingElement> mm = matrix.getModule(mod);
+		MatrixModule<ModuloIntegerRingElement>.SmithNormalFormResult smith = mm.smithNormalForm(matrix);
+		Matrix<ModuloIntegerRingElement> rac = mm.multiply(mm.multiply(smith.getRowOperationsInverse(), matrix),
+				smith.getColOperationsInverse());
+		assertEquals(smith.getDiagonalMatrix(), rac);
+		Matrix<ModuloIntegerRingElement> rdc = mm
+				.multiply(mm.multiply(smith.getRowOperations(), smith.getDiagonalMatrix()), smith.getColOperations());
+		assertEquals(matrix, rdc);
+		smithNormalFormTest(mod, 2, 3);
+		smithNormalFormTest(mod, 3, 3);
+		smithNormalFormTest(mod, 2, 3);
+		smithNormalFormTest(mod, 3, 3);
+		smithNormalFormTest(mod, 2, 2);
+		smithNormalFormTest(mod, 3, 2);
+	}
+
+	@Test
 	void testRealsNotFullRank() {
-		//Reals r = Reals.r(128);
-		//smithNormalFormTest(r, 2, 3);
+		// Reals r = Reals.r(128);
+		// smithNormalFormTest(r, 2, 3);
 	}
 }

@@ -2,6 +2,7 @@ package fields.floatingpoint;
 
 import java.math.BigInteger;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
@@ -13,8 +14,8 @@ import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractField;
 import fields.integers.Integers;
-import fields.integers.Rationals;
 import fields.integers.Integers.IntE;
+import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.FloatingPointSet;
 import fields.interfaces.MathMap;
@@ -22,6 +23,9 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.ValueField;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
 public class Reals extends AbstractField<Real> implements ValueField<Real>, FloatingPointSet<Real, Reals> {
@@ -488,6 +492,20 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		} while (!close(result, prevResult));
 		return result;
 	}
+	
+	public Real sin(Real angle) {
+		return cosineAndSine(angle).get(2);
+	}
+	
+	public Real cos(Real angle) {
+		return cosineAndSine(angle).get(1);
+	}
+	
+	public Vector<Real> cosineAndSine(Real angle) {
+		Complex c = Complex.c(precision);
+		ComplexNumber result = c.exp(c.getNumber(zero(), angle));
+		return new Vector<>(result.realPart(), result.complexPart());
+	}
 
 	public Real arctan(Real t) {
 		/*
@@ -717,5 +735,32 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 			}
 		}
 		return new FactorizationResult<>(t.leadingCoefficient(), factors);
+	}
+	
+	@Override
+	public boolean isSubModuleMember(MatrixModule<Real> module, Matrix<Real> m,
+			Vector<Real> b) {
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, b.dimension());
+		return space.isSubModuleMember(module, m, b);
+	}
+
+	@Override
+	public Vector<Real> asSubModuleMember(MatrixModule<Real> module, Matrix<Real> m,
+			Vector<Real> b) {
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, b.dimension());
+		return space.asSubModuleMember(module, m, b);
+	}
+
+	@Override
+	public List<Vector<Real>> syzygyProblem(MatrixModule<Real> module, Matrix<Real> m) {
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, m.columns());
+		return space.syzygyProblem(module, m);
+	}
+
+	@Override
+	public List<Vector<Real>> simplifySubModuleGenerators(MatrixModule<Real> module,
+			Matrix<Real> m) {
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, m.rows());
+		return space.simplifySubModuleGenerators(module, m);
 	}
 }

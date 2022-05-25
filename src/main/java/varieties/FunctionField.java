@@ -14,6 +14,7 @@ import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
+import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectiveScheme;
 
 public class FunctionField<T extends Element<T>> extends AbstractField<RationalFunction<T>> {
@@ -83,6 +84,17 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 	
 	public RationalFunction<T> getFunction(LocalizedElement<T> localizedElement) {
 		return getFunction(localizedElement.getNumerator(), localizedElement.getDenominator());
+	}
+	
+	public ProjectiveMorphism<T> asProjectiveMorphism(RationalFunction<T> t) {
+		return t.asProjectiveMorphism();
+	}
+	
+	public RationalFunction<T> fromProjectiveMorphism(ProjectiveMorphism<T> t) {
+		if (t.asPolynomials().size() != 2) {
+			throw new ArithmeticException("Not a projective morphism to the projective line!");
+		}
+		return getFunction(t.asPolynomials().get(0), t.asPolynomials().get(1));
 	}
 	
 	public int affineCoverIndex() {

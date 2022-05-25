@@ -187,7 +187,7 @@ public class FieldEmbedding<T extends Element<T>, S extends AlgebraicExtensionEl
 
 	public UnivariatePolynomial<S> minimalPolynomial() {
 		if (minimalPolynomial == null) {
-			this.minimalPolynomial = field.minimalPolynomialOver(field.alpha(), this);
+			this.minimalPolynomial = field.minimalPolynomialOver(generator, this);
 		}
 		return minimalPolynomial;
 	}

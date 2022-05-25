@@ -1,6 +1,7 @@
 package fields.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +78,7 @@ class PrimaryDecompositionTest {
 			assertEquals(primaryDecomposition.getPrimaryIdeals().get(i), primaryDecomposition.getRadicals().get(i));
 		}
 	}
-	
+
 	@Test
 	void integersDblITestInts() {
 		Integers z = Integers.z();
@@ -89,13 +90,16 @@ class PrimaryDecompositionTest {
 		PolynomialIdeal<IntE> ideal = polynomialRing.getIdeal(generators);
 		PrimaryDecompositionResult<Polynomial<IntE>, PolynomialIdeal<IntE>> primaryDecomposition = polynomialRing
 				.primaryDecomposition(ideal);
-		assertEquals(3, primaryDecomposition.getPrimaryIdeals().size());
-		assertEquals(3, primaryDecomposition.getRadicals().size());
-		for (int i = 0; i < 3; i++) {
+		System.out.println(primaryDecomposition.getPrimaryIdeals());
+		System.out.println(primaryDecomposition.getRadicals());
+		assertEquals(7, primaryDecomposition.getPrimaryIdeals().size());
+		assertEquals(7, primaryDecomposition.getRadicals().size());
+		assertNotEquals(primaryDecomposition.getRadicals().get(0), primaryDecomposition.getPrimaryIdeals().get(0));
+		for (int i = 1; i < 7; i++) {
 			assertEquals(primaryDecomposition.getPrimaryIdeals().get(i), primaryDecomposition.getRadicals().get(i));
 		}
 	}
-	
+
 	@Test
 	void integersDblITest() {
 		Integers z = Integers.z();
@@ -112,7 +116,7 @@ class PrimaryDecompositionTest {
 			assertEquals(primaryDecomposition.getPrimaryIdeals().get(i), primaryDecomposition.getRadicals().get(i));
 		}
 	}
-	
+
 	@Test
 	void integersDblZIntsTest() {
 		Integers z = Integers.z();

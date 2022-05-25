@@ -9,7 +9,8 @@ import fields.interfaces.Field.Extension;
 import fields.local.Value;
 import util.Pair;
 
-public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S>> extends ValueRing<T>, DedekindRing<T, T, S>, LocalRing<T, T, S> {
+public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S>>
+		extends ValueRing<T>, DedekindRing<T, T, S>, LocalRing<T, T, S> {
 	boolean isComplete();
 
 	public boolean isElement(T t);
@@ -30,7 +31,7 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 	public DiscreteValuationField<T, S> localField();
 
 	public FieldOfFractionsResult<T, T> fieldOfFractions();
-	
+
 	public default boolean isInteger(T t) {
 		return isElement(t);
 	}
@@ -80,7 +81,10 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 
 	public T henselLift(UnivariatePolynomial<T> f, S aReduced);
 
-	public interface OkutsuType<T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> {
+	public interface OkutsuType<T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
+			extends Cloneable {
+		public OkutsuType<T, S, R, RE, RFE> clone();
+
 		public UnivariatePolynomial<T> getPolynomial();
 
 		public UnivariatePolynomial<T> representative();
@@ -228,7 +232,7 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 
 	public Polynomial<T> roundPolynomial(Polynomial<T> t, int accuracy);
 
-	public UnivariatePolynomial<T> roundUnivariatePolynomial(UnivariatePolynomial<T> t, int accuracy);
+	public UnivariatePolynomial<T> roundUnivariatePolynomial(Polynomial<T> t, int accuracy);
 
 	public boolean hasGoodReduction(UnivariatePolynomial<T> t);
 
@@ -240,9 +244,12 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 
 	public UnivariatePolynomial<T> integralMinimalPolynomial(UnivariatePolynomial<T> minimalPolynomial);
 
+	public UnivariatePolynomial<T> integralMinimalPolynomial(UnivariatePolynomial<T> minimalPolynomial, T uniformizer);
+
 	public Pair<UnivariatePolynomial<T>, UnivariatePolynomial<T>> integralPolynomial(UnivariatePolynomial<T> t);
 
-	public List<UnivariatePolynomial<T>> localExtensions(UnivariatePolynomial<T> minimalPolynomial);
+	public Pair<UnivariatePolynomial<T>, UnivariatePolynomial<T>> integralPolynomial(UnivariatePolynomial<T> t,
+			T uniformizer);
 
 	public boolean isIrreducible(UnivariatePolynomial<T> t);
 

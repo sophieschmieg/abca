@@ -23,6 +23,7 @@ import fields.local.CompleteDVRExtension.Ext;
 import fields.vectors.Matrix;
 import fields.vectors.Vector;
 import util.Identity;
+import util.MiscAlgorithms;
 
 public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
 		extends AbstractFieldExtension<B, Ext<B>, CompleteDVRExtension<B, S, R, RE, RFE>>
@@ -51,14 +52,15 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 
 		@Override
 		public String toString() {
-			DiscreteValuationField<B, ?> lowAccuracyBase = extension.getBaseField().withAccuracy(extension.getAccuracy());
+			DiscreteValuationField<B, ?> lowAccuracyBase = extension.getBaseField()
+					.withAccuracy(MiscAlgorithms.DivRoundDown(extension.getAccuracy(), extension.ramificationIndex()));
 			UnivariatePolynomialRing<B> univariatePolynomialRing = lowAccuracyBase.getUnivariatePolynomialRing();
-			Vector<B> roundedInteger = extension.ringOfIntegers().asVector(this);
-			List<Ext<B>> integralBasis = extension.ringOfIntegers().getModuleGenerators();
+			Vector<B> roundedInteger = extension./*ringOfIntegers().*/asVector(this);
+			List<Ext<B>> integralBasis = extension/*.ringOfIntegers()*/.getModuleGenerators();
 			StringBuilder build = new StringBuilder();
 			boolean first = true;
 			for (int i = 0; i < integralBasis.size(); i++) {
-				B integer = lowAccuracyBase.round(roundedInteger.get(i+1), lowAccuracyBase.getAccuracy());
+				B integer = lowAccuracyBase.round(roundedInteger.get(i + 1), lowAccuracyBase.getAccuracy());
 				if (integer.equals(lowAccuracyBase.zero())) {
 					continue;
 				}
@@ -68,19 +70,21 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 					build.append(" + ");
 				}
 				String coefficient;
-				if(!integer.equals(lowAccuracyBase.one())) {
+				if (!integer.equals(lowAccuracyBase.one())) {
 					coefficient = integer.toString();
 				} else {
 					coefficient = "";
 				}
 				String basis;
-				if(!integralBasis.get(i).equals(extension.one())) {
-					UnivariatePolynomial<B> roundedPolynomial = univariatePolynomialRing.getEmbedding(integralBasis.get(i).asPolynomial, new MathMap<>() {
-						@Override
-						public B evaluate(B t) {
-							return lowAccuracyBase.round(t, lowAccuracyBase.getAccuracy());
-						}});
-					basis = roundedPolynomial.toString("α", true);
+				if (!integralBasis.get(i).equals(extension.one())) {
+					UnivariatePolynomial<B> roundedPolynomial = univariatePolynomialRing
+							.getEmbedding(integralBasis.get(i).asPolynomial, new MathMap<>() {
+								@Override
+								public B evaluate(B t) {
+									return lowAccuracyBase.round(t, lowAccuracyBase.getAccuracy());
+								}
+							});
+					basis = roundedPolynomial.toString(/*"α", */true);
 				} else {
 					basis = "";
 				}
@@ -119,6 +123,9 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 	private Matrix<B> fromIntegralBasisBaseChange;
 	private Matrix<B> toIntegralBasisBaseChange;
 	private LocalRingExtension<B, S, Ext<B>, CompleteDVRExtension<B, S, R, RE, RFE>, R, RE, RFE> ringOfIntegers;
+	private List<Value> integralBasisValues;
+	private OtherVersion<Ext<B>, ?, RE, ?> exact;
+	private int accuracy;
 
 	public static <B extends Element<B>, S extends Element<S>> CompleteDVRExtension<B, S, ?, ?, ?> getCompleteDVRExtension(
 			DiscreteValuationField<B, S> baseField) {
@@ -128,7 +135,8 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 
 	public static <B extends Element<B>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> CompleteDVRExtension<B, S, R, RE, RFE> getCompleteDVRExtension(
 			DiscreteValuationField<B, S> baseField, Extension<S, R, RE, RFE> trivialReductionExtension) {
-		return new CompleteDVRExtension<B, S, R, RE, RFE>(baseField, trivialReductionExtension);
+		return new CompleteDVRExtension<B, S, R, RE, RFE>(baseField, trivialReductionExtension,
+				baseField.getAccuracy());
 	}
 
 	public static <B extends Element<B>, S extends Element<S>> CompleteDVRExtension<B, S, ?, ?, ?> getCompleteDVRExtension(
@@ -140,8 +148,26 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 	public static <B extends Element<B>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> CompleteDVRExtension<B, S, R, RE, RFE> getCompleteDVRExtension(
 			UnivariatePolynomial<B> minimalPolynomial, DiscreteValuationField<B, S> baseField,
 			Extension<S, R, RE, RFE> trivialReductionExtension) {
-		DiscreteValuationField<B, S> highAccuracyBaseField = baseField
-				.withAccuracy(baseField.getAccuracy() * minimalPolynomial.degree());
+		TheMontesResult<B, S, R, RE, RFE> theMontes = baseField.ringOfIntegers().theMontesAlgorithm(minimalPolynomial,
+				trivialReductionExtension);
+		if (theMontes.getTypes().size() != 1) {
+			throw new ArithmeticException("Polynomial not irreducible (at this accuracy)!");
+		}
+		OkutsuType<B, S, R, RE, RFE> type = theMontes.getTypes().get(0).updateLeaf(minimalPolynomial);
+		int accuracy = baseField.getAccuracy();
+		int initialAccuracy = type.previousLevel().precision().value();
+		int requiredDigitAccuracy;
+		if (type.quality().isInfinite()) {
+			requiredDigitAccuracy = MiscAlgorithms.DivRoundUp(
+					2 * type.ramificationIndex() * (Math.max(0, accuracy - initialAccuracy) + 1),
+					type.ramificationIndex());
+		} else {
+			requiredDigitAccuracy = MiscAlgorithms
+					.DivRoundUp(2 * type.ramificationIndex() * (Math.max(0, accuracy - initialAccuracy) + 1)
+							+ type.quality().value(), type.ramificationIndex())
+					+ 4 * type.exponent();
+		}
+		DiscreteValuationField<B, S> highAccuracyBaseField = baseField.withAccuracy(requiredDigitAccuracy);
 		UnivariatePolynomialRing<B> highAccuracyPolynomialRing = highAccuracyBaseField.getUnivariatePolynomialRing();
 		UnivariatePolynomial<B> highAccuracyMinimalPolynomial = highAccuracyPolynomialRing
 				.getEmbedding(minimalPolynomial, new MathMap<>() {
@@ -151,20 +177,54 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 					}
 				});
 		return new CompleteDVRExtension<>(highAccuracyMinimalPolynomial, highAccuracyBaseField,
+				trivialReductionExtension, accuracy);
+	}
+
+	public static <E extends Element<E>, EE extends AlgebraicExtensionElement<E, EE>, EFE extends FieldExtension<E, EE, EFE> & DiscreteValuationField<EE, RE>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> CompleteDVRExtension<?, S, R, RE, RFE> getCompleteDVRExtension(
+			EFE exact, OkutsuType<E, S, R, RE, RFE> type, int accuracy,
+			Extension<S, R, RE, RFE> trivialReductionExtension) {
+		int initialAccuracy = type.previousLevel().precision().value();
+		int requiredDigitAccuracy;
+		if (type.quality().isInfinite()) {
+			requiredDigitAccuracy = MiscAlgorithms.DivRoundUp(
+					2 * type.ramificationIndex() * Math.max(0, accuracy - initialAccuracy),
+					type.ramificationIndex());
+		} else {
+			requiredDigitAccuracy = MiscAlgorithms
+					.DivRoundUp(2 * type.ramificationIndex() * Math.max(0, accuracy - initialAccuracy)
+							+ type.quality().value(), type.ramificationIndex())
+					/*+ 4 * type.exponent()*/;
+		}
+		@SuppressWarnings("unchecked")
+		DiscreteValuationField<E, S> exactBaseField = (DiscreteValuationField<E, S>) exact.getBaseField();
+		type = exactBaseField.ringOfIntegers().singleFactorLifting(type, accuracy);
+		return getCompleteDVRExtension(exact, type, accuracy, exactBaseField.complete(requiredDigitAccuracy),
 				trivialReductionExtension);
 	}
 
-	private CompleteDVRExtension(DiscreteValuationField<B, S> baseField,
+	private static <E extends Element<E>, EE extends AlgebraicExtensionElement<E, EE>, EFE extends FieldExtension<E, EE, EFE> & DiscreteValuationField<EE, RE>, B extends Element<B>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>, DVRB extends DiscreteValuationField<B, S>> CompleteDVRExtension<B, S, R, RE, RFE> getCompleteDVRExtension(
+			EFE exact, OkutsuType<E, S, R, RE, RFE> type, int accuracy, OtherVersion<E, B, S, DVRB> completedBaseField,
 			Extension<S, R, RE, RFE> trivialReductionExtension) {
+		DiscreteValuationField<B, S> baseField = completedBaseField.getField();
+		UnivariatePolynomialRing<B> polynomialRing = baseField.getUnivariatePolynomialRing();
+		UnivariatePolynomial<B> minimalPolynomial = polynomialRing.getEmbedding(type.representative(),
+				completedBaseField.getRetraction());
+		return new CompleteDVRExtension<>(minimalPolynomial, baseField, trivialReductionExtension, accuracy);
+	}
+
+	private CompleteDVRExtension(DiscreteValuationField<B, S> baseField,
+			Extension<S, R, RE, RFE> trivialReductionExtension, int accuracy) {
 		super(baseField);
+		this.accuracy = accuracy;
 		this.baseField = baseField;
 		this.minimalPolynomial = baseField.getUnivariatePolynomialRing().getVar();
 		init(trivialReductionExtension);
 	}
 
 	private CompleteDVRExtension(UnivariatePolynomial<B> minimalPolynomial, DiscreteValuationField<B, S> baseField,
-			Extension<S, R, RE, RFE> trivialReductionExtension) {
-		super(minimalPolynomial, baseField);
+			Extension<S, R, RE, RFE> trivialReductionExtension, int accuracy) {
+		super(minimalPolynomial, baseField, "x");
+		this.accuracy = accuracy;
 		this.baseField = baseField;
 		this.minimalPolynomial = minimalPolynomial;
 		init(trivialReductionExtension);
@@ -177,22 +237,23 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 			throw new ArithmeticException("Polynomial not irreducible (at this accuracy)!");
 		}
 		this.trivialReductionExtension = trivialReductionExtension;
-		this.type = baseField.ringOfIntegers().singleFactorLifting(theMontes.getTypes().get(0),
-				baseField.getAccuracy());
+		this.type = theMontes.getTypes().get(0).updateLeaf(minimalPolynomial);
 		this.residueField = type.reduction().extension();
 		this.uniformizer = fromSmallDegreePolynomial(type.lift(residueField().one(), 1));
 		List<UnivariatePolynomial<B>> polynomialBasis = baseField.ringOfIntegers().triagonalizeIntegralBasis(
 				minimalPolynomial, baseField.ringOfIntegers().integralBasis(minimalPolynomial, theMontes, true));
 		this.integralBasis = new ArrayList<>();
 		List<Vector<B>> basisVectors = new ArrayList<>();
+		integralBasisValues = new ArrayList<>();
 		for (UnivariatePolynomial<B> polynomial : polynomialBasis) {
 			Ext<B> vector = fromSmallDegreePolynomial(polynomial);
+			integralBasisValues.add(valuation(vector));
 			integralBasis.add(vector);
 			basisVectors.add(asVector(vector));
 		}
 		this.fromIntegralBasisBaseChange = Matrix.fromColumns(basisVectors);
 		this.toIntegralBasisBaseChange = matrixAlgebra().invertUpperTriangleMatrix(fromIntegralBasisBaseChange);
-		this.ringOfIntegers = new LocalRingExtension<>(this, baseField, type, integralBasis, toIntegralBasisBaseChange);
+		this.ringOfIntegers = new LocalRingExtension<>(this, baseField, residueField, integralBasis, toIntegralBasisBaseChange);
 	}
 
 	public int ramificationIndex() {
@@ -207,7 +268,7 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 	public Real value(Ext<B> t) {
 		return Reals.r(1024).positiveRoot(baseField.value(norm(t)), degree());
 	}
-	
+
 	@Override
 	public Reals getReals() {
 		return Reals.r(1024);
@@ -303,18 +364,21 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 	@Override
 	public Ext<B> round(Ext<B> t, int accuracy) {
 		Vector<B> asIntegerVector = ringOfIntegers().asVector(t);
+		int ramification = type.ramificationIndex();
 		List<B> roundedVector = new ArrayList<>();
-		for (B coefficient : asIntegerVector.asList()) {
-			roundedVector.add(baseField.round(coefficient, accuracy));
+		for (int i = 0; i < asIntegerVector.dimension(); i++) {
+			B coefficient = asIntegerVector.get(i + 1);
+			roundedVector.add(baseField.round(coefficient,
+					MiscAlgorithms.DivRoundUp(accuracy - integralBasisValues.get(i).value(), ramification)));
 		}
 		return ringOfIntegers().fromVector(new Vector<>(roundedVector));
 	}
 
 	@Override
 	public int getAccuracy() {
-		return baseField.getAccuracy() / minimalPolynomial.degree();
+		return accuracy;
 	}
-	
+
 	@Override
 	public DiscreteValuationField<B, S> getBaseField() {
 		return baseField;
@@ -325,9 +389,19 @@ public class CompleteDVRExtension<B extends Element<B>, S extends Element<S>, R 
 		return getCompleteDVRExtension(minimalPolynomial, baseField.withAccuracy(accuracy), trivialReductionExtension);
 	}
 
+	public void setExact(OtherVersion<Ext<B>, ?, RE, ?> exact) {
+		if (this.exact != null) {
+			return;
+		}
+		this.exact = exact;
+	}
+
 	@Override
 	public OtherVersion<Ext<B>, ?, RE, ?> exact() {
-		return exact(baseField.exact());
+		if (exact == null) {
+			exact = exact(baseField.exact());
+		}
+		return exact;
 	}
 
 	@SuppressWarnings("unchecked")

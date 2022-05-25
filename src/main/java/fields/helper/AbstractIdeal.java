@@ -1,7 +1,6 @@
 package fields.helper;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -143,6 +142,16 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 	public final List<T> getModuleGenerators() {
 		return generators();
 	}
+	
+	@Override
+	public final List<Vector<T>> nonTrivialCombinations(List<T> s) {
+		return r.syzygyProblem(s);
+	}
+	
+	@Override
+	public final List<Vector<T>> getSyzygies() {
+		return r.syzygyProblem(generators());
+	}
 
 	@Override
 	public final boolean isLinearIndependent(List<T> s) {
@@ -156,7 +165,7 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 		if (s.size() > 1) {
 			return false;
 		}
-		return r.isZeroDivisor(s.get(0));
+		return !r.isZeroDivisor(s.get(0));
 	}
 
 	@Override
@@ -203,7 +212,7 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 		for (int i = 0; i < generatorsThis.size(); i++) {
 			int cmp = generatorsThis.get(i).compareTo(generatorsOther.get(i));
 			if (cmp != 0) {
-				return 0;
+				return cmp;
 			}
 		}
 		throw new RuntimeException("equalsIdeal was wrong");
@@ -231,6 +240,15 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 			ideal = r.multiply(ideal, this);
 		}
 		return new Value(value);
+	}
+	
+	@Override
+	public Value maximumPowerContains(Ideal<T> other) {
+		Value result = Value.INFINITY;
+		for (T generator : other.generators()) {
+			result = result.min(maximumPowerContains(generator));
+		}
+		return result;
 	}
 
 	@Override

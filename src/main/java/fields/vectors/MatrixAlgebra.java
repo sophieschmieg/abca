@@ -3,6 +3,7 @@ package fields.vectors;
 import java.lang.reflect.Array;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +103,11 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 	@Override
 	public Ideal<T> annihilator() {
 		return ring.getZeroIdeal();
+	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
 	@Override
@@ -530,7 +536,7 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Matrix<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Matrix<T>> s) {
 		return module.nonTrivialCombinations(s);
 	}
 

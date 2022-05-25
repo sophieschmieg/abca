@@ -22,15 +22,13 @@ class AffineSchemeTest {
 		Set<AffinePoint<PFE>> points = new TreeSet<>();
 		for (ProjectivePoint<PFE> point : j1728) {
 			if (!point.equals(j1728.neutral())) {
-				System.out.println(point);
-						points.add(point.getDehomogenous(3));
+				points.add(point.getDehomogenous(3));
 			}
 		}
 		assertEquals(j1728.getNumberOfElements().intValueExact() - 1, points.size());
 		AffineScheme<PFE> affine = j1728.getAffineCover().getCover().get(2);
 		int counter = 0;
 		for (AffinePoint<PFE> point : affine) {
-			System.out.println(point);
 			assertTrue(points.contains(point));
 			counter++;
 		}

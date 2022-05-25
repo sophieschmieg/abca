@@ -30,7 +30,7 @@ public class GenericExtensionField<T extends Element<T>>
 //	private boolean powersReady;
 //
 	public GenericExtensionField(UnivariatePolynomial<T> minimalpolynomial, Field<T> field) {
-		super(minimalpolynomial, field);
+		super(minimalpolynomial, field, "x");
 	}
 
 	@Override

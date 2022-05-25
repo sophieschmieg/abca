@@ -183,7 +183,7 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 		IntE aUpToSquares = modSquares(a());
 		Fraction aSqrt = q.sqrt(q.divide(a(), q.getInteger(aUpToSquares))).keySet().iterator().next();
 		IntE bUpToSquares = modSquares(b());
-		NumberField nf = new NumberField(q.getUnivariatePolynomialRing()
+		NumberField nf = NumberField.getNumberField(q.getUnivariatePolynomialRing()
 				.getPolynomial(q.negative(q.getInteger(aUpToSquares)), q.zero(), q.one()));
 		NumberFieldIntegers maximalOrder = nf.maximalOrder();
 		FactorizationResult<IntE, IntE> bFactors = z.uniqueFactorization(bUpToSquares);

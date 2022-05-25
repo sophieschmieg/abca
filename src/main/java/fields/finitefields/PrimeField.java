@@ -1,5 +1,6 @@
 package fields.finitefields;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +24,7 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import util.MiscAlgorithms;
+import util.PeekableReader;
 
 public class PrimeField extends AbstractField<PFE> {
 	private static Map<BigInteger, PrimeField> primeFields = new TreeMap<>();
@@ -188,7 +190,6 @@ public class PrimeField extends AbstractField<PFE> {
 		return this.getElement(dividend.value.multiply(divisor.value.modInverse(p)));
 	}
 
-	
 	@Override
 	public boolean hasSqrt(PFE t) {
 		if (verySmallPrime) {
@@ -200,7 +201,7 @@ public class PrimeField extends AbstractField<PFE> {
 		int jacobi = MiscAlgorithms.jacobiSymbol(t.value, this.p);
 		return jacobi == 1 || jacobi == 0;
 	}
-	
+
 	public PFE quadraticNonResidue() {
 		if (p == BigInteger.TWO) {
 			throw new ArithmeticException("No quadratic non residues mod 2");
@@ -330,6 +331,11 @@ public class PrimeField extends AbstractField<PFE> {
 	@Override
 	public String toString() {
 		return "F" + p;
+	}
+
+	@Override
+	public PFE parse(PeekableReader reader) throws IOException {
+		return reduce(Integers.z().parse(reader));
 	}
 
 	@Override

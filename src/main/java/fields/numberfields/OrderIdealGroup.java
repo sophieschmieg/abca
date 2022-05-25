@@ -4,15 +4,16 @@ import java.math.BigInteger;
 import java.util.Iterator;
 
 import fields.exceptions.InfinityException;
+import fields.integers.Integers;
 import fields.interfaces.Group;
 import fields.interfaces.Ideal;
 import fields.numberfields.NumberField.NFE;
-import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
+import fields.numberfields.NumberFieldOrder.NumberFieldOrderIdeal;
 
-public class OrderIdealGroup implements Group<FractionalIdeal> {
-	private NumberFieldIntegers order;
+public class OrderIdealGroup implements Group<FractionalOrderIdeal> {
+	private NumberFieldOrder order;
 
-	OrderIdealGroup(NumberFieldIntegers order) {
+	OrderIdealGroup(NumberFieldOrder order) {
 		this.order = order;
 	}
 
@@ -22,12 +23,12 @@ public class OrderIdealGroup implements Group<FractionalIdeal> {
 	}
 
 	@Override
-	public FractionalIdeal getRandomElement() {
-		NumberFieldIdeal numerator = (NumberFieldIdeal) order.getIdeal(order.getRandomElement(),
+	public FractionalOrderIdeal getRandomElement() {
+		NumberFieldOrderIdeal numerator = (NumberFieldOrderIdeal) order.getIdeal(order.getRandomElement(),
 				order.getRandomElement());
-		NumberFieldIdeal denominator = (NumberFieldIdeal) order.getIdeal(order.getRandomElement(),
+		NumberFieldOrderIdeal denominator = (NumberFieldOrderIdeal) order.getIdeal(order.getRandomElement(),
 				order.getRandomElement());
-		return new FractionalIdeal(order, numerator, denominator);
+		return new FractionalOrderIdeal(order, numerator, denominator);
 	}
 
 	@Override
@@ -41,32 +42,33 @@ public class OrderIdealGroup implements Group<FractionalIdeal> {
 	}
 
 	@Override
-	public Iterator<FractionalIdeal> iterator() {
+	public Iterator<FractionalOrderIdeal> iterator() {
 		throw new InfinityException();
 	}
 
 	@Override
-	public FractionalIdeal neutral() {
-		return new FractionalIdeal(order, order.getUnitIdeal(), order.getUnitIdeal());
+	public FractionalOrderIdeal neutral() {
+		return new FractionalOrderIdeal(order, order.getUnitIdeal(), order.getUnitIdeal());
 	}
-	
-	public FractionalIdeal getEmbedding(Ideal<NFE> ideal ) {
-		return new FractionalIdeal(order, (NumberFieldIdeal)ideal);
+
+	public FractionalOrderIdeal getEmbedding(Ideal<NFE> ideal) {
+		return new FractionalOrderIdeal(order, (NumberFieldOrderIdeal) ideal);
 	}
-	
-	public FractionalIdeal getPrincipalIdeal(NFE t) {
-		return FractionalIdeal.principalIdeal(order, t);
+
+	public FractionalOrderIdeal getPrincipalIdeal(NFE t) {
+		return FractionalOrderIdeal.principalIdeal(order, t);
 	}
 
 	@Override
-	public FractionalIdeal inverse(FractionalIdeal t) {
-		return new FractionalIdeal(order, t.getDenominator(), t.getNumerator());
+	public FractionalOrderIdeal inverse(FractionalOrderIdeal t) {
+		return new FractionalOrderIdeal(order, order.getIdeal(order.getInteger(t.getDenominator())), t.getNumerator());
 	}
 
 	@Override
-	public FractionalIdeal operate(FractionalIdeal t1, FractionalIdeal t2) {
-		return new FractionalIdeal(order, order.multiply(t1.getNumerator(), t2.getNumerator()),
-				order.multiply(t1.getDenominator(), t2.getDenominator()));
+	public FractionalOrderIdeal operate(FractionalOrderIdeal t1, FractionalOrderIdeal t2) {
+		return new FractionalOrderIdeal(order,
+				(NumberFieldOrderIdeal) order.multiply(t1.getNumerator(), t2.getNumerator()),
+				Integers.z().multiply(t1.getDenominator(), t2.getDenominator()));
 	}
 
 }

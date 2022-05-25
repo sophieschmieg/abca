@@ -86,7 +86,7 @@ public class FreeModule<T extends Element<T>> extends AbstractModule<T, Vector<T
 	public boolean isFree() {
 		return true;
 	}
-	
+
 	@Override
 	public Ideal<T> annihilator() {
 		return ring.getZeroIdeal();
@@ -130,6 +130,11 @@ public class FreeModule<T extends Element<T>> extends AbstractModule<T, Vector<T
 	@Override
 	public List<Vector<T>> getModuleGenerators() {
 		return getBasis();
+	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
 	public Vector<T> getUnitVector(int i) {
@@ -211,14 +216,10 @@ public class FreeModule<T extends Element<T>> extends AbstractModule<T, Vector<T
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Vector<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Vector<T>> s) {
 		Matrix<T> m = Matrix.fromColumns(s);
 		MatrixModule<T> module = new MatrixModule<T>(ring, dimension, s.size());
-		List<List<T>> result = new ArrayList<>();
-		for (Vector<T> basisVector : module.kernelBasis(m)) {
-			result.add(basisVector.asList());
-		}
-		return result;
+		return module.kernelBasis(m);
 	}
 
 	@Override
@@ -226,25 +227,24 @@ public class FreeModule<T extends Element<T>> extends AbstractModule<T, Vector<T
 		Matrix<T> m = Matrix.fromColumns(s);
 		MatrixModule<T> module = new MatrixModule<T>(ring, dimension, s.size());
 		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
-		if( gauss.getRank() != dimension) {
+		if (gauss.getRank() != dimension) {
 			return false;
 		}
 		T diagonal = ring.one();
 		for (int i = 0; i < dimension; i++) {
-			diagonal = ring.multiply(diagonal, gauss.getDiagonalMatrix().entry(i+1, i+1));
+			diagonal = ring.multiply(diagonal, gauss.getDiagonalMatrix().entry(i + 1, i + 1));
 		}
 		return ring.isUnit(diagonal);
 	}
-	
+
 	@Override
 	public Vector<T> asVector(Vector<T> s) {
 		return s;
 	}
-	
+
 	public int dimension() {
 		return dimension;
 	}
-	
 
 	@Override
 	public String toString() {

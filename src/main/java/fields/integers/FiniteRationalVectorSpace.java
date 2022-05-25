@@ -1,5 +1,6 @@
 package fields.integers;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -7,10 +8,15 @@ import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
+import fields.interfaces.Element;
+import fields.interfaces.Lattice;
 import fields.interfaces.ValueField;
 import fields.vectors.AbstractRealInnerProductSpace;
+import fields.vectors.EmbeddedRationalLattice;
 import fields.vectors.FiniteVectorSpace;
+import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 
 public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fraction, Vector<Fraction>> {
@@ -37,17 +43,17 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 		}
 		return result;
 	}
-	
+
 	@Override
 	public IntE round(Fraction t) {
 		return t.round();
 	}
-	
+
 	@Override
 	public Fraction fromReal(Real r) {
 		return Reals.r(128).roundToFraction(r, 64);
 	}
-	
+
 	@Override
 	public Real asReal(Fraction t) {
 		return Reals.r(128).getFraction(t);
@@ -62,7 +68,60 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 	public FiniteRationalVectorSpace withDimension(int dimension) {
 		return new FiniteRationalVectorSpace(dimension);
 	}
-	
+
+	@Override
+	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis,
+			Lattice<R, Fraction, Vector<Fraction>> lattice, double deltaAsDouble) {
+		Reals r = getValueField().getReals();
+		List<Vector<Fraction>> embeddedLatticeBasis = new ArrayList<>();
+		for (R basisVector : sublatticeBasis) {
+			embeddedLatticeBasis.add(lattice.embedding(basisVector));
+		}
+		Matrix<Fraction> originalBaseChange = Matrix.fromColumns(embeddedLatticeBasis);
+		MatrixModule<Fraction> matrixModule = originalBaseChange.getModule(q);
+		EmbeddedRationalLattice rationalLattice = new EmbeddedRationalLattice(r, dimension(), embeddedLatticeBasis,
+				deltaAsDouble);
+		List<R> result = new ArrayList<>();
+		for (Vector<Fraction> reduced : rationalLattice.getModuleGenerators()) {
+			Vector<IntE> asIntegerVector = Vector.mapVector(q.getAsIntegerMap(),
+					matrixModule.solve(originalBaseChange, reduced));
+			R basisVector = lattice.zero();
+			for (int i = 0; i < sublatticeBasis.size(); i++) {
+				basisVector = lattice.add(lattice.scalarMultiply(asIntegerVector.get(i + 1), sublatticeBasis.get(i)),
+						basisVector);
+			}
+			result.add(basisVector);
+		}
+		return result;
+	}
+
+	@Override
+	public <R extends Element<R>> R closestLatticePoint(Vector<Fraction> t,
+			Lattice<R, Fraction, Vector<Fraction>> lattice, double delta) {
+		Matrix<Fraction> asMatrix = lattice.generatorsAsMatrix();
+		MatrixModule<Fraction> matrixModule = asMatrix.getModule(q);
+		Vector<Fraction> asVector = asVector(t);
+		int rank = matrixModule.rank(asMatrix);
+		if (rank < dimension()) {
+			Vector<Fraction> target = asVector;
+			asVector = zero();
+			for (int i = 0; i < rank; i++) {
+				Vector<Fraction> basisVector = asMatrix.column(i + 1);
+				Vector<Fraction> projected = scalarMultiply(
+						q.divide(innerProduct(target, basisVector), innerProduct(basisVector, basisVector)),
+						basisVector);
+				asVector = add(projected, asVector);
+				target = subtract(target, projected);
+			}
+		}
+		Vector<Fraction> solved = matrixModule.solve(asMatrix, asVector);
+		List<IntE> integerSolved = new ArrayList<>();
+		for (Fraction coefficient : solved.asList()) {
+			integerSolved.add(round(coefficient));
+		}
+		return lattice.fromVector(new Vector<>(integerSolved));
+	}
+
 	@Override
 	public Vector<Fraction> zero() {
 		return vectorSpace.zero();
@@ -92,7 +151,7 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 	public Iterator<Vector<Fraction>> iterator() {
 		return vectorSpace.iterator();
 	}
-	
+
 	@Override
 	public Vector<Fraction> getUnitVector(int index) {
 		return vectorSpace.getUnitVector(index);
@@ -122,7 +181,7 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 	public Vector<Fraction> asVector(Vector<Fraction> s) {
 		return s;
 	}
-	
+
 //	@Override
 //	public List<Vector<Fraction>> latticeReduction(List<Vector<Fraction>> s) {
 //		return latticeReduction(this, new MathMap<>() {
@@ -157,14 +216,14 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 	public MatrixAlgebra<Fraction> matrixAlgebra() {
 		return vectorSpace.matrixAlgebra();
 	}
-	
+
 	@Override
 	public int dimension() {
 		return dimension;
 	}
 
 	@Override
-	public List<List<Fraction>> nonTrivialCombinations(List<Vector<Fraction>> s) {
+	public List<Vector<Fraction>> nonTrivialCombinations(List<Vector<Fraction>> s) {
 		return vectorSpace.nonTrivialCombinations(s);
 	}
 

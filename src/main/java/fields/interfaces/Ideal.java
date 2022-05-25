@@ -14,6 +14,7 @@ public interface Ideal<T extends Element<T>> extends Module<T, T>, Element<Ideal
 	public T residue(T t);
 	public boolean contains(T t);
 	public Value maximumPowerContains(T t);
+	public Value maximumPowerContains(Ideal<T> other);
 	public boolean contains(Ideal<T> t);
 	public boolean equalsIdeal(Ideal<T> other);
 	public boolean isLeftIdeal();

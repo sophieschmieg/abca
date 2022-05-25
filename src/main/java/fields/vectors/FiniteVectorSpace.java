@@ -72,7 +72,7 @@ public class FiniteVectorSpace<T extends Element<T>> extends AbstractModule<T, V
 	}
 	
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Vector<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Vector<T>> s) {
 		return asModule.nonTrivialCombinations(s);
 	}
 

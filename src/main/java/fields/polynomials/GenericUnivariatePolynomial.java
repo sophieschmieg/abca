@@ -156,7 +156,12 @@ public class GenericUnivariatePolynomial<T extends Element<T>> extends AbstractE
 
 	@Override
 	public String toString() {
-		return toString("X", false);
+		return toString(polynomialRing.getVariableName(), false);
+	}
+	
+	@Override
+	public String toString(boolean ascending) {
+		return toString(polynomialRing.getVariableName(), ascending);
 	}
 
 	@Override

@@ -16,10 +16,9 @@ import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
 import varieties.FunctionField;
 import varieties.RationalFunction;
-import varieties.curves.DivisorGroup.Divisor;
 import varieties.projective.AbstractProjectiveScheme;
-import varieties.projective.ProjectivePoint;
 import varieties.projective.GenericProjectiveScheme;
+import varieties.projective.ProjectivePoint;
 
 public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveScheme<T> implements SmoothCurve<T> {
 	private Field<T> field;
@@ -47,7 +46,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	public Field<T> getField() {
 		return this.field;
 	}
-
+	
 	@Override
 	public boolean hasRationalPoint(ProjectivePoint<T> p) {
 		return p.getDim() == 1;
@@ -155,7 +154,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<RationalFunction<T>> getRiemannRochSpace(Divisor<T> div) {
+	public List<RationalFunction<T>> getRiemannRochSpace(WeilDivisor<T> div) {
 		if (div.getDegree() < 0)
 			return Collections.emptyList();
 		List<RationalFunction<T>> functions = new ArrayList<>();
@@ -186,7 +185,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	}
 
 	@Override
-	public boolean isPrincipal(Divisor<T> div) {
+	public boolean isPrincipal(WeilDivisor<T> div) {
 		return div.getDegree() == 0;
 	}
 
@@ -198,6 +197,11 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	@Override
 	public List<ProjectiveLine<T>> irreducibleComponents() {
 		return Collections.singletonList(this);
+	}
+	
+	@Override
+	public ProjectiveLine<T> reduced() {
+		return this;
 	}
 	
 }

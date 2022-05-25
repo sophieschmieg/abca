@@ -1,5 +1,6 @@
 package fields.helper;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,6 +26,7 @@ import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
+import util.PeekableReader;
 import varieties.SimpleFunctionField;
 import varieties.SimpleFunctionField.SimpleRationalFunction;
 
@@ -32,8 +34,8 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		implements Algebra<T, TExt<T>>, Field<TExt<T>>, VectorSpace<T, TExt<T>> {
 	public static class TExt<T extends Element<T>> extends AbstractElement<TExt<T>> {
 		private Fraction<Polynomial<T>> asFraction;
-		
-		private TExt( TranscendentalFieldExtension<T> extension, Fraction<Polynomial<T>> asFraction) {
+
+		private TExt(TranscendentalFieldExtension<T> extension, Fraction<Polynomial<T>> asFraction) {
 			this.asFraction = asFraction;
 		}
 
@@ -52,15 +54,15 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		public String toString() {
 			return asFraction.toString();
 		}
-		
+
 		public Polynomial<T> getNumerator() {
 			return asFraction.getNumerator();
 		}
-		
+
 		public Polynomial<T> getDenominator() {
 			return asFraction.getDenominator();
 		}
-		
+
 		public Polynomial<T> asInteger() {
 			return asFraction.asInteger();
 		}
@@ -72,8 +74,14 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	private TExt<T> zero;
 	private TExt<T> one;
 
+	public TranscendentalFieldExtension(Field<T> baseField, String[] variables) {
+		this(baseField, variables, Monomial.GREVLEX);
+	}
 	public TranscendentalFieldExtension(Field<T> baseField, int dimensions) {
 		this(baseField, dimensions, Monomial.GREVLEX);
+	}
+	public TranscendentalFieldExtension(Field<T> baseField, String[] variables, Comparator<Monomial> comparator) {
+		this(baseField, AbstractPolynomialRing.getPolynomialRing(baseField, comparator, variables));
 	}
 
 	public TranscendentalFieldExtension(Field<T> baseField, int dimensions, Comparator<Monomial> comparator) {
@@ -90,28 +98,14 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 
 	@Override
 	public String toString() {
-		if (polynomialRing.numberOfVariables() == 1) {
-			return getRing().toString() + "(X)";
-		} else if (polynomialRing.numberOfVariables() == 2) {
-			return getRing().toString() + "(X,Y)";
-		} else if (polynomialRing.numberOfVariables() == 3) {
-			return getRing().toString() + "(X,Y,Z)";
-		}
-		StringBuilder buf = new StringBuilder();
-		buf.append(getRing().toString() + "(");
-		boolean first = true;
-		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
-			if (first) {
-				first = false;
-			} else {
-				buf.append(",");
-			}
-			buf.append("X_" + i);
-		}
-		buf.append(")");
-		return buf.toString();
+		return baseField + "(" + String.join(",", polynomialRing.getVariableNames()) + ")";
 	}
-	
+
+	@Override
+	public TExt<T> parse(PeekableReader reader) throws IOException {
+		return getElement(asFieldOfFractions.parse(reader));
+	}
+
 	@Override
 	public Field<T> getRing() {
 		return getField();
@@ -121,7 +115,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public TExt<T> zero() {
 		return zero;
 	}
-	
+
 	private TExt<T> getElement(Fraction<Polynomial<T>> asFraction) {
 		Polynomial<T> numerator = asFraction.getNumeratorDirect();
 		Polynomial<T> denominator = asFraction.getDenominatorDirect();
@@ -130,6 +124,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		denominator = polynomialRing.normalize(denominator);
 		return new TExt<>(this, asFieldOfFractions.getFraction(numerator, denominator));
 	}
+
 	@Override
 	public TExt<T> add(TExt<T> s1, TExt<T> s2) {
 		return getElement(asFieldOfFractions.add(s1.asFraction, s2.asFraction));
@@ -149,7 +144,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public boolean isFree() {
 		return true;
 	}
-	
+
 	@Override
 	public boolean isTorsionFree() {
 		return true;
@@ -217,13 +212,13 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		return false;
 	}
 
-	@Override
-	public List<T> nonTrivialCombination(List<TExt<T>> s) {
-		return nonTrivialCombinations(s).get(0);
-	}
+//	@Override
+//	public List<T> nonTrivialCombination(List<TExt<T>> s) {
+//		return nonTrivialCombinations(s).get(0);
+//	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<TExt<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<TExt<T>> s) {
 		Polynomial<T> lcm = polynomialRing.one();
 		for (TExt<T> element : s) {
 			lcm = polynomialRing.lcm(lcm, element.asFraction.getDenominator());
@@ -300,9 +295,20 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public TExt<T> getEmbedding(T t) {
 		return getElement(asFieldOfFractions.getEmbedding(polynomialRing.getEmbedding(t)));
 	}
-	
+
 	public TExt<T> getEmbedding(Polynomial<T> t) {
 		return getElement(asFieldOfFractions.getEmbedding(t));
+	}
+
+	public TExt<T> getVar(int i) {
+		return getEmbedding(polynomialRing.getVar(i));
+	}
+
+	public TExt<T> getVarPower(int i, int power) {
+		if (power < 0) {
+			return inverse(getVarPower(i, -power));
+		}
+		return getEmbedding(polynomialRing.getVarPower(i, power));
 	}
 
 	@Override
@@ -319,7 +325,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public Field<T> getField() {
 		return baseField;
 	}
-	
+
 	@Override
 	public TExt<T> getUnitVector(int index) {
 		throw new InfinityException();
@@ -338,7 +344,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public int transcendenceDegree() {
 		return polynomialRing.numberOfVariables();
 	}
-	
+
 	public PolynomialRing<T> polynomialRing() {
 		return polynomialRing;
 	}
@@ -347,13 +353,14 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public MatrixAlgebra<T> matrixAlgebra() {
 		throw new InfinityException();
 	}
-	
+
 	@Override
-	public Extension<TExt<T>, TExt<T>, SimpleRationalFunction<T>, SimpleFunctionField<T>> getExtension(UnivariatePolynomial<TExt<T>> minimalPolynomial) {
-		SimpleFunctionField<T> extension = new SimpleFunctionField<>(minimalPolynomial, this);
+	public Extension<TExt<T>, TExt<T>, SimpleRationalFunction<T>, SimpleFunctionField<T>> getExtension(
+			UnivariatePolynomial<TExt<T>> minimalPolynomial) {
+		SimpleFunctionField<T> extension = new SimpleFunctionField<>(minimalPolynomial, this, "x");
 		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
 	}
-	
+
 	@Override
 	public FactorizationResult<Polynomial<TExt<T>>, TExt<T>> factorization(UnivariatePolynomial<TExt<T>> t) {
 		UnivariatePolynomialRing<Fraction<Polynomial<T>>> univariate = asFieldOfFractions.getUnivariatePolynomialRing();
@@ -361,15 +368,18 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 			@Override
 			public Fraction<Polynomial<T>> evaluate(TExt<T> t) {
 				return t.asFraction;
-			}});
-		FactorizationResult<Polynomial<Fraction<Polynomial<T>>>, Fraction<Polynomial<T>>> factorization = asFieldOfFractions.factorization(polynomial);
+			}
+		});
+		FactorizationResult<Polynomial<Fraction<Polynomial<T>>>, Fraction<Polynomial<T>>> factorization = asFieldOfFractions
+				.factorization(polynomial);
 		SortedMap<Polynomial<TExt<T>>, Integer> result = new TreeMap<>();
 		for (Polynomial<Fraction<Polynomial<T>>> factor : factorization.primeFactors()) {
 			result.put(getUnivariatePolynomialRing().getEmbedding(factor, new MathMap<>() {
 				@Override
 				public TExt<T> evaluate(Fraction<Polynomial<T>> t) {
 					return getElement(t);
-				}}), factorization.multiplicity(factor));
+				}
+			}), factorization.multiplicity(factor));
 		}
 		return new FactorizationResult<>(getElement(factorization.getUnit()), result);
 	}

@@ -31,21 +31,21 @@ class FieldExtensionTest {
 	@Test
 	void testGauss() {
 		Rationals q  = Rationals.q();
-		NumberField gauss = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
+		NumberField gauss = NumberField.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
 		System.out.println(gauss.genericNorm());
 	}
 
 	@Test
 	void testSqrt2() {
 		Rationals q  = Rationals.q();
-		NumberField sqrt2 = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-2), q.zero(), q.one()));
+		NumberField sqrt2 = NumberField.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-2), q.zero(), q.one()));
 		System.out.println(sqrt2.genericNorm());
 	}
 
 	@Test
 	void testEisenstein() {
 		Rationals q  = Rationals.q();
-		NumberField eisenstein = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.one(), q.one()));
+		NumberField eisenstein = NumberField.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.one(), q.one()));
 		NumberField eisensteini = eisenstein.getExtension(eisenstein.getUnivariatePolynomialRing().getPolynomial(eisenstein.one(), eisenstein.zero(), eisenstein.one())).extension();
 		System.out.println(eisenstein.genericNorm());
 		System.out.println(eisensteini.genericNorm());

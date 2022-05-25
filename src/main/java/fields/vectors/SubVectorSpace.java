@@ -36,10 +36,12 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 			Vector<T> vector = space.asVector(s);
 			asVectors.add(vector);
 			if (embeddingDimension != 0 && embeddingDimension != vector.dimension()) {
+				System.err.println("Different embeddingDimension: " + embeddingDimension + " != " + vector.dimension());
 				differentEmbeddingDimensions = true;
 			}
 			if (embeddingDimension < vector.dimension()) {
 				embeddingDimension = vector.dimension();
+//			System.err.println("embeddingDimension is " + embeddingDimension);
 			}
 		}
 		if (differentEmbeddingDimensions) {
@@ -54,9 +56,21 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 				asVectors.add(new Vector<>(asList));
 			}
 		}
+		if (asVectors.isEmpty() || embeddingDimension == 0) {
+			System.err.println("Empty vector list " + asVectors + " or embeddingDimension 0: " + embeddingDimension);
+			this.generators = Collections.emptyList();
+			this.asFiniteVectorSpace = new FiniteVectorSpace<>(space.getField(), 0);
+			return;
+		}
 		Matrix<T> asMatrix = Matrix.fromColumns(asVectors);
 		this.matrixModule = asMatrix.getModule(space.getField());
 		List<Vector<T>> basisVectors = matrixModule.imageBasis(asMatrix);
+		if (basisVectors.isEmpty()) {
+			System.err.println("No image basis found for: " + asVectors);
+			this.generators = Collections.emptyList();
+			this.asFiniteVectorSpace = new FiniteVectorSpace<>(space.getField(), 0);
+			return;
+		}
 		this.baseChange = Matrix.fromColumns(basisVectors);
 		this.matrixModule = baseChange.getModule(space.getField());
 		this.generators = new ArrayList<>();
@@ -69,7 +83,7 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	public SubVectorSpace(VectorSpace<T, S> space, List<S> generators) {
 		this(space, generators, true);
 	}
-	
+
 	public int getEmbeddingDimension() {
 		return embeddingDimension;
 	}
@@ -120,7 +134,7 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<S> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<S> s) {
 		return space.nonTrivialCombinations(s);
 	}
 
@@ -132,15 +146,21 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	}
 
 	public SubVectorSpace<T, S> intersection(SubVectorSpace<T, S> other) {
+		if (this.generators.isEmpty()) {
+			return this;
+		}
+		if (other.generators.isEmpty()) {
+			return other;
+		}
 		List<S> generators = new ArrayList<>();
 		generators.addAll(this.generators);
 		generators.addAll(other.generators);
-		List<List<T>> coeffs = space.nonTrivialCombinations(generators);
+		List<Vector<T>> coeffs = space.nonTrivialCombinations(generators);
 		List<S> intersectionGenerators = new ArrayList<>();
-		for (List<T> coeff : coeffs) {
+		for (Vector<T> coeff : coeffs) {
 			S generator = zero();
 			for (int i = 0; i < this.generators.size(); i++) {
-				generator = add(generator, scalarMultiply(coeff.get(i), this.generators.get(i)));
+				generator = add(generator, scalarMultiply(coeff.get(i + 1), this.generators.get(i)));
 			}
 			intersectionGenerators.add(generator);
 		}
@@ -148,6 +168,12 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 	}
 
 	public SubVectorSpace<T, S> add(SubVectorSpace<T, S> other) {
+		if (this.generators.isEmpty()) {
+			return other;
+		}
+		if (other.generators.isEmpty()) {
+			return this;
+		}
 		List<S> generators = new ArrayList<>();
 		generators.addAll(this.generators);
 		generators.addAll(other.generators);
@@ -159,7 +185,7 @@ public class SubVectorSpace<T extends Element<T>, S extends Element<S>> extends 
 		if (s.size() < dimension()) {
 			return false;
 		}
-		if (generators.size() == 0) {
+		if (generators.isEmpty()) {
 			return true;
 		}
 		List<Vector<T>> asVectors = new ArrayList<>();

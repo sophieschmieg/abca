@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -32,6 +33,8 @@ import fields.local.FormalPowerSeries;
 import fields.local.FormalPowerSeries.PowerSeries;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import varieties.FunctionField;
 import varieties.RationalFunction;
@@ -43,7 +46,9 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	private PolynomialIdeal<T> ideal;
 	private int dimension;
 	private int degree;
+	private UnivariatePolynomial<Fraction> hilbertPolynomial;
 	private Set<Integer> boundVariables;
+	private Map<Integer, IntE> hilbertFunction;
 
 	public static class CoordinateRingElement<T extends Element<T>> extends AbstractElement<CoordinateRingElement<T>> {
 		private Polynomial<T> polynomial;
@@ -115,6 +120,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	CoordinateRing(PolynomialRing<T> ring, PolynomialIdeal<T> ideal) {
 		this.ring = ring;
 		this.ideal = ideal;
+		this.hilbertFunction = new TreeMap<>();
 		int i = 0;
 		int nonTrivial = 0;
 		for (Polynomial<T> generator : this.ideal.generators()) {
@@ -294,6 +300,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 //TODO: FIXME
+	@SuppressWarnings("unchecked")
 	private <S extends Element<S>, U extends Element<U>, R extends Element<R>> LocalizeResult<CoordinateRingElement<T>, LocalizedElement<S>, LocalizedElement<S>, S> localizeAtIdeal(
 			CoordinateIdeal<T> primeIdeal, LocalizeResult<T, S, U, R> localizeRing) {
 		PolynomialRing<S> polynomialRing = AbstractPolynomialRing.getPolynomialRing(localizeRing.getLocalizedRing(),
@@ -394,14 +401,17 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	public IntE hilbertFunction(int degree) {
-		Set<Monomial> monomials = new TreeSet<>();
-		for (Polynomial<T> generator : ideal.generators()) {
-			generator = ring.homogenize(generator);
-			if (generator.leadingMonomial().degree() <= degree) {
-				monomials.add(generator.leadingMonomial());
+		if (!hilbertFunction.containsKey(degree)) {
+			Set<Monomial> monomials = new TreeSet<>();
+			for (Polynomial<T> generator : ideal.generators()) {
+				generator = ring.homogenize(generator);
+				if (generator.leadingMonomial().degree() <= degree) {
+					monomials.add(generator.leadingMonomial());
+				}
 			}
+			hilbertFunction.put(degree, hilbertFunction(degree, 1, ring.numberOfVariables() + 1, monomials));
 		}
-		return hilbertFunction(degree, 1, ring.numberOfVariables() + 1, monomials);
+		return hilbertFunction.get(degree);
 	}
 
 	public PowerSeries<Fraction> hilbertSeries(FormalPowerSeries<Fraction> powerSeries) {
@@ -414,29 +424,54 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		return powerSeries.getEmbedding(result);
 	}
 
+	private Polynomial<Fraction> hilbertSeriesNumerator() {
+		int accuracy = 0;
+		for (Polynomial<T> generator : ideal.generators()) {
+			if (generator.degree() > accuracy) {
+				accuracy = generator.degree();
+			}
+		}
+		accuracy += 3;
+		Rationals q = Rationals.q();
+		FormalPowerSeries<Fraction> powerSeries = new FormalPowerSeries<>(q, accuracy);
+		PowerSeries<Fraction> oneMinusX = powerSeries.subtract(powerSeries.one(), powerSeries.uniformizer());
+		PowerSeries<Fraction> denominator = powerSeries.power(oneMinusX, dimension + 1);
+		PowerSeries<Fraction> numerator = powerSeries.multiply(hilbertSeries(powerSeries), denominator);
+		return powerSeries.roundToPolynomial(numerator, accuracy);
+	}
+
+	public UnivariatePolynomial<Fraction> hilbertPolynomial() {
+		if (hilbertPolynomial == null) {
+			Rationals q = Rationals.q();
+			int min = hilbertSeriesNumerator().degree() - dimension + 1;
+			List<Fraction> interpolationPoints = new ArrayList<>();
+			List<Fraction> interpolationValues = new ArrayList<>();
+			for (int i = 0; i < dimension + 1; i++) {
+				interpolationPoints.add(q.getInteger(min + i));
+				interpolationValues.add(q.getInteger(hilbertFunction(min + i)));
+			}
+			hilbertPolynomial = q.getUnivariatePolynomialRing().interpolate(interpolationPoints, interpolationValues);
+		}
+		return hilbertPolynomial;
+	}
+
+	public int genus() {
+		return (dimension % 2 == 0 ? 1 : -1)
+				* (hilbertPolynomial().univariateCoefficient(0).asInteger().intValueExact() - 1);
+	}
+
 	public int degree() {
 		if (degree < 0) {
 			if (dimension + ideal.generators().size() == ring.numberOfVariables()) {
 				int product = 1;
 				for (Polynomial<T> generator : ideal.generators()) {
-					product *= generator.degree();
+					product *= generator.leadingMonomial().degree();
 				}
 				degree = product;
 			} else {
-				int accuracy = 0;
-				for (Polynomial<T> generator : ideal.generators()) {
-					if (generator.degree() > accuracy) {
-						accuracy = generator.degree();
-					}
-				}
-				accuracy += 3;
 				Rationals q = Rationals.q();
-				FormalPowerSeries<Fraction> powerSeries = new FormalPowerSeries<>(q, accuracy);
-				PowerSeries<Fraction> oneMinusX = powerSeries.subtract(powerSeries.one(), powerSeries.uniformizer());
-				PowerSeries<Fraction> denominator = powerSeries.power(oneMinusX, dimension + 1);
-				PowerSeries<Fraction> numerator = powerSeries.multiply(hilbertSeries(powerSeries), denominator);
 				PolynomialRing<Fraction> polynomialRing = q.getUnivariatePolynomialRing();
-				Fraction result = polynomialRing.evaluate(powerSeries.roundToPolynomial(numerator, accuracy), q.one());
+				Fraction result = polynomialRing.evaluate(hilbertSeriesNumerator(), q.one());
 				degree = result.asInteger().intValueExact();
 			}
 		}
@@ -451,6 +486,11 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	public PolynomialIdeal<T> annihilator() {
 		return ideal;
 	}
+	
+	@Override
+	public List<Vector<Polynomial<T>>> getSyzygies() {
+		return ring.syzygyProblem(ideal.generators());
+	}
 
 	public List<CoordinateRingElement<T>> getGenerators() {
 		List<CoordinateRingElement<T>> result = new ArrayList<>();
@@ -462,6 +502,10 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 	public CoordinateRingElement<T> getVar(int var) {
 		return this.getEmbedding(this.ring.getVar(var));
+	}
+
+	public CoordinateRingElement<T> getEmbedding(T t) {
+		return getEmbedding(ring.getEmbedding(t));
 	}
 
 	@Override
@@ -649,6 +693,92 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		return null;
 	}
 
+	private Matrix<Polynomial<T>> polynomialMatrix(Matrix<CoordinateRingElement<T>> m) {
+		List<List<Polynomial<T>>> polynomialMatrix = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			ArrayList<Polynomial<T>> row = new ArrayList<>();
+			for (int j = 0; j < m.columns(); j++) {
+				row.add(m.entry(i + 1, j + 1).getElement());
+			}
+			for (int j = 0; j < i * ideal.generators().size(); j++) {
+				row.add(ring.zero());
+			}
+			for (Polynomial<T> generator : ideal.generators()) {
+				row.add(generator);
+			}
+			for (int j = (i + 1) * ideal.generators().size(); j < m.rows() * ideal.generators().size(); j++) {
+				row.add(ring.zero());
+			}
+			polynomialMatrix.add(row);
+		}
+		return new Matrix<>(polynomialMatrix);
+	}
+
+	private Vector<Polynomial<T>> polynomialVector(Vector<CoordinateRingElement<T>> b) {
+		List<Polynomial<T>> polynomialVector = new ArrayList<>();
+		for (int i = 0; i < b.dimension(); i++) {
+			polynomialVector.add(b.get(i + 1).getElement());
+		}
+		return new Vector<>(polynomialVector);
+	}
+
+	private Vector<CoordinateRingElement<T>> coordinateRingVector(Vector<Polynomial<T>> x, int dimension) {
+		List<CoordinateRingElement<T>> solution = new ArrayList<>();
+		for (int i = 0; i < dimension; i++) {
+			solution.add(getEmbedding(x.get(i + 1)));
+		}
+		return new Vector<>(solution);
+
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<CoordinateRingElement<T>> module, Matrix<CoordinateRingElement<T>> m,
+			Vector<CoordinateRingElement<T>> b) {
+		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
+		return ring.isSubModuleMember(polynomialMatrix.getModule(ring), polynomialMatrix, polynomialVector(b));
+	}
+
+	@Override
+	public Vector<CoordinateRingElement<T>> asSubModuleMember(MatrixModule<CoordinateRingElement<T>> module,
+			Matrix<CoordinateRingElement<T>> m, Vector<CoordinateRingElement<T>> b) {
+		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
+		Vector<Polynomial<T>> polynomialSolution = ring.asSubModuleMember(polynomialMatrix.getModule(ring),
+				polynomialMatrix, polynomialVector(b));
+		return coordinateRingVector(polynomialSolution, m.columns());
+	}
+
+	@Override
+	public List<Vector<CoordinateRingElement<T>>> syzygyProblem(MatrixModule<CoordinateRingElement<T>> module,
+			Matrix<CoordinateRingElement<T>> m) {
+		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
+		List<Vector<Polynomial<T>>> polynomialSyzygies = ring.syzygyProblem(polynomialMatrix.getModule(ring),
+				polynomialMatrix);
+		List<Vector<CoordinateRingElement<T>>> syzygies = new ArrayList<>();
+		for (Vector<Polynomial<T>> polynomialSyzygy : polynomialSyzygies) {
+			Vector<CoordinateRingElement<T>> syzygy = coordinateRingVector(polynomialSyzygy, m.columns());
+			if (!syzygy.equals(module.domain().zero())) {
+				syzygies.add(syzygy);
+			}
+		}
+		return syzygies;
+	}
+
+	@Override
+	public List<Vector<CoordinateRingElement<T>>> simplifySubModuleGenerators(
+			MatrixModule<CoordinateRingElement<T>> module, Matrix<CoordinateRingElement<T>> m) {
+		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
+		List<Vector<Polynomial<T>>> polynomialGenerators = ring
+				.simplifySubModuleGenerators(polynomialMatrix.getModule(ring), polynomialMatrix);
+		List<Vector<CoordinateRingElement<T>>> generators = new ArrayList<>();
+		for (Vector<Polynomial<T>> polynomialGenerator : polynomialGenerators) {
+			Vector<CoordinateRingElement<T>> generator = coordinateRingVector(polynomialGenerator, m.rows());
+			if (!generator.equals(module.codomain().zero())) {
+				generators.add(generator);
+			}
+		}
+		return generators;
+	}
+
 	@Override
 	public Iterable<CoordinateRingElement<T>> getUnits() {
 		throw new UnsupportedOperationException();
@@ -657,7 +787,40 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	@Override
 	public IdealResult<CoordinateRingElement<T>, CoordinateIdeal<T>> getIdealWithTransforms(
 			List<CoordinateRingElement<T>> generators) {
-		throw new UnsupportedOperationException();
+		List<Polynomial<T>> polynomialGenerators = new ArrayList<>();
+		for (CoordinateRingElement<T> generator : generators) {
+			polynomialGenerators.add(generator.getElement());
+		}
+		polynomialGenerators.addAll(ideal.generators());
+		IdealResult<Polynomial<T>, PolynomialIdeal<T>> polynomialIdeal = ring
+				.getIdealWithTransforms(polynomialGenerators);
+		CoordinateIdeal<T> coordinateIdeal = getIdeal(polynomialIdeal.getIdeal());
+		List<List<CoordinateRingElement<T>>> expressions = new ArrayList<>();
+		for (int i = 0; i < polynomialIdeal.getGeneratorExpressions().size(); i++) {
+			if (coordinateIdeal.generators().contains(getEmbedding(polynomialIdeal.getIdeal().generators().get(i)))) {
+				List<CoordinateRingElement<T>> expression = new ArrayList<>();
+				for (int j = 0; j < generators.size(); j++) {
+					expression.add(getEmbedding(polynomialIdeal.getGeneratorExpressions().get(i).get(j)));
+				}
+				expressions.add(expression);
+			}
+		}
+		List<Vector<CoordinateRingElement<T>>> syzygies = new ArrayList<>();
+		for (Vector<Polynomial<T>> polynomialSyzygy : polynomialIdeal.getSyzygies()) {
+			List<CoordinateRingElement<T>> syzygy = new ArrayList<>();
+			boolean nonZero = false;
+			for (int i = 0; i < generators.size(); i++) {
+				CoordinateRingElement<T> reduced = getEmbedding(polynomialSyzygy.get(i + 1));
+				if (!reduced.equals(zero())) {
+					nonZero = true;
+				}
+				syzygy.add(reduced);
+			}
+			if (nonZero) {
+				syzygies.add(new Vector<>(syzygy));
+			}
+		}
+		return new IdealResult<>(expressions, generators, coordinateIdeal, syzygies);
 	}
 
 	public CoordinateIdeal<T> getIdeal(List<CoordinateRingElement<T>> generators) {
@@ -703,13 +866,15 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<CoordinateRingElement<T>, ?> moduloMaximalIdeal(
+	public ModuloMaximalIdealResult<CoordinateRingElement<T>, ?, CoordinateRing<T>, CoordinateIdeal<T>, ?> moduloMaximalIdeal(
 			Ideal<CoordinateRingElement<T>> ideal) {
-		return moduloMaximalIdeal(ideal, ring.moduloMaximalIdeal(((CoordinateIdeal<T>) ideal).asPolynomialIdeal()));
+		return moduloMaximalIdeal((CoordinateIdeal<T>) ideal,
+				ring.moduloMaximalIdeal(((CoordinateIdeal<T>) ideal).asPolynomialIdeal()));
 	}
 
-	private <S extends Element<S>> ModuloMaximalIdealResult<CoordinateRingElement<T>, S> moduloMaximalIdeal(
-			Ideal<CoordinateRingElement<T>> ideal, ModuloMaximalIdealResult<Polynomial<T>, S> modPolynomialIdeal) {
+	private <S extends Element<S>, F extends Field<S>> ModuloMaximalIdealResult<CoordinateRingElement<T>, S, CoordinateRing<T>, CoordinateIdeal<T>, F> moduloMaximalIdeal(
+			CoordinateIdeal<T> ideal,
+			ModuloMaximalIdealResult<Polynomial<T>, S, PolynomialRing<T>, PolynomialIdeal<T>, F> modPolynomialIdeal) {
 		return new ModuloMaximalIdealResult<>(this, ideal, modPolynomialIdeal.getField(), new MathMap<>() {
 			@Override
 			public S evaluate(CoordinateRingElement<T> t) {
@@ -773,7 +938,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
-	public List<List<Polynomial<T>>> nonTrivialCombinations(List<CoordinateRingElement<T>> s) {
+	public List<Vector<Polynomial<T>>> nonTrivialCombinations(List<CoordinateRingElement<T>> s) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -877,34 +1042,34 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 			return asPolynomialIdeal;
 		}
 
-		@Override
-		public List<List<CoordinateRingElement<T>>> nonTrivialCombinations(List<CoordinateRingElement<T>> s) {
-			List<Polynomial<T>> polynomialList = new ArrayList<>();
-			for (CoordinateRingElement<T> e : s) {
-				polynomialList.add(e.getElement());
-			}
-			polynomialList.addAll(ring.getIdeal().generators());
-			List<List<Polynomial<T>>> polynomialResult = ring.getPolynomialRing().getUnitIdeal()
-					.nonTrivialCombinations(polynomialList);
-			List<List<CoordinateRingElement<T>>> result = new ArrayList<>();
-			for (List<Polynomial<T>> relation : polynomialResult) {
-				List<CoordinateRingElement<T>> row = new ArrayList<>();
-				for (int i = 0; i < s.size(); i++) {
-					Polynomial<T> coefficient = relation.get(i);
-					row.add(ring.getEmbedding(coefficient));
-				}
-				result.add(row);
-			}
-			return result;
-		}
+//		@Override
+//		public List<List<CoordinateRingElement<T>>> nonTrivialCombinations(List<CoordinateRingElement<T>> s) {
+//			List<Polynomial<T>> polynomialList = new ArrayList<>();
+//			for (CoordinateRingElement<T> e : s) {
+//				polynomialList.add(e.getElement());
+//			}
+//			polynomialList.addAll(ring.getIdeal().generators());
+//			List<List<Polynomial<T>>> polynomialResult = ring.getPolynomialRing().getUnitIdeal()
+//					.nonTrivialCombinations(polynomialList);
+//			List<List<CoordinateRingElement<T>>> result = new ArrayList<>();
+//			for (List<Polynomial<T>> relation : polynomialResult) {
+//				List<CoordinateRingElement<T>> row = new ArrayList<>();
+//				for (int i = 0; i < s.size(); i++) {
+//					Polynomial<T> coefficient = relation.get(i);
+//					row.add(ring.getEmbedding(coefficient));
+//				}
+//				result.add(row);
+//			}
+//			return result;
+//		}
 
-		@Override
-		public List<List<CoordinateRingElement<T>>> getModuleGeneratorRelations() {
-			if (relations == null) {
-				relations = nonTrivialCombinations(getModuleGenerators());
-			}
-			return relations;
-		}
+//		@Override
+//		public List<List<CoordinateRingElement<T>>> getModuleGeneratorRelations() {
+//			if (relations == null) {
+//				relations = nonTrivialCombinations(getModuleGenerators());
+//			}
+//			return relations;
+//		}
 
 		@Override
 		public List<CoordinateRingElement<T>> generators() {

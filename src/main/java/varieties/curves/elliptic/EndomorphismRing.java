@@ -46,7 +46,7 @@ public class EndomorphismRing<T extends Element<T>> extends AbstractAlgebra<IntE
 	EndomorphismRing(EllipticCurve<T> curve) {
 		this.curve = curve;
 		this.z = Integers.z();
-		Isomorphism<T> isomorphism = curve.identity();
+		Isogeny<T> isomorphism = curve.identity();
 		basis.add(isomorphism);
 		if (!curve.getField().isFinite()) {
 			throw new UnsupportedOperationException("Only curves over finite fields currently supported");
@@ -60,7 +60,7 @@ public class EndomorphismRing<T extends Element<T>> extends AbstractAlgebra<IntE
 			Fraction trace = q.getInteger(curve.trace());
 			Fraction norm = q.getInteger(frobenius.getDegree());
 			UnivariatePolynomialRing<Fraction> rationalPolynomials = q.getUnivariatePolynomialRing();
-			NumberField nf = new NumberField(rationalPolynomials.getPolynomial(norm, trace, q.one()));
+			NumberField nf = NumberField.getNumberField(rationalPolynomials.getPolynomial(norm, trace, q.one()));
 			asNumberFieldOrder = nf.maximalOrder();
 		}
 	}
@@ -130,6 +130,12 @@ public class EndomorphismRing<T extends Element<T>> extends AbstractAlgebra<IntE
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<Endomorphism<T>> s) {
@@ -144,7 +150,7 @@ public class EndomorphismRing<T extends Element<T>> extends AbstractAlgebra<IntE
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<Endomorphism<T>> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<Endomorphism<T>> s) {
 		// TODO Auto-generated method stub
 		return null;
 	}

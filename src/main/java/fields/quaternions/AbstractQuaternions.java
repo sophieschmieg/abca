@@ -2,6 +2,7 @@ package fields.quaternions;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -218,6 +219,11 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	public Ideal<T> annihilator() {
 		return base.getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<Quaternion<T>> s) {
@@ -230,7 +236,7 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Quaternion<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Quaternion<T>> s) {
 		return asVectorSpace.nonTrivialCombinations(asVectors(s));
 	}
 

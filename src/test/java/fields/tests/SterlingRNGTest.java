@@ -1,4 +1,4 @@
-package fields.floatingpoint;
+package fields.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -7,6 +7,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import fields.floatingpoint.FiniteRealVectorSpace;
+import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;

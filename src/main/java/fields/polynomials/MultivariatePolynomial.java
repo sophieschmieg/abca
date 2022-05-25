@@ -117,7 +117,7 @@ public class MultivariatePolynomial<T extends Element<T>> extends AbstractElemen
 		if (this.coeff.isEmpty()) {
 			return "0";
 		}
-		return toString(leadingMonomial().defaultVariableNames(), false);
+		return toString(polynomialRing.getVariableNames(), false);
 	}
 
 	public String toString(String[] variables, boolean ascending) {
@@ -137,7 +137,7 @@ public class MultivariatePolynomial<T extends Element<T>> extends AbstractElemen
 			if (m.degree() == 0)
 				buf.append(this.coeff.get(m).toString());
 			else if (this.coeff.get(m).equals(this.baseRing.one()))
-				buf.append(m.toString());
+				buf.append(m.toString(variables));
 			else
 				buf.append(this.coeff.get(m).toString() + "*" + m.toString(variables));
 		}

@@ -15,7 +15,7 @@ class NumberFieldModuloTest {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomialRing = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(polynomialRing.getPolynomial(q.getInteger(5), q.zero(), q.one()));
+		NumberField nf = NumberField.getNumberField(polynomialRing.getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		System.out.println(nf);
 		NumberFieldIntegers order = nf.maximalOrder();
 		System.out.println(nf.classNumber());
@@ -34,7 +34,7 @@ class NumberFieldModuloTest {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomialRing = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(polynomialRing.getPolynomial(q.getInteger(3), q.zero(), q.one()));
+		NumberField nf = NumberField.getNumberField(polynomialRing.getPolynomial(q.getInteger(3), q.zero(), q.one()));
 		System.out.println(nf);
 		NumberFieldIntegers order = nf.maximalOrder();
 		System.out.println(nf.classNumber());
@@ -53,7 +53,7 @@ class NumberFieldModuloTest {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomialRing = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				polynomialRing.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
 		System.out.println(nf);
 		NumberFieldIntegers order = nf.maximalOrder();

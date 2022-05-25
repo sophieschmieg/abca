@@ -44,6 +44,11 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Discr
 		this.reduction = PrimeField.getPrimeField(prime);
 		this.localRing = new LocalRingImplementation<>(this, "Z_(" + prime + ")");
 	}
+	
+	@Override
+	public String toString() {
+		return q.toString() + "_(" + prime + ")";
+	}
 
 	@Override
 	public boolean isComplete() {

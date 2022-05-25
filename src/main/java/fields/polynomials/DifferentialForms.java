@@ -7,9 +7,10 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
+import fields.helper.AbstractAlgebra;
 import fields.helper.AbstractElement;
-import fields.helper.AbstractModule;
 import fields.interfaces.Element;
+import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.DifferentialForms.DifferentialForm;
@@ -19,7 +20,7 @@ import fields.vectors.ExteriorProduct.WedgeProductSum;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
 
-public class DifferentialForms<T extends Element<T>> extends AbstractModule<Polynomial<T>, DifferentialForm<T>> {
+public class DifferentialForms<T extends Element<T>> extends AbstractAlgebra<Polynomial<T>, DifferentialForm<T>> {
 	public static class DifferentialForm<T extends Element<T>> extends AbstractElement<DifferentialForm<T>> {
 		private WedgeProductSum<Polynomial<T>> asWedgeProduct;
 
@@ -70,6 +71,11 @@ public class DifferentialForms<T extends Element<T>> extends AbstractModule<Poly
 	}
 
 	@Override
+	public DifferentialForm<T> one() {
+		return fromWedgeProductSum(asExteriorProduct.one());
+	}
+
+	@Override
 	public DifferentialForm<T> add(DifferentialForm<T> s1, DifferentialForm<T> s2) {
 		return fromWedgeProductSum(asExteriorProduct.add(asWedgeProductSum(s1), asWedgeProductSum(s2)));
 	}
@@ -80,8 +86,8 @@ public class DifferentialForms<T extends Element<T>> extends AbstractModule<Poly
 	}
 
 	@Override
-	public DifferentialForm<T> scalarMultiply(Polynomial<T> t, DifferentialForm<T> s) {
-		return fromWedgeProductSum(asExteriorProduct.scalarMultiply(t, asWedgeProductSum(s)));
+	public DifferentialForm<T> multiply(DifferentialForm<T> s1, DifferentialForm<T> s2) {
+		return fromWedgeProductSum(asExteriorProduct.multiply(asWedgeProductSum(s1), asWedgeProductSum(s2)));
 	}
 
 	@Override
@@ -92,6 +98,11 @@ public class DifferentialForms<T extends Element<T>> extends AbstractModule<Poly
 	@Override
 	public PolynomialIdeal<T> annihilator() {
 		return polynomialRing.getZeroIdeal();
+	}
+
+	@Override
+	public List<Vector<Polynomial<T>>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
 	private List<WedgeProductSum<Polynomial<T>>> asWedgeProductSumList(List<DifferentialForm<T>> s) {
@@ -113,7 +124,7 @@ public class DifferentialForms<T extends Element<T>> extends AbstractModule<Poly
 	}
 
 	@Override
-	public List<List<Polynomial<T>>> nonTrivialCombinations(List<DifferentialForm<T>> s) {
+	public List<Vector<Polynomial<T>>> nonTrivialCombinations(List<DifferentialForm<T>> s) {
 		return asExteriorProduct.nonTrivialCombinations(asWedgeProductSumList(s));
 	}
 
@@ -132,6 +143,14 @@ public class DifferentialForms<T extends Element<T>> extends AbstractModule<Poly
 
 	public List<DifferentialForm<T>> getGradedModuleGenerators(int degree) {
 		return fromWedgeProductSumList(asExteriorProduct.getGradedModuleGenerators(degree));
+	}
+
+	public FreeModule<Polynomial<T>> asFreeModule() {
+		return asExteriorProduct.asFreeModule();
+	}
+
+	public FreeModule<Polynomial<T>> asGradedFreeModule(int degree) {
+		return asExteriorProduct.asGradedFreeModule(degree);
 	}
 
 	@Override
@@ -205,6 +224,149 @@ public class DifferentialForms<T extends Element<T>> extends AbstractModule<Poly
 				return fromWedgeProductSum(it.next());
 			}
 		};
+	}
+
+	@Override
+	public boolean isGeneratingAlgebra(List<DifferentialForm<T>> s) {
+		return asExteriorProduct.isGeneratingAlgebra(asWedgeProductSumList(s));
+	}
+
+	@Override
+	public List<DifferentialForm<T>> getAlgebraGenerators() {
+		return fromWedgeProductSumList(asExteriorProduct.getAlgebraGenerators());
+	}
+
+	@Override
+	public BigInteger characteristic() {
+		return asExteriorProduct.characteristic();
+	}
+
+	@Override
+	public boolean isUnit(DifferentialForm<T> t) {
+		return asExteriorProduct.isUnit(asWedgeProductSum(t));
+	}
+
+	@Override
+	public DifferentialForm<T> inverse(DifferentialForm<T> t) {
+		return fromWedgeProductSum(asExteriorProduct.inverse(asWedgeProductSum(t)));
+	}
+
+	@Override
+	public boolean isCommutative() {
+		return false;
+	}
+
+	@Override
+	public boolean isIntegral() {
+		return false;
+	}
+
+	@Override
+	public boolean isReduced() {
+		return false;
+	}
+
+	@Override
+	public boolean isIrreducible() {
+		return asExteriorProduct.isIrreducible();
+	}
+
+	@Override
+	public boolean isZeroDivisor(DifferentialForm<T> t) {
+		return asExteriorProduct.isZeroDivisor(asWedgeProductSum(t));
+	}
+
+	@Override
+	public boolean isEuclidean() {
+		return false;
+	}
+
+	@Override
+	public boolean isUniqueFactorizationDomain() {
+		return false;
+	}
+
+	@Override
+	public FactorizationResult<DifferentialForm<T>, DifferentialForm<T>> uniqueFactorization(DifferentialForm<T> t) {
+		throw new ArithmeticException("No!");
+	}
+
+	@Override
+	public boolean isPrincipalIdealDomain() {
+		return false;
+	}
+
+	@Override
+	public boolean isDedekindDomain() {
+		return false;
+	}
+
+	@Override
+	public boolean isDivisible(DifferentialForm<T> dividend, DifferentialForm<T> divisor) {
+		return asExteriorProduct.isDivisible(asWedgeProductSum(dividend), asWedgeProductSum(divisor));
+	}
+
+	@Override
+	public QuotientAndRemainderResult<DifferentialForm<T>> quotientAndRemainder(DifferentialForm<T> dividend,
+			DifferentialForm<T> divisor) {
+		QuotientAndRemainderResult<WedgeProductSum<Polynomial<T>>> qr = asExteriorProduct
+				.quotientAndRemainder(asWedgeProductSum(dividend), asWedgeProductSum(divisor));
+		return new QuotientAndRemainderResult<>(fromWedgeProductSum(qr.getQuotient()),
+				fromWedgeProductSum(qr.getRemainder()));
+	}
+
+	@Override
+	public BigInteger euclidMeasure(DifferentialForm<T> t) {
+		throw new ArithmeticException("No!");
+	}
+
+	@Override
+	public DifferentialForm<T> projectToUnit(DifferentialForm<T> t) {
+		return fromWedgeProductSum(asExteriorProduct.projectToUnit(asWedgeProductSum(t)));
+	}
+
+	@Override
+	public Iterable<DifferentialForm<T>> getUnits() {
+		return new Iterable<>() {
+
+			@Override
+			public Iterator<DifferentialForm<T>> iterator() {
+				Iterator<WedgeProductSum<Polynomial<T>>> it = asExteriorProduct.iterator();
+
+				return new Iterator<>() {
+
+					@Override
+					public boolean hasNext() {
+						return it.hasNext();
+					}
+
+					@Override
+					public DifferentialForm<T> next() {
+						return fromWedgeProductSum(it.next());
+					}
+				};
+			}
+		};
+	}
+
+	@Override
+	public int krullDimension() {
+		return asExteriorProduct.krullDimension();
+	}
+
+	@Override
+	public IdealResult<DifferentialForm<T>, ?> getIdealWithTransforms(List<DifferentialForm<T>> generators) {
+		throw new ArithmeticException("no!");
+	}
+
+	@Override
+	public Ideal<DifferentialForm<T>> intersect(Ideal<DifferentialForm<T>> t1, Ideal<DifferentialForm<T>> t2) {
+		throw new ArithmeticException("no!");
+	}
+
+	@Override
+	public Ideal<DifferentialForm<T>> radical(Ideal<DifferentialForm<T>> t) {
+		throw new ArithmeticException("no!");
 	}
 
 }

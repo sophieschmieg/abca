@@ -109,7 +109,7 @@ public class SubInnerProductSpace<T extends Element<T>, S extends Element<S>> ex
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<S> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<S> s) {
 		return asSubVectorSpace.nonTrivialCombinations(s);
 	}
 

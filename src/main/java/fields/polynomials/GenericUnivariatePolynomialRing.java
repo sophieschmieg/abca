@@ -1,5 +1,6 @@
 package fields.polynomials;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +27,7 @@ import fields.interfaces.UnivariatePolynomialRing;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
 import util.Pair;
+import util.PeekableReader;
 
 public class GenericUnivariatePolynomialRing<T extends Element<T>> extends AbstractPolynomialRing<T> implements
 		PolynomialRing<T>/* , DedekindRing<Polynomial<T>, RationalFunction<T>, T> */, UnivariatePolynomialRing<T> {
@@ -42,6 +44,35 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		this.monomials.add(getMonomial(new int[] { 0 }));
 		this.zero = new GenericUnivariatePolynomial<>(this, Collections.emptyList());
 		this.squareFreeFactorizatonCache = new TreeMap<>();
+		setVariableName("X");
+	}
+
+	@Override
+	public UnivariatePolynomialRing<T> withVariableName(String variableName) {
+		GenericUnivariatePolynomialRing<T> clone = new GenericUnivariatePolynomialRing<>(ring);
+		clone.squareFreeFactorizatonCache = squareFreeFactorizatonCache;
+		clone.setVariableName(variableName);
+		return clone;
+	}
+
+	@Override
+	public PolynomialRing<T> withVariableNames(String[] variableNames) {
+		return withVariableName(variableNames[0]);
+	}
+
+	@Override
+	public String getVariableName() {
+		return getVariableNames()[0];
+	}
+
+	@Override
+	public void setVariableName(String variableName) {
+		setVariableNames(new String[] { variableName });
+	}
+
+	@Override
+	public UnivariatePolynomial<T> parse(PeekableReader reader) throws IOException {
+		return toUnivariate(super.parse(reader));
 	}
 
 	@Override
@@ -536,7 +567,7 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Polynomial<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Polynomial<T>> s) {
 		int degree = 0;
 		for (Polynomial<T> p : s) {
 			degree = Math.max(degree, p.degree());
@@ -737,6 +768,29 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			}
 		};
 	}
+	
+	@Override
+	public ChineseRemainderPreparation<Polynomial<T>> prepareInterpolation(List<T> interpolationPoints) {
+		List<Polynomial<T>> linear = new ArrayList<>();
+		for (T point : interpolationPoints) {
+			linear.add(subtract(getVar(), getEmbedding(point)));
+		}
+		return prepareChineseRemainderTheoremModuli(linear);
+	}
+	
+	@Override
+	public UnivariatePolynomial<T> interpolate(ChineseRemainderPreparation<Polynomial<T>> preparation, List<T> interpolationValues) {
+		List<Polynomial<T>> constant = new ArrayList<>();
+		for (T point : interpolationValues) {
+			constant.add(getEmbedding(point));
+		}
+		return toUnivariate(chineseRemainderTheorem(constant, preparation));
+	}
+	
+	@Override
+	public UnivariatePolynomial<T> interpolate(List<T> interpolationPoints, List<T> interpolationValues) {
+		return interpolate(prepareInterpolation(interpolationPoints), interpolationValues);
+	}
 
 	@Override
 	public final T evaluate(Polynomial<T> t, List<T> ts) {
@@ -806,6 +860,21 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	@Override
 	public GenericUnivariatePolynomial<T> contentFree(Polynomial<T> t) {
 		return divideScalar(t, content(t));
+	}
+
+	@Override
+	public GenericUnivariatePolynomial<T> depress(Polynomial<T> t) {
+		GenericUnivariatePolynomial<T> polynomial = toUnivariate(t);
+		T coefficient = polynomial.univariateCoefficient(polynomial.degree() - 1);
+		T degree = ring.getInteger(polynomial.degree());
+		if (coefficient.equals(ring.zero())) {
+			return polynomial;
+		}
+		if (!ring.isDivisible(coefficient, degree)) {
+			return polynomial;
+		}
+		Polynomial<T> substitute = subtract(getVar(), getEmbedding(ring.divideChecked(coefficient, degree)));
+		return substitute(polynomial, Collections.singletonList(substitute));
 	}
 
 	@Override

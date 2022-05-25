@@ -1,7 +1,9 @@
 package fields.local;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 
 import fields.exceptions.InfinityException;
@@ -11,6 +13,7 @@ import fields.finitefields.ModuloIntegerRing;
 import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
+import fields.floatingpoint.FiniteRealVectorSpace;
 import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
@@ -28,6 +31,8 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
 import fields.local.CompleteDVRExtension.Ext;
 import fields.local.PAdicField.PAdicNumber;
+import fields.vectors.RealLattice;
+import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
 import util.Identity;
@@ -39,7 +44,7 @@ public class PAdicField extends AbstractField<PAdicNumber>
 	private int accuracy;
 	private BigInteger modulus;
 	private DiscreteValuationRing<PAdicNumber, PFE> localRing;
-	private Reals r = Reals.r(1024);
+	private Reals r;
 
 	public class PAdicNumber extends AbstractElement<PAdicNumber> {
 		private BigInteger value;
@@ -141,6 +146,8 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		this.accuracy = accuracy;
 		this.prime = prime;
 		this.modulus = this.prime.pow(accuracy);
+		this.r = Reals
+				.r(Math.max(128, (int) Math.ceil(2 * (accuracy + 10) * Math.log(prime.doubleValue()) / Math.log(2.0))));
 		this.reduced = PrimeField.getPrimeField(prime);
 		this.localRing = new LocalRingImplementation<>(this, "Z_" + prime);
 	}
@@ -255,7 +262,7 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		}
 		return r.exp(r.divide(r.log(r.getInteger(prime)), r.getInteger(valuation(t).value())));
 	}
-	
+
 	@Override
 	public Reals getReals() {
 		return r;
@@ -271,17 +278,36 @@ public class PAdicField extends AbstractField<PAdicNumber>
 
 	public Fraction toRational(PAdicNumber t) {
 		Rationals q = Rationals.q();
+		if (t.equals(zero())) {
+			return q.zero();
+		}
 		if (t.lowestPower >= accuracy) {
 			return q.zero();
 		}
-		BigInteger modulus = prime.pow(accuracy - t.lowestPower - 1);
-		BigInteger period = t.value.divide(modulus);
-		BigInteger denominator = BigInteger.ONE.subtract(prime);
-		BigInteger numerator = period.multiply(prime.pow(accuracy - 1));
-		Integers z = Integers.z();
-		return q.add(q.getFraction(z.getInteger(numerator), z.getInteger(denominator)),
-				q.getFraction(z.getInteger(t.value.mod(modulus).multiply(prime.pow(Math.max(0, t.lowestPower)))),
-						z.getInteger(prime.pow(Math.max(0, -t.lowestPower)))));
+		if (t.lowestPower < 0) {
+			return q.divide(withAccuracy(accuracy - t.lowestPower).toRational(new PAdicNumber(0, t.value)),
+					q.power(q.getInteger(prime), -t.lowestPower));
+		}
+		Reals r = getReals();
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, 2);
+		List<Vector<Real>> basis = new ArrayList<>();
+		basis.add(new Vector<>(r.getInteger(modulus), r.zero()));
+		basis.add(
+				new Vector<>(r.multiply(r.getInteger(t.value), r.power(r.getInteger(prime), t.lowestPower)), r.one()));
+		RealLattice lattice = new RealLattice(space, basis, true);
+		Vector<Real> result = space.latticeReduction(lattice, 1.0).get(0);
+		if (result.get(2).round().equals(Integers.z().zero())) {
+			throw new ArithmeticException("Smallest vector implied denominator 0 for " + t);
+		}
+		return q.getFraction(result.get(1).round(), result.get(2).round());
+//		BigInteger modulus = prime.pow(accuracy - t.lowestPower - 1);
+//		BigInteger period = t.value.divide(modulus);
+//		BigInteger denominator = BigInteger.ONE.subtract(prime);
+//		BigInteger numerator = period.multiply(prime.pow(accuracy - 1));
+//		Integers z = Integers.z();
+//		return q.add(q.getFraction(z.getInteger(numerator), z.getInteger(denominator)),
+//				q.getFraction(z.getInteger(t.value.mod(modulus).multiply(prime.pow(Math.max(0, t.lowestPower)))),
+//						z.getInteger(prime.pow(Math.max(0, -t.lowestPower)))));
 	}
 
 	public MathMap<PAdicNumber, Fraction> toRationalMap() {
@@ -348,6 +374,15 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		BigInteger biggestPower = prime.pow(accuracy);
 		BigInteger alternateResult = result.subtract(biggestPower);
 		return Integers.z().getInteger(result.abs().compareTo(alternateResult.abs()) < 0 ? result : alternateResult);
+	}
+
+	public MathMap<PAdicNumber, IntE> roundToIntegerMap(int accuracy) {
+		return new MathMap<>() {
+			@Override
+			public IntE evaluate(PAdicNumber t) {
+				return roundToInteger(t, accuracy);
+			}
+		};
 	}
 
 	@Override

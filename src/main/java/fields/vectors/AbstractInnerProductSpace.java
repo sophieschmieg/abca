@@ -18,7 +18,6 @@ import fields.interfaces.Field;
 import fields.interfaces.Ideal;
 import fields.interfaces.InnerProductSpace;
 import fields.interfaces.Ring;
-import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.ValueField;
 
 public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends Element<S>> extends AbstractModule<T, S>
@@ -462,19 +461,23 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 				if (counter > 1000) {
 					throw new ArithmeticException("Schurr Form not converging!");
 				}
-				ComplexNumber norm = asComplexNumber(
-						f.subtract(f.multiply(it.entry(limit - 1, limit - 1), it.entry(limit, limit)),
-								f.multiply(it.entry(limit - 1, limit), it.entry(limit, limit - 1))));
+//				ComplexNumber norm = asComplexNumber(
+//						f.subtract(f.multiply(it.entry(limit - 1, limit - 1), it.entry(limit, limit)),
+//								f.multiply(it.entry(limit - 1, limit), it.entry(limit, limit - 1))));
 				ComplexNumber trace = asComplexNumber(f.add(it.entry(limit - 1, limit - 1), it.entry(limit, limit)));
-				ComplexNumber discriminant = c.subtract(c.multiply(trace, trace), c.multiply(4, norm));
+				ComplexNumber diagonalDiff = asComplexNumber(
+						f.divide(f.subtract(it.entry(limit - 1, limit - 1), it.entry(limit, limit)), f.getInteger(2)));
+				ComplexNumber counterDiagonalProduct = asComplexNumber(
+						f.multiply(it.entry(limit, limit - 1), it.entry(limit - 1, limit)));
+				ComplexNumber discriminant = c.add(c.multiply(diagonalDiff, diagonalDiff), counterDiagonalProduct);
 				ComplexNumber root;
 				if (!c.isReal(discriminant) || discriminant.realPart().compareTo(r.zero()) < 0) {
 					root = c.roots(discriminant, 2).keySet().iterator().next();
 				} else {
 					root = c.getEmbedding(r.positiveSqrt(discriminant.realPart()));
 				}
-				T option1 = fromComplexNumber(c.divide(c.add(trace, root), c.getInteger(2)));
-				T option2 = fromComplexNumber(c.divide(c.subtract(trace, root), c.getInteger(2)));
+				T option1 = fromComplexNumber(c.add(c.divide(trace, c.getInteger(2)), root));
+				T option2 = fromComplexNumber(c.subtract(c.divide(trace, c.getInteger(2)), root));
 				Real option1Value = c.norm(asComplexNumber(f.subtract(it.entry(limit, limit), option1)));
 				Real option2Value = c.norm(asComplexNumber(f.subtract(it.entry(limit, limit), option2)));
 				T shift = option1Value.compareTo(option2Value) > 0 ? option2 : option1;
@@ -597,5 +600,62 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 					svd.getLeftUnitaryMatrix());
 		}
 		return t.pseudoInverse;
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		ValueField<T> f = getValueField();
+		int precisionDiscount = 0;
+		for (int i = 0; i < m.rows(); i++) {
+			for (int j = 0; j < m.columns(); j++) {
+				int exp = f.value(m.entry(i + 1, j + 1)).exponent();
+				if (precisionDiscount < exp) {
+					precisionDiscount = exp;
+				}
+			}
+		}
+		for (int i = 0; i < b.dimension(); i++) {
+			int exp = f.value(b.get(i + 1)).exponent();
+			if (precisionDiscount < exp) {
+				precisionDiscount = exp;
+			}
+		}
+		Real eps = f.getReals().getPowerOfTwo(-f.getReals().precision() + precisionDiscount + 10);
+		SingularValueDecompositionResult<T> svd = singularValueDecomposition(m);
+		Vector<T> x = module.codomainAlgebra().multiply(svd.getLeftUnitaryMatrix(), b);
+		for (int i = svd.getRank(); i < m.rows(); i++) {
+			if (f.value(x.get(i + 1)).compareTo(eps) >= 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		Matrix<T> pseudoInverse = pseudoInverse(m);
+		return pseudoInverse.getModule(getField()).multiply(pseudoInverse, b);
+	}
+
+	@Override
+	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m) {
+		SingularValueDecompositionResult<T> svd = singularValueDecomposition(m);
+		Matrix<T> inverted = conjugateTranspose(svd.getRightUnitaryMatrix());
+		List<Vector<T>> result = new ArrayList<>();
+		for (int i = svd.getRank(); i < m.columns(); i++) {
+			result.add(inverted.column(i + 1));
+		}
+		return result;
+	}
+
+	@Override
+	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m) {
+		SingularValueDecompositionResult<T> svd = singularValueDecomposition(m);
+		List<Vector<T>> result = new ArrayList<>();
+		Matrix<T> left = conjugateTranspose(svd.getLeftUnitaryMatrix());
+		for (int i = 0; i < svd.getRank(); i++) {
+			result.add(left.column(i + 1));
+		}
+		return result;
 	}
 }

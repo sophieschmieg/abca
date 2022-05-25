@@ -18,11 +18,16 @@ import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.integers.Integers.IntegerIdeal;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.local.Value;
+import fields.vectors.FreeModule;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
 public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
@@ -90,8 +95,26 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 		return new ModuloIntegerRingElement(t.getValue());
 	}
 
+	public MathMap<IntE, ModuloIntegerRingElement> reduce() {
+		return new MathMap<>() {
+			@Override
+			public ModuloIntegerRingElement evaluate(IntE t) {
+				return reduce(t);
+			}
+		};
+	}
+
 	public IntE lift(ModuloIntegerRingElement t) {
 		return Integers.z().getInteger(t.getValue());
+	}
+
+	public MathMap<ModuloIntegerRingElement, IntE> lift() {
+		return new MathMap<>() {
+			@Override
+			public IntE evaluate(ModuloIntegerRingElement t) {
+				return lift(t);
+			}
+		};
 	}
 
 	public Optional<Fraction> rationalReconstruction(ModuloIntegerRingElement t, BigInteger numeratorBound,
@@ -227,8 +250,8 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 	}
 
 	@Override
-	public QuotientAndRemainderResult<ModuloIntegerRingElement> quotientAndRemainder(
-			ModuloIntegerRingElement dividend, ModuloIntegerRingElement divisor) {
+	public QuotientAndRemainderResult<ModuloIntegerRingElement> quotientAndRemainder(ModuloIntegerRingElement dividend,
+			ModuloIntegerRingElement divisor) {
 		BigInteger divisorGcd = divisor.value.gcd(n);
 		BigInteger dividendGcd = dividend.value.gcd(n);
 		BigInteger[] qr = dividendGcd.divideAndRemainder(divisorGcd);
@@ -277,7 +300,7 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 
 	@Override
 	public boolean isPrincipalIdealDomain() {
-		return true;
+		return false;
 	}
 
 	@Override
@@ -292,21 +315,41 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 			List<ModuloIntegerRingElement> generators) {
 		if (generators.size() == 0) {
 			return new IdealResult<>(Collections.singletonList(Collections.emptyList()), generators,
-					new ModularIntegerIdeal(0));
+					new ModularIntegerIdeal(0), Collections.emptyList());
 		}
 		Integers z = Integers.z();
 		List<IntE> lifted = new ArrayList<>();
 		for (ModuloIntegerRingElement g : generators) {
 			lifted.add(z.lift(g));
 		}
-		ExtendedEuclideanListResult<IntE> extendedEuclidean = z.extendedEuclidean(lifted);
-		List<ModuloIntegerRingElement> reduced = new ArrayList<>();
-		for (IntE expression : extendedEuclidean.getCoeffs()) {
-			reduced.add(reduce(expression));
+		lifted.add(z.getInteger(n));
+		IdealResult<IntE, IntegerIdeal> integerIdeal = z.getIdealWithTransforms(lifted);
+		List<List<ModuloIntegerRingElement>> expressions = new ArrayList<>();
+		for (List<IntE> integerList : integerIdeal.getGeneratorExpressions()) {
+			List<ModuloIntegerRingElement> expression = new ArrayList<>();
+			for (int i = 0; i < generators.size(); i++) {
+				expression.add(reduce(integerList.get(i)));
+			}
+			expressions.add(expression);
 		}
+		List<Vector<ModuloIntegerRingElement>> syzygies = new ArrayList<>();
+		for (Vector<IntE> integerSyzygy : integerIdeal.getSyzygies()) {
+			List<ModuloIntegerRingElement> syzygy = new ArrayList<>();
+			boolean nonZero = false;
+			for (int i = 0; i < generators.size(); i++) {
+				ModuloIntegerRingElement reduced = reduce(integerSyzygy.get(i + 1));
+				syzygy.add(reduced);
+				if (!reduced.equals(zero())) {
+					nonZero = true;
+				}
+			}
+			if (nonZero) {
+				syzygies.add(new Vector<>(syzygy));
+			}
 
-		return new IdealResult<>(Collections.singletonList(reduced), generators,
-				new ModularIntegerIdeal(z.gcd(extendedEuclidean.getGcd(), z.getInteger(n)).getValue()));
+		}
+		return new IdealResult<>(expressions, generators,
+				new ModularIntegerIdeal(reduce(integerIdeal.getIdeal().generators().get(0))), syzygies);
 	}
 
 	@Override
@@ -346,13 +389,13 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<ModuloIntegerRingElement, PFE> moduloMaximalIdeal(
+	public ModuloMaximalIdealResult<ModuloIntegerRingElement, PFE, ModuloIntegerRing, ModularIntegerIdeal, PrimeField> moduloMaximalIdeal(
 			Ideal<ModuloIntegerRingElement> ideal) {
 		if (!ideal.isMaximal()) {
 			throw new ArithmeticException("Not a maximal ideal!");
 		}
 		PrimeField fp = PrimeField.getPrimeField(ideal.generators().get(0).getValue());
-		return new ModuloMaximalIdealResult<>(this, ideal, fp, new MathMap<>() {
+		return new ModuloMaximalIdealResult<>(this, (ModularIntegerIdeal) ideal, fp, new MathMap<>() {
 
 			@Override
 			public PFE evaluate(ModuloIntegerRingElement t) {
@@ -370,7 +413,8 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 	@Override
 	public ModuloIdealResult<ModuloIntegerRingElement, ?> moduloIdeal(Ideal<ModuloIntegerRingElement> ideal) {
 		if (ideal.isPrime()) {
-			ModuloMaximalIdealResult<ModuloIntegerRingElement, PFE> mod = moduloMaximalIdeal(ideal);
+			ModuloMaximalIdealResult<ModuloIntegerRingElement, PFE, ModuloIntegerRing, ModularIntegerIdeal, PrimeField> mod = moduloMaximalIdeal(
+					ideal);
 			return new ModuloIdealResult<>(this, ideal, mod.getField(), mod.getReduction(), mod.getLift());
 		}
 		ModuloIntegerRing result = new ModuloIntegerRing(ideal.generators().get(0).getValue());
@@ -496,31 +540,31 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 			}
 			return getIdeal(Collections.singletonList(getInteger(n.divide(m.getValue()))));
 		}
-		
-		@Override
-		public List<List<ModuloIntegerRingElement>> nonTrivialCombinations(List<ModuloIntegerRingElement> s) {
-		Integers z = Integers.z();
-			List<IntE> integerList = new ArrayList<>();
-		for (ModuloIntegerRingElement e : s) {
-			integerList.add(lift(e));
-		}
-		integerList.add(z.getInteger(n));
-		List<List<IntE>> integerResult = z.getUnitIdeal().nonTrivialCombinations(integerList);
-		List<List<ModuloIntegerRingElement>> result = new ArrayList<>();
-		for (List<IntE> integerRow : integerResult) {
-			List<ModuloIntegerRingElement> row = new ArrayList<>();
-			for (IntE value : integerRow.subList(0, s.size())) {
-				row.add(reduce(value));
-			}
-			result.add(row);
-		}
-		return result;
-		}
-		
-		@Override
-		public List<List<ModuloIntegerRingElement>> getModuleGeneratorRelations() {
-			return Collections.singletonList(Collections.singletonList(getInteger(n.divide(m.getValue()))));
-		}
+
+//		@Override
+//		public List<List<ModuloIntegerRingElement>> nonTrivialCombinations(List<ModuloIntegerRingElement> s) {
+//			Integers z = Integers.z();
+//			List<IntE> integerList = new ArrayList<>();
+//			for (ModuloIntegerRingElement e : s) {
+//				integerList.add(lift(e));
+//			}
+//			integerList.add(z.getInteger(n));
+//			List<List<IntE>> integerResult = z.getUnitIdeal().nonTrivialCombinations(integerList);
+//			List<List<ModuloIntegerRingElement>> result = new ArrayList<>();
+//			for (List<IntE> integerRow : integerResult) {
+//				List<ModuloIntegerRingElement> row = new ArrayList<>();
+//				for (IntE value : integerRow.subList(0, s.size())) {
+//					row.add(reduce(value));
+//				}
+//				result.add(row);
+//			}
+//			return result;
+//		}
+
+//		@Override
+//		public List<Vector<ModuloIntegerRingElement>> getSyzygies() {
+//			return Collections.singletonList(Collections.singletonList(getInteger(n.divide(m.getValue()))));
+//		}
 
 		@Override
 		public List<ModuloIntegerRingElement> generators() {
@@ -579,5 +623,78 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 			}
 			return value;
 		}
+	}
+
+	private Matrix<IntE> liftAndAddModulus(Matrix<ModuloIntegerRingElement> m) {
+		List<Vector<IntE>> lifted = new ArrayList<>();
+		for (int i = 0; i < m.columns(); i++) {
+			Vector<ModuloIntegerRingElement> column = m.column(i + 1);
+			lifted.add(Vector.mapVector(lift(), column));
+		}
+		FreeModule<IntE> free = new FreeModule<>(Integers.z(), m.rows());
+		for (int i = 0; i < m.rows(); i++) {
+			lifted.add(free.scalarMultiply(n, free.getUnitVector(i + 1)));
+		}
+		return Matrix.fromColumns(lifted);
+	}
+
+	private Vector<IntE> liftVector(Vector<ModuloIntegerRingElement> t) {
+		return Vector.mapVector(lift(), t);
+	}
+
+	private Vector<ModuloIntegerRingElement> reduceAndCutVector(Vector<IntE> t, int columns) {
+		List<ModuloIntegerRingElement> result = new ArrayList<>();
+		for (int i = 0; i < columns; i++) {
+			result.add(reduce(t.get(i + 1)));
+		}
+		return new Vector<>(result);
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<ModuloIntegerRingElement> module, Matrix<ModuloIntegerRingElement> m,
+			Vector<ModuloIntegerRingElement> b) {
+		Integers z = Integers.z();
+		Matrix<IntE> liftedWithModulus = liftAndAddModulus(m);
+		return z.isSubModuleMember(liftedWithModulus.getModule(z), liftedWithModulus, liftVector(b));
+	}
+
+	@Override
+	public Vector<ModuloIntegerRingElement> asSubModuleMember(MatrixModule<ModuloIntegerRingElement> module,
+			Matrix<ModuloIntegerRingElement> m, Vector<ModuloIntegerRingElement> b) {
+		Integers z = Integers.z();
+		Matrix<IntE> liftedWithModulus = liftAndAddModulus(m);
+		return reduceAndCutVector(z.asSubModuleMember(liftedWithModulus.getModule(z), liftedWithModulus, liftVector(b)),
+				m.columns());
+	}
+
+	@Override
+	public List<Vector<ModuloIntegerRingElement>> syzygyProblem(MatrixModule<ModuloIntegerRingElement> module,
+			Matrix<ModuloIntegerRingElement> m) {
+		Integers z = Integers.z();
+		Matrix<IntE> liftedWithModulus = liftAndAddModulus(m);
+		List<Vector<ModuloIntegerRingElement>> result = new ArrayList<>();
+		for (Vector<IntE> syzygy : z.syzygyProblem(liftedWithModulus.getModule(z), liftedWithModulus)) {
+			Vector<ModuloIntegerRingElement> reduced = reduceAndCutVector(syzygy, m.columns());
+			if (!reduced.equals(module.domain().zero())) {
+				result.add(reduced);
+			}
+		}
+		return result;
+	}
+
+	@Override
+	public List<Vector<ModuloIntegerRingElement>> simplifySubModuleGenerators(
+			MatrixModule<ModuloIntegerRingElement> module, Matrix<ModuloIntegerRingElement> m) {
+		Integers z = Integers.z();
+		Matrix<IntE> liftedWithModulus = liftAndAddModulus(m);
+		List<Vector<ModuloIntegerRingElement>> result = new ArrayList<>();
+		for (Vector<IntE> generator : z.simplifySubModuleGenerators(liftedWithModulus.getModule(z),
+				liftedWithModulus)) {
+			Vector<ModuloIntegerRingElement> reduced = Vector.mapVector(reduce(), generator);
+			if (!reduced.equals(module.codomain().zero())) {
+				result.add(reduced);
+			}
+		}
+		return result;
 	}
 }

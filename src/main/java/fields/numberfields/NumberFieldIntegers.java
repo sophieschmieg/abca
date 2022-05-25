@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -27,6 +28,7 @@ import fields.helper.FieldEmbedding;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Integers.IntegerIdeal;
+import fields.integers.LocalizedFractions;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Algebra;
@@ -40,11 +42,13 @@ import fields.interfaces.MathMap;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.Value;
+import fields.numberfields.ModuloNumberFieldIdeal.ModNFE;
 import fields.numberfields.NumberField.NFE;
 import fields.vectors.DualVectorSpace;
 import fields.vectors.DualVectorSpace.Dual;
 import fields.vectors.FreeModule;
 import fields.vectors.FreeSubModule;
+import fields.vectors.GenericPIDModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Polytope;
@@ -58,11 +62,15 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		implements Algebra<IntE, NFE>, DedekindRing<NFE, NFE, FFE>, Lattice<NFE, Real, Vector<Real>> {
 	private NumberField field;
 	private UnivariatePolynomial<IntE> minimalPolynomial;
+	private IntE minimalPolynomialDenominator;
 	private List<NFE> integralBasis;
 	private Matrix<Fraction> toIntegralBasis;
 	private Matrix<Real> generatorsAsMatrix;
 	private Matrix<Fraction> fromIntegralBasis;
 	private Set<NFE> units;
+	private SortedMap<IntE, NFE> primitiveRootsOfUnity;
+	private RealLattice unitLattice;
+	private List<NFE> unitIdealMultipliers;
 	private Map<IntE, List<NumberFieldIdeal>> idealsOverPrime;
 	private Map<FactorizationResult<Ideal<NFE>, Ideal<NFE>>, NumberFieldIdeal> idealsByFactorization;
 	private NumberFieldIdeal unitIdeal;
@@ -221,10 +229,17 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	@Override
 	public NFE projectToUnit(NFE t) {
 		NumberFieldIdeal ideal = getIdeal(Collections.singletonList(t));
-		if (ideal.generators().size() != 1) {
-			throw new ArithmeticException("Could not project to unit!");
+		NFE maxGenerator = ideal.principalGenerator();
+		int max = primitiveRootsOfUnity().lastKey().intValueExact();
+		NFE primitiveRootOfUnity = primitiveRootsOfUnity().get(Integers.z().getInteger(max));
+		NFE generator = maxGenerator;
+		for (int i = 0; i < max - 1; i++) {
+			generator = multiply(primitiveRootOfUnity, generator);
+			if (generator.compareTo(maxGenerator) > 0) {
+				maxGenerator = generator;
+			}
 		}
-		return divideChecked(t, ideal.generators().get(0));
+		return divideChecked(t, maxGenerator);
 	}
 
 	@Override
@@ -303,97 +318,202 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	public SortedMap<IntE, NFE> primitiveRootsOfUnity() {
-		Integers z = Integers.z();
-		UnivariatePolynomialRing<NFE> polynomials = field.getUnivariatePolynomialRing();
-		SortedMap<IntE, NFE> result = new TreeMap<>();
-		result.put(z.one(), one());
-		List<List<IntE>> primePowers = new ArrayList<>();
-		for (IntE prime : z.setOfPrimes()) {
-			if (prime.compareTo(z.getInteger(field.degree() + 1)) > 0) {
-				break;
-			}
-			UnivariatePolynomial<NFE> unity = polynomials.toUnivariate(polynomials.divideChecked(
-					polynomials.subtract(polynomials.getVarPower(prime.intValueExact()), polynomials.one()),
-					polynomials.subtract(polynomials.getVar(), polynomials.one())));
-			Map<NFE, Integer> roots = field.roots(unity);
-			if (roots.isEmpty()) {
-				continue;
-			}
-			NFE rootOfUnity = roots.keySet().iterator().next();
-			result.put(prime, rootOfUnity);
-			List<IntE> powers = new ArrayList<>();
-			powers.add(z.one());
-			powers.add(prime);
-			for (int i = 2; z.multiply(prime.intValueExact() - 1, z.power(prime, i - 1)).intValueExact() <= field
-					.degree(); i++) {
-				roots = field.roots(rootOfUnity, prime.intValueExact());
-				if (roots.isEmpty()) {
+		if (primitiveRootsOfUnity == null) {
+			Integers z = Integers.z();
+			UnivariatePolynomialRing<NFE> polynomials = field.getUnivariatePolynomialRing();
+			primitiveRootsOfUnity = new TreeMap<>();
+			primitiveRootsOfUnity.put(z.one(), one());
+			List<List<IntE>> primePowers = new ArrayList<>();
+			for (IntE prime : z.setOfPrimes()) {
+				if (prime.compareTo(z.getInteger(field.degree() + 1)) > 0) {
 					break;
 				}
-				IntE primePower = z.power(prime, i);
-				rootOfUnity = roots.keySet().iterator().next();
-				result.put(primePower, rootOfUnity);
-				powers.add(primePower);
+				UnivariatePolynomial<NFE> unity = polynomials.toUnivariate(polynomials.divideChecked(
+						polynomials.subtract(polynomials.getVarPower(prime.intValueExact()), polynomials.one()),
+						polynomials.subtract(polynomials.getVar(), polynomials.one())));
+				Map<NFE, Integer> roots = field.roots(unity);
+				if (roots.isEmpty()) {
+					continue;
+				}
+				NFE rootOfUnity = roots.keySet().iterator().next();
+				primitiveRootsOfUnity.put(prime, rootOfUnity);
+				List<IntE> powers = new ArrayList<>();
+				powers.add(z.one());
+				powers.add(prime);
+				for (int i = 2; z.multiply(prime.intValueExact() - 1, z.power(prime, i - 1)).intValueExact() <= field
+						.degree(); i++) {
+					roots = field.roots(rootOfUnity, prime.intValueExact());
+					if (roots.isEmpty()) {
+						break;
+					}
+					IntE primePower = z.power(prime, i);
+					rootOfUnity = roots.keySet().iterator().next();
+					primitiveRootsOfUnity.put(primePower, rootOfUnity);
+					powers.add(primePower);
+				}
+				primePowers.add(powers);
 			}
-			primePowers.add(powers);
-		}
-		List<List<IntE>> factors = MiscAlgorithms.crossProduct(primePowers);
-		for (List<IntE> factorList : factors) {
-			IntE factor = z.one();
-			NFE rootOfUnity = one();
-			for (IntE primePower : factorList) {
-				factor = z.multiply(primePower, factor);
-				rootOfUnity = multiply(result.get(primePower), rootOfUnity);
+			List<List<IntE>> factors = MiscAlgorithms.crossProduct(primePowers);
+			for (List<IntE> factorList : factors) {
+				IntE factor = z.one();
+				NFE rootOfUnity = one();
+				for (IntE primePower : factorList) {
+					factor = z.multiply(primePower, factor);
+					rootOfUnity = multiply(primitiveRootsOfUnity.get(primePower), rootOfUnity);
+				}
+				primitiveRootsOfUnity.put(factor, rootOfUnity);
 			}
-			result.put(factor, rootOfUnity);
 		}
-		return result;
+		return primitiveRootsOfUnity;
 	}
 
 	public Set<NFE> freeUnitGroupGenerators() {
-//		int numberOfUnits = field.realEmbeddings().size() + field.complexEmbeddings().size() - 1;
-//		if (numberOfUnits == 0) {
-//			return Collections.emptySet();
-//		}
-//		if (field.degree() == 2) {
-//			Integers z = Integers.z();
-//			IntE discriminant = field.discriminant();
-//			boolean mod23;
-//			if (discriminant.getValue().mod(BigInteger.valueOf(4)).equals(BigInteger.ZERO)) {
-//				discriminant = Integers.z().divideChecked(discriminant, z.getInteger(4));
-//				mod23 = true;
-//			} else {
-//				mod23 = false;
-//			}
-//			List<Vector<IntE>> pells = MiscAlgorithms.pellsEquation(discriminant, z.getInteger(mod23 ? -1 : -4), false);
-//			pells.addAll(MiscAlgorithms.pellsEquation(discriminant, z.getInteger(mod23 ? 1 : 4), false));
-//			Vector<IntE> pell = pells.get(0);
-//			NFE alpha = field.sqrt(field.getInteger(discriminant)).keySet().iterator().next();
-//			NFE fundamental;
-//			if (mod23) {
-//				fundamental = add(getInteger(pell.get(1)), multiply(pell.get(2), alpha));
-//			} else {
-//				fundamental = divide(add(getInteger(pell.get(1)), multiply(pell.get(2), alpha)), getInteger(2));
-//			}
-//			return Collections.singleton(fundamental);
-//		}
 		if (units == null) {
-			idealEquivalenceClass(getUnitIdeal());
+			int numberOfUnits = field.realEmbeddings().size() + field.complexEmbeddings().size() - 1;
+			if (numberOfUnits == 0) {
+				units = Collections.emptySet();
+			} else {
+				idealEquivalenceClass(getUnitIdeal());
+			}
 		}
 		return units;
 	}
 
 	public List<NFE> unitGroupGenerators() {
 		List<NFE> result = new ArrayList<>();
-		result.addAll(freeUnitGroupGenerators());
 		SortedMap<IntE, NFE> rootsOfUnity = primitiveRootsOfUnity();
 		result.add(rootsOfUnity.get(rootsOfUnity.lastKey()));
+		result.addAll(freeUnitGroupGenerators());
 		return result;
+	}
+
+	public Vector<IntE> asUnitGeneratorVector(NFE t) {
+		if (!isUnit(t)) {
+			throw new ArithmeticException("Not a unit!");
+		}
+		Integers z = Integers.z();
+		int numberOfUnitGenerators = unitGroupGenerators().size();
+		NFE rootOfUnity;
+		Vector<IntE> free = new Vector<>();
+		if (numberOfUnitGenerators > 1) {
+			Vector<Real> logs = field.logRepresentation(t);
+			free = unitLattice.asVector(logs);
+			List<IntE> freeList = new ArrayList<>();
+			freeList.add(z.one());
+			freeList.addAll(free.asList());
+			NFE fromFree = fromUnitGeneratorVector(new Vector<>(freeList));
+			rootOfUnity = divide(t, fromFree);
+		} else {
+			rootOfUnity = t;
+		}
+		int max = primitiveRootsOfUnity().lastKey().intValueExact();
+		NFE primitiveRootInverted = inverse(primitiveRootsOfUnity().get(primitiveRootsOfUnity().lastKey()));
+		for (int i = 0; i < max; i++) {
+			if (rootOfUnity.equals(one())) {
+				List<IntE> result = new ArrayList<>();
+				result.add(z.getInteger(i));
+				result.addAll(free.asList());
+				return new Vector<>(result);
+			}
+			rootOfUnity = multiply(rootOfUnity, primitiveRootInverted);
+		}
+		throw new ArithmeticException("Did not get a root of unity!");
+	}
+
+	public NFE fromUnitGeneratorVector(Vector<IntE> vector) {
+		NFE result = one();
+		List<NFE> unitGenerators = unitGroupGenerators();
+		for (int i = 0; i < unitGenerators.size(); i++) {
+			result = multiply(power(unitGenerators.get(i), vector.get(i + 1)), result);
+		}
+		return result;
+	}
+
+	public GenericPIDModule<IntE, Vector<IntE>> unitGroupAsIntModule() {
+		FreeModule<IntE> module = new FreeModule<>(Integers.z(),
+				field.realEmbeddings().size() + field.complexEmbeddings().size());
+		return GenericPIDModule.fromSyzygies(module, Collections.singletonList(
+				module.scalarMultiply(primitiveRootsOfUnity().lastKey(), module.getUnitVector(1)).asList()));
 	}
 
 	@Override
 	public int krullDimension() {
 		return 1;
+	}
+
+	private Matrix<IntE> asMatrix(NFE t) {
+		List<Vector<IntE>> columns = new ArrayList<>();
+		for (NFE integral : getModuleGenerators()) {
+			columns.add(asVector(multiply(t, integral)));
+		}
+		return Matrix.fromColumns(columns);
+	}
+
+	private Matrix<IntE> asIntegerMatrix(Matrix<NFE> m) {
+		List<List<Matrix<IntE>>> result = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			List<Matrix<IntE>> row = new ArrayList<>();
+			for (int j = 0; j < m.columns(); j++) {
+				row.add(asMatrix(m.entry(i + 1, j + 1)));
+			}
+		}
+		return Matrix.fromBlockMatrix(result);
+	}
+
+	private Vector<IntE> asIntegerVector(Vector<NFE> b) {
+		List<IntE> result = new ArrayList<>();
+		for (NFE t : b.asList()) {
+			result.addAll(asVector(t).asList());
+		}
+		return new Vector<IntE>(result);
+	}
+
+	private Vector<NFE> fromIntegerVector(Vector<IntE> b) {
+		List<NFE> result = new ArrayList<>();
+		for (int i = 0; i < b.dimension() / field.degree(); i++) {
+			result.add(fromVector(new Vector<>(b.asList().subList(i * field.degree(), (i + 1) * field.degree()))));
+		}
+		return new Vector<NFE>(result);
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<NFE> module, Matrix<NFE> m, Vector<NFE> b) {
+		Integers z = Integers.z();
+		return z.isSubModuleMember(new MatrixModule<>(z, field.degree() * m.rows(), field.degree() * m.columns()),
+				asIntegerMatrix(m), asIntegerVector(b));
+	}
+
+	@Override
+	public Vector<NFE> asSubModuleMember(MatrixModule<NFE> module, Matrix<NFE> m, Vector<NFE> b) {
+		Integers z = Integers.z();
+		return fromIntegerVector(
+				z.asSubModuleMember(new MatrixModule<>(z, field.degree() * m.rows(), field.degree() * m.columns()),
+						asIntegerMatrix(m), asIntegerVector(b)));
+	}
+
+	@Override
+	public List<Vector<NFE>> syzygyProblem(MatrixModule<NFE> module, Matrix<NFE> m) {
+		Integers z = Integers.z();
+		List<Vector<IntE>> integerSyzygies = z.syzygyProblem(
+				new MatrixModule<>(z, field.degree() * m.rows(), field.degree() * m.columns()), asIntegerMatrix(m));
+		List<Vector<NFE>> syzygies = new ArrayList<>();
+		for (Vector<IntE> integerSyzygy : integerSyzygies) {
+			syzygies.add(fromIntegerVector(integerSyzygy));
+		}
+		return syzygies;
+	}
+
+	@Override
+	public List<Vector<NFE>> simplifySubModuleGenerators(MatrixModule<NFE> module, Matrix<NFE> m) {
+		List<Vector<NFE>> result = new ArrayList<>();
+		for (int i = 0; i < m.columns(); i++) {
+			Vector<NFE> column = m.column(i + 1);
+			if (!column.equals(module.codomain().zero())
+					&& (result.isEmpty() || !isSubModuleMember(Matrix.fromColumns(result), column))) {
+				result.add(column);
+			}
+		}
+		return result;
 	}
 
 	@Override
@@ -446,7 +566,8 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			}
 			transforms.add(transform);
 		}
-		return new IdealResult<>(transforms, generators, ideal);
+		Matrix<NFE> row = Matrix.fromRows(Collections.singletonList(new Vector<>(generators)));
+		return new IdealResult<>(transforms, generators, ideal, syzygyProblem(row.getModule(this), row));
 	}
 
 	@Override
@@ -467,14 +588,14 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return getIdealWithFactorization(generators, factorization);
 	}
 
-	public NumberFieldIdeal getIdealIfSmoothOver(List<NFE> generators, Set<IntE> smoothnessBase) {
+	public Optional<NumberFieldIdeal> getIdealIfSmoothOver(List<NFE> generators, Set<IntE> smoothnessBase) {
 		Integers z = Integers.z();
 		IntE normGcd = z.zero();
 		for (NFE generator : generators) {
 			normGcd = z.gcd(normGcd, field.norm(generator).asInteger());
 		}
 		if (normGcd.equals(z.zero())) {
-			return getZeroIdeal();
+			return Optional.of(getZeroIdeal());
 		}
 		SortedMap<IntE, Integer> factors = new TreeMap<>();
 		for (IntE prime : smoothnessBase) {
@@ -488,9 +609,9 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			}
 		}
 		if (!z.isUnit(normGcd)) {
-			return null;
+			return Optional.empty();
 		}
-		return getIdealWithFactorization(generators, new FactorizationResult<>(normGcd, factors));
+		return Optional.of(getIdealWithFactorization(generators, new FactorizationResult<>(normGcd, factors)));
 	}
 
 	private NumberFieldIdeal getIdealWithFactorization(List<NFE> generators,
@@ -656,8 +777,9 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<NFE, FFE> moduloMaximalIdeal(Ideal<NFE> ideal) {
-		return new ModuloMaximalIdealResult<>(this, ideal, reduction(ideal), new MathMap<>() {
+	public ModuloMaximalIdealResult<NFE, FFE, NumberFieldIntegers, NumberFieldIdeal, FiniteField> moduloMaximalIdeal(
+			Ideal<NFE> ideal) {
+		return new ModuloMaximalIdealResult<>(this, (NumberFieldIdeal) ideal, reduction(ideal), new MathMap<>() {
 			@Override
 			public FFE evaluate(NFE t) {
 				return reduce(t, ideal);
@@ -673,23 +795,25 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	@Override
 	public ModuloIdealResult<NFE, ?> moduloIdeal(Ideal<NFE> ideal) {
 		if (ideal.isMaximal()) {
-			ModuloMaximalIdealResult<NFE, FFE> result = moduloMaximalIdeal(ideal);
+			ModuloMaximalIdealResult<NFE, FFE, NumberFieldIntegers, NumberFieldIdeal, FiniteField> result = moduloMaximalIdeal(
+					ideal);
 			return new ModuloIdealResult<>(this, ideal, result.getField(), result.getReduction(), result.getLift());
 		}
 		if (ideal.isPrime()) {
 			return new ModuloIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
 		}
-		ModuloNumberFieldIdeal modulo = new ModuloNumberFieldIdeal(this, (NumberFieldIdeal) ideal);
+		ModuloNumberFieldIdeal modulo = ((NumberFieldIdeal) ideal).modOut();// new ModuloNumberFieldIdeal(this,
+																			// (NumberFieldIdeal) ideal);
 		return new ModuloIdealResult<>(this, ideal, modulo, new MathMap<>() {
 			@Override
-			public NFE evaluate(NFE t) {
-				return modulo.getEmbedding(t);
+			public ModNFE evaluate(NFE t) {
+				return modulo.reduce(t);
 			}
 
 		}, new MathMap<>() {
 			@Override
-			public NFE evaluate(NFE t) {
-				return t;
+			public NFE evaluate(ModNFE t) {
+				return modulo.lift(t);
 			}
 		});
 	}
@@ -859,6 +983,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			minimalPolynomial = rationalPolynomials
 					.normalize(rationalPolynomials.substitute(minimalPolynomial, Collections.singletonList(
 							rationalPolynomials.divideScalar(rationalPolynomials.getVar(), q.getInteger(denom)))));
+			this.minimalPolynomialDenominator = denom;
 			this.minimalPolynomial = z.getUnivariatePolynomialRing().getEmbedding(minimalPolynomial, new MathMap<>() {
 				@Override
 				public IntE evaluate(Fraction t) {
@@ -898,6 +1023,17 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 
 	public NumberFieldIdeal different() {
 		List<NFE> differentGenerator = new ArrayList<>();
+		for (IntE prime : potentiallyRamifiedPrimes()) {
+			LocalizedFractions localized = Rationals.q().withValuation(prime.getValue());
+			TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = localized.ringOfIntegers()
+					.theMontesAlgorithm(field.minimalPolynomial(), localized.residueField()
+							.getExtension(localized.residueField().getUnivariatePolynomialRing().getVar()));
+			for (OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type : theMontes.getTypes()) {
+				for (int j = 0; j < type.representative().degree(); j++) {
+					differentGenerator.add(different(field.fromPolynomial(type.divisorPolynomial(j))));
+				}
+			}
+		}
 		for (NFE generator : getModuleGenerators()) {
 			for (int i = 1; i < field.degree(); i++) {
 				differentGenerator.add(different(power(generator, i)));
@@ -911,17 +1047,27 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			throw new ArithmeticException("needs to be called on upper order");
 		}
 		List<NFE> differentGenerator = new ArrayList<>();
+		NumberFieldIntegers order = fieldEmbedding.getEmbeddedField().maximalOrder();
+		for (IntE prime : order.potentiallyRamifiedPrimes()) {
+			for (NumberFieldIdeal primeIdeal : order.idealsOver(prime)) {
+				LocalizedNumberField localized = order.localizeAndQuotient(primeIdeal);
+				TheMontesResult<NFE, FFE, PFE, FFE, FiniteField> theMontes = localized.ringOfIntegers()
+						.theMontesAlgorithm(fieldEmbedding.minimalPolynomial(), localized.residueField()
+								.getExtension(localized.residueField().getUnivariatePolynomialRing().getVar()));
+				List<List<UnivariatePolynomial<NFE>>> integralBasis = localized.ringOfIntegers()
+						.integralBasis(fieldEmbedding.minimalPolynomial(), theMontes, true);
+				for (List<UnivariatePolynomial<NFE>> integralList : integralBasis) {
+					for (UnivariatePolynomial<NFE> t : integralList) {
+						differentGenerator.add(differentOver(fieldEmbedding.fromPolynomial(t), fieldEmbedding));
+					}
+				}
+			}
+		}
 		for (NFE generator : getModuleGenerators()) {
 			for (int i = 1; i < field.degree(); i++) {
 				differentGenerator.add(differentOver(power(generator, i), fieldEmbedding));
 			}
 		}
-//				for (IntE prime : potentiallyRamifiedPrimes()) {
-//			List<NumberFieldIdeal> ideals = idealsOver(Integers.z().getIdeal(Collections.singletonList(prime)));
-//			for (NumberFieldIdeal ideal : ideals) {
-//				differentGenerator.add(differentOver(ideal.uniformizer(), fieldEmbedding));
-//			}
-//		}
 		return getIdeal(differentGenerator);
 	}
 
@@ -979,6 +1125,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	public IntegerIdeal annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<NFE> s) {
@@ -999,7 +1150,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<NFE> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<NFE> s) {
 		List<Vector<IntE>> asVectors = new ArrayList<>();
 		for (NFE t : s) {
 			asVectors.add(asVector(t));
@@ -1099,23 +1250,15 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 				if (b.degree() != i) {
 					throw new ArithmeticException("expected integral basis to be triagonal!");
 				}
-//				for (int j = b.degree() - 1; j >= 0; j--) {
-//					Fraction c = b.univariateCoefficient(j);
-//					Fraction quotient = q.divide(c, polynomialBasis.get(j).leadingCoefficient());
-//					IntE intQuotient = z.getInteger(
-//							quotient.getNumerator().getValue().divide(quotient.getDenominator().getValue()));
-//					b = polynomials.toUnivariate(
-//							polynomials.subtract(b, polynomials.multiply(intQuotient, polynomialBasis.get(j))));
+
+				NFE element = field.fromPolynomial(polynomials.substitute(b, Collections
+						.singletonList(polynomials.getEmbedding(q.getInteger(minimalPolynomialDenominator), 1))));
+//				if (!isElement(element)) {
+//					throw new ArithmeticException("Integral basis algorithm wrong, " + element + " is not integer");
 //				}
-				NFE element = field.fromPolynomial(b);
-				if (!isElement(element)) {
-					throw new ArithmeticException("Integral basis algorithm wrong, " + element + " is not integer");
-				}
 				integralBasis.add(element);
-//				asVectors.add(field.asVector(element));
-//				polynomialBasis.add(b);
 			}
-			this.integralBasis = sublatticeReduction(integralBasis);
+			this.integralBasis = sublatticeReduction(integralBasis, 1.0);
 			List<Vector<Fraction>> asVectors = new ArrayList<>();
 			for (NFE b : integralBasis) {
 				asVectors.add(field.asVector(b));
@@ -1276,8 +1419,12 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return field.minkowskiEmbedding(t);
 	}
 
-	public List<NFE> sublatticeReduction(List<NFE> sublatticeBasis) {
+	List<NFE> sublatticeReduction(List<NFE> sublatticeBasis) {
 		return getVectorSpace().latticeReduction(sublatticeBasis, this);
+	}
+
+	List<NFE> sublatticeReduction(List<NFE> sublatticeBasis, double delta) {
+		return getVectorSpace().latticeReduction(sublatticeBasis, this, delta);
 	}
 
 	@Override
@@ -1292,13 +1439,14 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	FractionalIdeal reducedRepresentative(Ideal<NFE> b) {
 		IdealGroup idealGroup = field.idealGroup();
 		FractionalIdeal ideal = idealGroup.getEmbedding(b);
-		NFE minimal = field.minkowskiEmbeddingSpace().latticeReduction(ideal, 1.0).get(0);
+		NFE minimal = ((NumberFieldIdeal) b).shortestElement();
 		FractionalIdeal result = idealGroup.operate(ideal, idealGroup.getPrincipalIdeal(field.inverse(minimal)));
 		return result;
 	}
 
 	List<NumberFieldIdeal> idealEquivalenceClass(Ideal<NFE> b) {
-		boolean calculateUnits = units == null && field.realEmbeddings().size() + field.complexEmbeddings().size() >= 2;
+		boolean calculateUnits = units == null && field.realEmbeddings().size() + field.complexEmbeddings().size() >= 2
+				&& b.equals(getUnitIdeal());
 		int k = 0;
 		List<FractionalIdeal> idealList = new ArrayList<>();
 		idealList.add(reducedRepresentative(b));
@@ -1340,6 +1488,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			ideals.add(ideal.clearDenominator().getFirst());
 		}
 		if (calculateUnits) {
+			this.unitIdealMultipliers = multipliers;
 			List<NFE> unitList = new ArrayList<>();
 			unitList.addAll(units);
 			units.clear();
@@ -1347,16 +1496,18 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			for (NFE unit : unitList) {
 				logarithmList.add(field.logRepresentation(unit));
 			}
-			System.out.println("logList: " + logarithmList);
-			RealLattice lattice = new RealLattice(field.logRepresentationSpace(), logarithmList);
+			unitLattice = new RealLattice(field.logRepresentationSpace(), logarithmList);
+			if (unitLattice.rank() != field.realEmbeddings().size() + field.complexEmbeddings().size() - 1) {
+				throw new ArithmeticException("Unit computation went wrong!");
+			}
 			List<Vector<IntE>> asIntVectors = new ArrayList<>();
 			for (Vector<Real> logVector : logarithmList) {
-				asIntVectors.add(lattice.asVector(logVector));
+				asIntVectors.add(unitLattice.asVector(logVector));
 			}
 			Matrix<IntE> asMatrix = Matrix.fromColumns(asIntVectors);
 			MatrixModule<IntE> module = asMatrix.getModule(Integers.z());
-			FreeModule<IntE> free = new FreeModule<>(Integers.z(), lattice.rank());
-			for (int i = 0; i < lattice.rank(); i++) {
+			FreeModule<IntE> free = new FreeModule<>(Integers.z(), unitLattice.rank());
+			for (int i = 0; i < unitLattice.rank(); i++) {
 				Vector<IntE> exponents = module.solve(asMatrix, free.getUnitVector(i + 1));
 				NFE unit = one();
 				for (int j = 0; j < unitList.size(); j++) {
@@ -1369,9 +1520,9 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	private boolean isRootOfUnity(NFE unit) {
-		Reals r = Reals.r(128);
+		Reals r = field.minkowskiEmbeddingSpace().getValueField();
 		for (Real value : values(unit).asList()) {
-			if (!r.close(value, r.one())) {
+			if (r.abs(r.subtract(value, r.one())).compareTo(r.getPowerOfTwo(-r.precision() / 2)) > 0) {
 				return false;
 			}
 		}
@@ -1380,20 +1531,28 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 
 	private Set<NFE> neighbors(FractionalIdeal ideal) {
 		int l = 0;
-		Reals r = Reals.r(128);
+		Reals r = field.minkowskiEmbeddingSpace().getValueField();
 		List<Set<NFE>> minimalSets = new ArrayList<>();
 		Set<NFE> startingSet = new TreeSet<>();
 		List<Real> border = new ArrayList<>();
 		List<Dual<Real, Vector<Real>>> constraints = new ArrayList<>();
-		DualVectorSpace<Real, Vector<Real>> dualSpace = field.minkowskiEmbeddingSpace().getDual();
-		for (int i = 0; i < field.degree(); i++) {
-			border.add(r.one());
-			border.add(r.one());
-			constraints.add(dualSpace.getUnitVector(i + 1));
-			constraints.add(dualSpace.negative(dualSpace.getUnitVector(i + 1)));
+		int realEmbeddings = field.realEmbeddings().size();
+		int complexEmbeddings = field.complexEmbeddings().size();
+		int numComplexConstraints = 1 << (field.degree() + 1);
+		constraints = circle(numComplexConstraints, -1);
+		for (int i = 0; i < realEmbeddings + complexEmbeddings; i++) {
+			if (i < realEmbeddings) {
+				border.add(r.one());
+				border.add(r.one());
+			} else {
+				for (int j = 0; j < numComplexConstraints; j++) {
+					border.add(r.one());
+				}
+			}
 		}
-		Real epsilon = r.getPowerOfTwo(-r.precision()/2);
+		Real epsilon = r.getPowerOfTwo(-r.precision() / 2);
 		Real boundary = r.add(r.one(), epsilon);
+//		System.err.println(ideal);
 		candidateLoop: for (NFE candidate : field.minkowskiEmbeddingSpace()
 				.latticePointsInPolytope(new Polytope<>(field.minkowskiEmbeddingSpace(), constraints, border), ideal)) {
 			if (candidate.equals(zero())) {
@@ -1434,7 +1593,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		}
 		Set<NFE> result = new TreeSet<>();
 		for (Set<NFE> minimalSet : minimalSets) {
-			result.addAll(minimalSet);
+			for (NFE t : minimalSet) {
+				if (field.asVector(t).get(1).compareTo(Rationals.q().zero()) >= 0) {
+					result.add(t);
+				}
+			}
 		}
 		return result;
 	}
@@ -1458,7 +1621,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 //		return new Vector<>(result);
 //	}
 
-	private Real realValue(Set<NFE> minimalSet, EmbeddedNumberField<Real> embeddedField) {
+	private Real realValue(Set<NFE> minimalSet, EmbeddedNumberField<Real, Reals> embeddedField) {
 		Real result = null;
 		for (NFE alpha : minimalSet) {
 			Real value = embeddedField.value(alpha);
@@ -1469,7 +1632,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return result;
 	}
 
-	private Real complexValue(Set<NFE> minimalSet, EmbeddedNumberField<ComplexNumber> embeddedField) {
+	private Real complexValue(Set<NFE> minimalSet, EmbeddedNumberField<ComplexNumber, Complex> embeddedField) {
 		Real result = null;
 		Complex c = Complex.c(128);
 		for (NFE alpha : minimalSet) {
@@ -1500,7 +1663,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		if (index <= field.realEmbeddings().size()) {
 			return field.realEmbeddings().get(index - 1).value(alpha);
 		}
-		EmbeddedNumberField<ComplexNumber> embedding = field.complexEmbeddings()
+		EmbeddedNumberField<ComplexNumber, Complex> embedding = field.complexEmbeddings()
 				.get(index - field.realEmbeddings().size() - 1);
 		Complex c = Complex.c(128);
 		return c.norm(embedding.embedding(alpha));
@@ -1535,6 +1698,59 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return result;
 	}
 
+	private List<Vector<Real>> cosineSineList(int number) {
+		FiniteRealVectorSpace space = field.minkowskiEmbeddingSpace();
+		Reals r = space.getValueField();
+		List<Vector<Real>> result = new ArrayList<>();
+		Real multiplier = r.divide(r.multiply(2, r.pi()), r.getInteger(number));
+		for (int i = 0; i < number; i++) {
+			Real angle = r.multiply(r.getInteger(i), multiplier);
+			Vector<Real> cosineAndSine = r.cosineAndSine(angle);
+			result.add(cosineAndSine);
+		}
+		return result;
+	}
+
+	private List<Dual<Real, Vector<Real>>> circle(int number, int quarterCircleIndex) {
+		FiniteRealVectorSpace space = field.minkowskiEmbeddingSpace();
+		Reals r = space.getValueField();
+		List<Vector<Real>> cosineSineList = cosineSineList(number);
+		int realEmbeddingIndex = field.realEmbeddings().size();
+		List<Dual<Real, Vector<Real>>> constraints = new ArrayList<>();
+		DualVectorSpace<Real, Vector<Real>> dual = space.getDual();
+		for (int i = 0; i < space.dimension(); i++) {
+			if (i < realEmbeddingIndex) {
+				constraints.add(dual.getUnitVector(i + 1));
+				constraints.add(dual.negative(dual.getUnitVector(i + 1)));
+			} else {
+				for (int j = 0; j < cosineSineList.size(); j++) {
+					if (i + 1 == quarterCircleIndex && j >= number / 4 + 1) {
+						break;
+					}
+					Vector<Real> cosineAndSine = cosineSineList.get(j);
+					Real cosine = cosineAndSine.get(1);
+					Real sine = cosineAndSine.get(2);
+					List<Real> vector = new ArrayList<>();
+					for (int k = 0; k < i; k++) {
+						vector.add(r.zero());
+					}
+					vector.add(cosine);
+					vector.add(sine);
+					for (int k = i + 2; k < field.degree(); k++) {
+						vector.add(r.zero());
+					}
+					constraints.add(space.getDual().canonicalIsomorphism(new Vector<>(vector)));
+				}
+				if (i + 1 == quarterCircleIndex) {
+					constraints.add(dual.negative(dual.getUnitVector(i + 1)));
+					constraints.add(dual.negative(dual.getUnitVector(i + 2)));
+				}
+				i++;
+			}
+		}
+		return constraints;
+	}
+
 	private Set<NFE> expansion(Set<NFE> minimalSet, int index, FractionalIdeal ideal) {
 		if (!restriction(minimalSet, index).isEmpty()) {
 			return minimalSet;
@@ -1545,13 +1761,18 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		int realEmbeddings = field.realEmbeddings().size();
 		int complexEmbeddings = field.complexEmbeddings().size();
 		List<Real> values = new ArrayList<>();
+		int numComplexConstraints = 1 << (complexEmbeddings + 1);
 		for (int i = 0; i < realEmbeddings + complexEmbeddings; i++) {
 			if (i + 1 == index) {
 				Real limit = r.abs(r.multiply(r.getInteger(100 * field.degree()), r.getInteger(field.discriminant())));
-				values.add(limit);
-				values.add(r.negative(epsilon));
-				if (i >= realEmbeddings) {
+				if (i < realEmbeddings) {
 					values.add(limit);
+					values.add(r.negative(epsilon));
+				} else {
+					for (int j = 0; j < numComplexConstraints / 4 + 1; j++) {
+						values.add(limit);
+					}
+					values.add(r.negative(epsilon));
 					values.add(r.negative(epsilon));
 				}
 			} else {
@@ -1560,37 +1781,36 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 					value = r.multiply(r.inverseSqrt(r.getInteger(2)), r.positiveSqrt(value));
 				}
 				value = r.subtract(value, epsilon);
-				values.add(value);
-				values.add(value);
-				if (i >= realEmbeddings) {
+				if (i < realEmbeddings) {
 					values.add(value);
 					values.add(value);
+				} else {
+					for (int j = 0; j < numComplexConstraints; j++) {
+						values.add(value);
+					}
 				}
 			}
 		}
-		List<Dual<Real, Vector<Real>>> constraints = new ArrayList<>();
-		DualVectorSpace<Real, Vector<Real>> dualVectorSpace = field.minkowskiEmbeddingSpace().getDual();
-		for (int i = 0; i < field.degree(); i++) {
-			constraints.add(dualVectorSpace.getUnitVector(i + 1));
-			constraints.add(dualVectorSpace.negative(dualVectorSpace.getUnitVector(i + 1)));
-		}
-		Polytope<Real, Vector<Real>> polytope = new Polytope<>(field.minkowskiEmbeddingSpace(), constraints, values);
 		int realIndex = index <= realEmbeddings ? index : realEmbeddings + 2 * (index - realEmbeddings) - 1;
+		List<Dual<Real, Vector<Real>>> constraints = circle(numComplexConstraints, realIndex);
+		DualVectorSpace<Real, Vector<Real>> dualVectorSpace = field.minkowskiEmbeddingSpace().getDual();
+		Polytope<Real, Vector<Real>> polytope = new Polytope<>(field.minkowskiEmbeddingSpace(), constraints, values);
 		Dual<Real, Vector<Real>> minimize = index <= realEmbeddings
 				? dualVectorSpace.negative(dualVectorSpace.getUnitVector(realIndex))
 				: dualVectorSpace.add(dualVectorSpace.negative(dualVectorSpace.getUnitVector(realIndex)),
 						dualVectorSpace.negative(dualVectorSpace.getUnitVector(realIndex + 1)));
 		NFE betterBorder = field.minkowskiEmbeddingSpace().latticeLinearProgram(polytope, minimize, ideal);
+		constraints = circle(numComplexConstraints, -1);
 		values.clear();
 		for (int i = 0; i < realEmbeddings + complexEmbeddings; i++) {
 			if (i + 1 == index) {
 				Real limit = values(betterBorder).get(index);
 				if (i >= realEmbeddings) {
 					limit = r.positiveSqrt(limit);
-				}
-				values.add(limit);
-				values.add(limit);
-				if (i >= realEmbeddings) {
+					for (int j = 0; j < numComplexConstraints; j++) {
+						values.add(limit);
+					}
+				} else {
 					values.add(limit);
 					values.add(limit);
 				}
@@ -1598,10 +1818,10 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 				Real value = absoluteValues.get(i + 1);
 				if (i >= realEmbeddings) {
 					value = r.positiveSqrt(value);
-				}
-				values.add(value);
-				values.add(value);
-				if (i >= realEmbeddings) {
+					for (int j = 0; j < numComplexConstraints; j++) {
+						values.add(value);
+					}
+				} else {
 					values.add(value);
 					values.add(value);
 				}
@@ -1611,7 +1831,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		List<NFE> candidates = field.minkowskiEmbeddingSpace().latticePointsInPolytope(polytope, ideal);
 		Real minValue = null;
 		Set<NFE> add = new TreeSet<>();
-		epsilon = r.getPowerOfTwo(-r.precision()/2);
+		epsilon = r.getPowerOfTwo(-r.precision() / 2);
 		candidateLoop: for (NFE candidate : candidates) {
 			if (candidate.equals(zero())) {
 				continue;
@@ -1667,6 +1887,18 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		return localize(maximalIdeal).lift(s);
 	}
 
+	public NFE centeredLift(FFE s, Ideal<NFE> maximalIdeal) {
+		Integers z = Integers.z();
+		IntE prime = ((NumberFieldIdeal) maximalIdeal).intGenerator();
+		NFE lift = lift(s, maximalIdeal);
+		Vector<IntE> asVector = asVector(lift);
+		List<IntE> result = new ArrayList<>();
+		for (int i = 0; i < field.degree(); i++) {
+			result.add(z.centeredLift(z.reduce(asVector.get(i + 1), prime), prime));
+		}
+		return fromVector(new Vector<>(result));
+	}
+
 	@Override
 	public DiscreteValuationRing<NFE, FFE> localize(Ideal<NFE> maximalIdeal) {
 		if (!localizations.containsKey(maximalIdeal)) {
@@ -1708,19 +1940,22 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 
 	public class NumberFieldIdeal extends AbstractIdeal<NFE> implements Ideal<NFE> {
 		private NFE uniformizer;
+//		private NFE originalUniformizer;
 		private IntE intGenerator;
 		private Matrix<IntE> inBasis;
 		private FreeSubModule<IntE, NFE> asSubModule;
 		private MatrixModule<IntE> matrixModule;
 		private List<NFE> generators;
-		private DiscreteValuationRing<Fraction, PFE> localized;
 		private OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type;
+		private List<OkutsuType<Fraction, PFE, PFE, FFE, FiniteField>> allTypes;
+		private int typeIndex;
+		private List<List<UnivariatePolynomial<Fraction>>> integralBases;
 		private boolean maximal;
-		private Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> idealFactorsPerPrime;
-		private Map<Ideal<NFE>, NFE> chineseRemainderMultipliers;
 		private FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactorization;
+		private NFE shortestElement;
 		private boolean zeroIdeal;
 		private boolean unitIdeal;
+		private ModuloNumberFieldIdeal modOut;
 
 		private NumberFieldIdeal(boolean zeroIdeal) {
 			super(NumberFieldIntegers.this);
@@ -1742,8 +1977,10 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 				List<OkutsuType<Fraction, PFE, PFE, FFE, FiniteField>> types, int index,
 				List<List<UnivariatePolynomial<Fraction>>> integral) {
 			super(NumberFieldIntegers.this);
-			this.localized = localized;
 			this.type = types.get(index);
+			this.allTypes = types;
+			this.typeIndex = index;
+			this.integralBases = integral;
 			this.maximal = true;
 			Rationals q = Rationals.q();
 			UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
@@ -1782,10 +2019,12 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 					continue;
 				}
 				OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> otherType = types.get(i);
-				for (int j = 0; j < integral.get(i).size(); j++) {
-					if (otherType.valuation(integral.get(i).get(j)).equals(Value.ZERO)) {
-						generator = polynomials.add(generator, integral.get(i).get(j));
-						break;
+				if (!otherType.valuation(generator).equals(Value.ZERO)) {
+					for (int j = 0; j < integral.get(i).size(); j++) {
+						if (otherType.valuation(integral.get(i).get(j)).equals(Value.ZERO)) {
+							generator = polynomials.add(generator, integral.get(i).get(j));
+							break;
+						}
 					}
 				}
 			}
@@ -1801,14 +2040,25 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 				}
 			}
 			this.uniformizer = field.fromPolynomial(generator);
+//			this.originalUniformizer = this.uniformizer;
 			this.intGenerator = localized.uniformizer().asInteger();
 			this.idealFactorization = new FactorizationResult<>(getUnitIdeal(), SingletonSortedMap.map(this, 1));
 			init();
+			for (int i = 0; i < types.size(); i++) {
+				if (i == index) {
+					if (!types.get(i).valuation(this.uniformizer.asPolynomial()).equals(Value.ONE)) {
+						throw new ArithmeticException("Not a uniformizer of the prime ideal!");
+					}
+				} else {
+					if (!types.get(i).valuation(this.uniformizer.asPolynomial()).equals(Value.ZERO)) {
+						throw new ArithmeticException("Not a unit mod the other prime ideals!");
+					}
+				}
+			}
 		}
 
 		private NumberFieldIdeal(Map<IntE, FactorizationResult<Ideal<NFE>, Ideal<NFE>>> factorization) {
 			super(NumberFieldIntegers.this);
-			this.idealFactorsPerPrime = factorization;
 			SortedMap<Ideal<NFE>, Integer> factors = new TreeMap<>();
 			Map<IntE, Integer> hMap = new TreeMap<>();
 			Map<IntE, NFE> alphaMap = new TreeMap<>();
@@ -1852,7 +2102,6 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 				throw new ArithmeticException("Prime Ideals need to use different constructor!");
 			}
 			init();
-
 		}
 
 		private boolean proposeNewUniformizer(NFE proposedUniformizer) {
@@ -1865,6 +2114,42 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			if (field.norm(proposedUniformizer).asInteger().getValue().abs()
 					.compareTo(field.norm(uniformizer).asInteger().getValue().abs()) >= 0) {
 				return false;
+			}
+			Integers z = Integers.z();
+			if (maximal) {
+				if (!type.valuation(proposedUniformizer.asPolynomial()).equals(Value.ONE)) {
+					if (type.ramificationIndex() != 1) {
+						return false;
+					}
+					boolean success1 = proposeNewUniformizer(add(proposedUniformizer, getInteger(intGenerator)));
+					boolean success2 = proposeNewUniformizer(subtract(proposedUniformizer, getInteger(intGenerator)));
+					return success1 || success2;
+				}
+				for (int i = 0; i < allTypes.size(); i++) {
+					if (i == typeIndex) {
+						continue;
+					}
+					OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> otherType = allTypes.get(i);
+					if (!otherType.valuation(proposedUniformizer.asPolynomial()).equals(Value.ZERO)) {
+						for (int j = 0; j < integralBases.get(i).size(); j++) {
+							if (otherType.valuation(integralBases.get(i).get(j)).equals(Value.ZERO)) {
+								proposedUniformizer = field.add(proposedUniformizer,
+										field.fromSmallDegreePolynomial(integralBases.get(i).get(j)));
+								break;
+							}
+						}
+						return proposeNewUniformizer(proposedUniformizer);
+					}
+				}
+			} else {
+				for (IntE prime : z.uniqueFactorization(intGenerator).primeFactors()) {
+					for (NumberFieldIdeal primeIdeal : idealsOver(prime)) {
+						if (!primeIdeal.maximumPowerContains(proposedUniformizer)
+								.equals(new Value(idealFactorization.multiplicity(primeIdeal)))) {
+							return false;
+						}
+					}
+				}
 			}
 			List<NFE> asList = new ArrayList<>();
 			for (NFE b : NumberFieldIntegers.this.getModuleGenerators()) {
@@ -1885,12 +2170,6 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		}
 
 		private void init() {
-			Vector<IntE> asVector = NumberFieldIntegers.this.asVector(uniformizer);
-			List<IntE> reduced = new ArrayList<>();
-			for (IntE c : asVector.asList()) {
-				reduced.add(new IntE(c.getValue().mod(intGenerator.getValue())));
-			}
-			this.uniformizer = NumberFieldIntegers.this.fromVector(new Vector<>(reduced));
 			if (this.uniformizer.equals(zero())) {
 				this.uniformizer = field.getEmbedding(intGenerator);
 			}
@@ -1911,71 +2190,29 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			if (!asSubModule.contains(field.getEmbedding(intGenerator))) {
 				throw new ArithmeticException("int generator not in submodule?");
 			}
-			boolean skipLLL = false;
+			boolean skipLLL = field.degree() > 10;
+			if (isElement(field.divide(uniformizer, field.getEmbedding(intGenerator)))
+					|| isElement(field.divide(field.getEmbedding(intGenerator), uniformizer))) {
+				skipLLL = true;
+			}
 			for (NFE b : asSubModule.getBasis()) {
-				skipLLL = skipLLL || field.norm(b).getNumerator().getValue().bitLength() > 512;
+				skipLLL = skipLLL || field.norm(b).getNumerator().getValue().bitLength() > 65536;
 			}
 			List<NFE> basis = asSubModule.getBasis();
 			if (!skipLLL) {
-				basis = sublatticeReduction(basis);
-			}
-//			asSubModule = new FreeSubModule<>(NumberFieldIntegers.this, basis);
-//			if (!asSubModule.contains(uniformizer)) {
-//				throw new ArithmeticException("Uniformizer not in submodule?");
+				basis = sublatticeReduction(basis, 1.0);
+			} // else {
+//				throw new ArithmeticException("Things are too large");
+//				Vector<IntE> asVector = NumberFieldIntegers.this.asVector(uniformizer);
+//				List<IntE> reduced = new ArrayList<>();
+//				for (IntE c : asVector.asList()) {
+//					reduced.add(new IntE(c.getValue().mod(intGenerator.getValue())));
+//				}
+//				proposeNewUniformizer(NumberFieldIntegers.this.fromVector(new Vector<>(reduced)));
 //			}
-//			if (!asSubModule.contains(field.getEmbedding(intGenerator))) {
-//				throw new ArithmeticException("int generator not in submodule?");
-//			}
-			BigInteger norm = field.norm(uniformizer).asInteger().getValue().abs();
 			for (NFE b : basis) {
 				proposeNewUniformizer(b);
-//				if (isElement(field.divide(b, field.getEmbedding(intGenerator)))) {
-//					continue;
-//				}
-//				BigInteger basisNorm = field.norm(b).asInteger().getValue().abs();
-//				if (norm == null || norm.compareTo(basisNorm) >= 0) {
-////					System.err.println("LLL improved");
-//					uniformizer = b;
-//					norm = basisNorm;
-//				}
 			}
-//			if (field.degree() == 2 && field.discriminant().compareTo(Integers.z().zero()) > 0) {
-//				IntE idealNorm = norm();
-//				if (!idealNorm.getValue().equals(norm)) {
-//					Integers z = Integers.z();
-//					Rationals q = Rationals.q();
-//					IntE discriminant = field.discriminant();
-//					boolean mod23;
-//					if (discriminant.getValue().mod(BigInteger.valueOf(4)).equals(BigInteger.ZERO)) {
-//						discriminant = Integers.z().divideChecked(discriminant, z.getInteger(4));
-//						mod23 = true;
-//					} else {
-//						mod23 = false;
-//					}
-//					List<Vector<IntE>> pells = MiscAlgorithms.pellsEquation(discriminant,
-//							mod23 ? idealNorm : z.multiply(4, idealNorm), true);
-//					pellLoop: for (Vector<IntE> pell : pells) {
-//						NFE alpha = field.sqrt(field.getInteger(discriminant)).keySet().iterator().next();
-//						int[][] pm1 = new int[][] { new int[] { 1, 1 }, new int[] { -1, 1 }, new int[] { 1, -1 } };
-//						Fraction x = q.getEmbedding(pell.get(1));
-//						Fraction y = q.getEmbedding(pell.get(2));
-//						if (!mod23) {
-//							x = q.divide(x, q.getInteger(2));
-//							y = q.divide(y, q.getInteger(2));
-//						}
-//						for (int[] i : pm1) {
-//							NFE candidate = field.add(field.multiply(i[0], field.getEmbedding(x)),
-//									field.multiply(i[1], field.getEmbedding(y), alpha));
-//							if (isElement(field.divide(this.uniformizer, candidate))
-//									&& isElement(field.divide(field.getInteger(this.intGenerator), candidate))) {
-//								proposeNewUniformizer(candidate);
-//								break pellLoop;
-//							}
-//						}
-//					}
-//				}
-//			}
-//			System.err.println("LLL done");
 			if (isElement(field.divide(uniformizer, field.getEmbedding(intGenerator)))) {
 				this.uniformizer = field.getEmbedding(intGenerator);
 			}
@@ -2020,6 +2257,46 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			return false;
 		}
 
+		public ModuloNumberFieldIdeal modOut() {
+			if (modOut == null) {
+				this.modOut = new ModuloNumberFieldIdeal(NumberFieldIntegers.this, this);
+			}
+			return modOut;
+		}
+
+		public NFE shortestElement() {
+			if (shortestElement == null) {
+				shortestElement = field.minkowskiEmbeddingSpace()
+						.latticeReduction(field.idealGroup().getEmbedding(this), 1.0).get(0);
+			}
+			return shortestElement;
+		}
+
+		public NFE principalGenerator() {
+			if (generators.size() == 1) {
+				return generators.get(0);
+			}
+			FractionalIdeal reducedRepresentative = reducedRepresentative(this);
+			NumberFieldIdeal representative = reducedRepresentative.clearDenominator().getFirst();
+			List<NumberFieldIdeal> alternatives = field.idealClassGroup().neutral().alternativeRepresentatives();
+			for (int i = 0; i < alternatives.size(); i++) {
+				NumberFieldIdeal ideal = alternatives.get(i);
+				if (ideal.equals(representative)) {
+					return field.multiply(unitIdealMultipliers.get(i), shortestElement());
+				}
+			}
+			throw new ArithmeticException("Not a principal ideal!");
+		}
+
+		public FreeSubModule<IntE, NFE> asSubModule() {
+			if (unitIdeal) {
+				return new FreeSubModule<>(NumberFieldIntegers.this, NumberFieldIntegers.this.getModuleGenerators());
+			} else if (zeroIdeal) {
+				return new FreeSubModule<>(NumberFieldIntegers.this, Collections.emptyList());
+			}
+			return asSubModule;
+		}
+
 		@Override
 		public boolean isPrimary() {
 			return isPrime() || idealFactorization.primeFactors().size() == 1;
@@ -2043,52 +2320,52 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			return uniformizer;
 		}
 
-		@Override
-		public List<List<NFE>> nonTrivialCombinations(List<NFE> s) {
-			List<Vector<IntE>> asVectorList = new ArrayList<>();
-			for (NFE e : s) {
-				for (NFE basisVector : NumberFieldIntegers.this.getModuleGenerators()) {
-					asVectorList.add(NumberFieldIntegers.this.asVector(multiply(e, basisVector)));
-				}
-			}
-			List<List<IntE>> nonTrivialCombinations = asFreeModule.nonTrivialCombinations(asVectorList);
-			List<List<NFE>> result = new ArrayList<>();
-			int degree = field.degree();
-			for (List<IntE> combination : nonTrivialCombinations) {
-				List<NFE> row = new ArrayList<>();
-				for (int i = 0; i < s.size(); i++) {
-					row.add(NumberFieldIntegers.this
-							.fromVector(new Vector<>(combination.subList(i * degree, (i + 1) * degree))));
-				}
-				boolean found = false;
-				for (List<NFE> prevRow : result) {
-					NFE ratio = null;
-					boolean notFound = false;
-					for (int i = 0; i < s.size(); i++) {
-						QuotientAndRemainderResult<NFE> qr = quotientAndRemainder(row.get(i), prevRow.get(i));
-						if (!qr.getRemainder().equals(zero())) {
-							notFound = true;
-							break;
-						}
-						if (ratio == null) {
-							ratio = qr.getQuotient();
-						}
-						if (!ratio.equals(qr.getQuotient())) {
-							notFound = true;
-							break;
-						}
-					}
-					found = !notFound;
-					if (found) {
-						break;
-					}
-				}
-				if (!found) {
-					result.add(row);
-				}
-			}
-			return result;
-		}
+//		@Override
+//		public List<Vector<NFE>> nonTrivialCombinations(List<NFE> s) {
+//			List<Vector<IntE>> asVectorList = new ArrayList<>();
+//			for (NFE e : s) {
+//				for (NFE basisVector : NumberFieldIntegers.this.getModuleGenerators()) {
+//					asVectorList.add(NumberFieldIntegers.this.asVector(multiply(e, basisVector)));
+//				}
+//			}
+//			List<List<IntE>> nonTrivialCombinations = asFreeModule.nonTrivialCombinations(asVectorList);
+//			List<List<NFE>> result = new ArrayList<>();
+//			int degree = field.degree();
+//			for (List<IntE> combination : nonTrivialCombinations) {
+//				List<NFE> row = new ArrayList<>();
+//				for (int i = 0; i < s.size(); i++) {
+//					row.add(NumberFieldIntegers.this
+//							.fromVector(new Vector<>(combination.subList(i * degree, (i + 1) * degree))));
+//				}
+//				boolean found = false;
+//				for (List<NFE> prevRow : result) {
+//					NFE ratio = null;
+//					boolean notFound = false;
+//					for (int i = 0; i < s.size(); i++) {
+//						QuotientAndRemainderResult<NFE> qr = quotientAndRemainder(row.get(i), prevRow.get(i));
+//						if (!qr.getRemainder().equals(zero())) {
+//							notFound = true;
+//							break;
+//						}
+//						if (ratio == null) {
+//							ratio = qr.getQuotient();
+//						}
+//						if (!ratio.equals(qr.getQuotient())) {
+//							notFound = true;
+//							break;
+//						}
+//					}
+//					found = !notFound;
+//					if (found) {
+//						break;
+//					}
+//				}
+//				if (!found) {
+//					result.add(row);
+//				}
+//			}
+//			return result;
+//		}
 
 		@Override
 		public List<NFE> generators() {
@@ -2130,143 +2407,13 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 
 		@Override
 		public NFE residue(NFE t) {
-			if (maximal) {
-				Value value = type.valuation(t.asPolynomial());
-				if (value.compareTo(Value.ZERO) > 0) {
-					return zero();
-				}
-				FFE reduced = type.reduce(t.asPolynomial());
-				return field.fromPolynomial(type.lift(reduced, 0));
-			}
 			if (zeroIdeal) {
 				return t;
 			}
 			if (unitIdeal) {
 				return zero();
 			}
-			Map<Ideal<NFE>, NFE> multipliers = chineseRemainderMultipliers();
-			NFE result = zero();
-			for (Ideal<NFE> ideal : idealFactorization.primeFactors()) {
-				result = add(result, multiply(multipliers.get(ideal),
-						((NumberFieldIdeal) ideal).round(t, idealFactorization.multiplicity(ideal))));
-			}
-			return result;
-		}
-
-		private Map<Ideal<NFE>, NFE> chineseRemainderMultipliers() {
-			if (chineseRemainderMultipliers == null) {
-				chineseRemainderMultipliers = new TreeMap<>();
-				PrimaryDecompositionResult<NFE, NumberFieldIdeal> primaryDecomposition = primaryDecomposition(this);
-				ChineseRemainderPreparation<NFE> crp = prepareChineseRemainderTheorem(
-						primaryDecomposition.getPrimaryIdeals());
-				for (int i = 0; i < primaryDecomposition.getRadicals().size(); i++) {
-					Ideal<NFE> ideal = primaryDecomposition.getRadicals().get(i);
-					chineseRemainderMultipliers.put(ideal, crp.getMultipliers().get(i));
-				}
-				return chineseRemainderMultipliers;
-//				Integers z = Integers.z();
-//				Rationals q = Rationals.q();
-//				IntE allPrimes = z.one();
-//				Map<IntE, IntE> powerMap = new TreeMap<>();
-//				for (IntE prime : idealFactorsPerPrime.keySet()) {
-//					FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactors = idealFactorsPerPrime.get(prime);
-//					int h = 0;
-//					for (Ideal<NFE> primeIdeal : idealFactors.primeFactors()) {
-//						NumberFieldIdeal ideal = (NumberFieldIdeal) primeIdeal;
-//						int multiplicity = idealFactors.multiplicity(primeIdeal);
-//						h = Math.max(h, MiscAlgorithms.DivRoundUp(multiplicity, ideal.type.ramificationIndex()));
-//					}
-//					IntE primePower = z.power(prime, h);
-//					allPrimes = z.multiply(primePower, allPrimes);
-//					powerMap.put(prime, primePower);
-//				}
-//				for (IntE prime : idealFactorsPerPrime.keySet()) {
-//					IntE primePower = powerMap.get(prime);
-//					IntE allOther = z.divideChecked(allPrimes, primePower);
-//					IntE primeMultiplier = z.multiply(allOther.getValue().modInverse(primePower.getValue()), allOther);
-//					FactorizationResult<Ideal<NFE>, Ideal<NFE>> idealFactors = idealFactorsPerPrime.get(prime);
-//					for (Ideal<NFE> ideal : idealFactors.primeFactors()) {
-//						NumberFieldIdeal primeIdeal = (NumberFieldIdeal) ideal;
-//						int multiplicity = idealFactors.multiplicity(ideal);
-//						int ramification = primeIdeal.type.ramificationIndex();
-//						NFE multiplier = one();
-//						Fraction multiplierValue = q.zero();
-//						for (Ideal<NFE> otherIdeal : idealsOver(z.getIdeal(Collections.singletonList(prime)))/*idealFactors.primeFactors()*/) {
-//							NumberFieldIdeal otherPrimeIdeal = (NumberFieldIdeal) otherIdeal;
-//							if (otherPrimeIdeal == primeIdeal) {
-//								continue;
-//							}
-//							int otherMultiplicity = idealFactors.multiplicity(otherIdeal);
-//							int otherRamificiation = otherPrimeIdeal.type.ramificationIndex();
-//							Fraction neededOtherValue = q.getFraction(otherMultiplicity, otherRamificiation);
-//							Value multiplierV = otherPrimeIdeal.type.valuation(multiplier.asPolynomial());
-//							if (multiplierV.isInfinite() || multiplierV.value() > otherMultiplicity) {
-//								continue;
-//							}
-//							Fraction otherMultiplierValue = q.getFraction(multiplierV.value(), otherRamificiation);
-//							Value otherV = otherPrimeIdeal.type.valuation(otherPrimeIdeal.type.representative());
-//							int value = primeIdeal.type.valuation(otherPrimeIdeal.type.representative()).value();
-//							multiplierValue = q.add(multiplierValue, q.getFraction(value, ramification));
-//							if (otherV.isInfinite()) {
-//								multiplier = multiply(field.fromPolynomial(otherPrimeIdeal.type.representative()),
-//										multiplier);
-//								continue;
-//							}
-//							Fraction otherValue = q.add(otherMultiplierValue,
-//									q.getFraction(otherV.value(), otherRamificiation));
-//							UnivariatePolynomial<Fraction> representative = otherPrimeIdeal.type.representative();
-//							if (otherValue.compareTo(
-//									q.add(neededOtherValue, q.getEmbedding(multiplierValue.roundUp()))) < 0) {
-//								int needed = q
-//										.multiply(otherRamificiation,
-//												q.add(neededOtherValue, q.getEmbedding(multiplierValue.roundUp())))
-//										.roundUp().intValueExact();
-//								representative = otherPrimeIdeal.localized
-//										.singleFactorLifting(otherPrimeIdeal.type, needed).representative();
-//							}
-//							multiplier = multiply(field.fromPolynomial(representative), multiplier);
-//						}
-//						int mv = primeIdeal.type.valuation(multiplier.asPolynomial()).value();
-//						int mod = mv % ramification;
-//						int power = mv / ramification;
-//						if (mod != 0) {
-//							for (NFE basis : getModuleGenerators()) {
-//								Value basisValue = primeIdeal.type.valuation(basis.asPolynomial());
-//								if (!basisValue.isInfinite() && basisValue.value() == ramification - mod) {
-//									multiplier = field.multiply(basis, multiplier);
-//									break;
-//								}
-//							}
-//							power += 1;
-//						}
-//						multiplier = field.multiply(field.getEmbedding(q.power(q.getEmbedding(prime), -power)),
-//								multiplier);
-//						multiplier = multiply(field.fromPolynomial(primeIdeal.localized
-//								.invertInType(multiplier.asPolynomial(), primeIdeal.type, multiplicity * ramification)),
-//								multiplier);
-//						multiplier = multiply(primeMultiplier, multiplier);
-//						if (!primeIdeal.residue(multiplier).equals(one())) {
-//							throw new ArithmeticException(
-//									"Multiplier calculation went wrong (does not reduce to one)!");
-//						}
-//						if (!primeIdeal.type.valuation(multiplier.asPolynomial()).equals(Value.ZERO)) {
-//							throw new ArithmeticException("Multiplier calculation went wrong (Not zero value)!");
-//						}
-//						for (Ideal<NFE> otherIdeal : idealFactors.primeFactors()) {
-//							NumberFieldIdeal otherPrimeIdeal = (NumberFieldIdeal) otherIdeal;
-//							if (otherPrimeIdeal == primeIdeal) {
-//								continue;
-//							}
-//							if (primeIdeal.type.valuation(multiplier.asPolynomial()).compareTo(Value.ZERO) <= 0) {
-//								throw new ArithmeticException(
-//										"Multiplier calculation went wrong (Not positive value)!");
-//							}
-//						}
-//						chineseRemainderMultipliers.put(primeIdeal, multiplier);
-//					}
-//				}
-			}
-			return chineseRemainderMultipliers;
+			return modOut().lift(modOut().reduce(t));
 		}
 
 		@Override

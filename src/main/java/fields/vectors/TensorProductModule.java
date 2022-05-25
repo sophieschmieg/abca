@@ -119,6 +119,12 @@ public class TensorProductModule<T extends Element<T>, S extends Element<S>, U e
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<TensorProduct<T, S, U>> s) {
@@ -133,7 +139,7 @@ public class TensorProductModule<T extends Element<T>, S extends Element<S>, U e
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<TensorProduct<T, S, U>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<TensorProduct<T, S, U>> s) {
 		// TODO Auto-generated method stub
 		return null;
 	}

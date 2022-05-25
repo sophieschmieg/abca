@@ -100,4 +100,9 @@ public class ProjectiveSpace<T extends Element<T>> extends AbstractProjectiveSch
 	public List<ProjectiveSpace<T>> irreducibleComponents() {
 		return Collections.singletonList(this);
 	}
+
+	@Override
+	public ProjectiveSpace<T> reduced() {
+		return this;
+	}
 }

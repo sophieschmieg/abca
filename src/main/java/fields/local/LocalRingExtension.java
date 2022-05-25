@@ -2,6 +2,7 @@ package fields.local;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import fields.interfaces.Algebra;
@@ -24,12 +25,12 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	private Matrix<B> fromPowerToIntegralBaseChange;
 	private FreeModule<B> asFreeModule;
 
-	public LocalRingExtension(FE extension, DiscreteValuationField<B, S> base, OkutsuType<B, S, R, RE, RFE> type,
+	public LocalRingExtension(FE extension, DiscreteValuationField<B, S> base,  RFE reductionExtension,
 			List<E> integralBasis, Matrix<B> fromPowerToIntegralBaseChange) {
 		super(extension, base.ringOfIntegers().toString() + "[X]/(" + extension.minimalPolynomial() + ")");
 		this.base = base;
 		this.extension = extension;
-		this.reductionExtension = type.reduction().extension();
+		this.reductionExtension = reductionExtension;
 		this.integralBasis = integralBasis;
 		this.fromPowerToIntegralBaseChange = fromPowerToIntegralBaseChange;
 		this.asFreeModule = new FreeModule<>(base, extension.degree());
@@ -126,12 +127,7 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	}
 
 	@Override
-	public List<B> nonTrivialCombination(List<E> s) {
-		return nonTrivialCombinations(s).get(0);
-	}
-
-	@Override
-	public List<List<B>> nonTrivialCombinations(List<E> s) {
+	public List<Vector<B>> nonTrivialCombinations(List<E> s) {
 		List<Vector<B>> asVectors = new ArrayList<>();
 		for (E e : s) {
 			asVectors.add(asVector(e));
@@ -142,6 +138,11 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	@Override
 	public List<E> getModuleGenerators() {
 		return integralBasis;
+	}
+	
+	@Override
+	public List<Vector<B>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
 	@Override

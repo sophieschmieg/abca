@@ -28,7 +28,7 @@ class RelativeNumberFieldTest {
 	// @Test
 	void test5() {
 		Rationals q = Rationals.q();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		UnivariatePolynomialRing<NFE> polynomials = nf.getUnivariatePolynomialRing();
@@ -95,7 +95,7 @@ class RelativeNumberFieldTest {
 	void test23() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(23), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		nf.idealClassGroup();
@@ -175,7 +175,7 @@ class RelativeNumberFieldTest {
 	void test17() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(17), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		for (IdealClass ic : nf.idealClassGroup()) {
@@ -187,7 +187,7 @@ class RelativeNumberFieldTest {
 	void testReal5() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-5), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		for (IdealClass ic : nf.idealClassGroup()) {
@@ -206,7 +206,7 @@ class RelativeNumberFieldTest {
 	void testReal3() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-3), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		for (IdealClass ic : nf.idealClassGroup()) {
@@ -223,7 +223,7 @@ class RelativeNumberFieldTest {
 	
 	//@Test
 	void testDirichletZetaFunction () {
-		NumberField nf = new NumberField();
+		NumberField nf = NumberField.getNumberField();
 		System.out.println(nf.dirichletZetaFunction(10).evaluate(Complex.c(128).getEmbedding(Reals.r(128).getFraction(Rationals.q().getFraction(1025, 1024)))));
 	}
 
@@ -231,7 +231,7 @@ class RelativeNumberFieldTest {
 	void testReal7() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(-7), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		Reals r = (Reals)nf.minkowskiEmbeddingSpace().getField();
@@ -252,7 +252,7 @@ class RelativeNumberFieldTest {
 	void test21() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(21), q.zero(), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		nf.idealClassGroup();

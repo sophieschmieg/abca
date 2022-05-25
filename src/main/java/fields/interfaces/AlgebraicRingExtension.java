@@ -22,6 +22,8 @@ public interface AlgebraicRingExtension<T extends Element<T>, S extends Algebrai
 		extends Algebra<T, S> {
 	int degree();
 
+	String getVariableName();
+	
 	S getEmbedding(T t);
 
 	MathMap<T, S> getEmbeddingMap();

@@ -116,7 +116,7 @@ public class RunTests {
 		Matrix<Fraction> solveXMatrix = Matrix.fromColumns(asVectors);
 		System.out.println(solveXMatrix.toString());
 		MatrixModule<Fraction> mm6 = new MatrixModule<>(q, 6, 6);
-		NumberField numberfield = new NumberField(mipo);
+		NumberField numberfield = NumberField.getNumberField(mipo);
 		System.out.println(numberfield);
 		UnivariatePolynomialRing<NFE> nfring = numberfield.getUnivariatePolynomialRing();
 		UnivariatePolynomial<NFE> xAsPoly = nfring.getEmbedding(
@@ -334,7 +334,7 @@ public class RunTests {
 		System.out.println("Factorization over the reals:\n" + factorsReal);
 	
 		UnivariatePolynomial<Fraction> minpoly = qr.getPolynomial(q.one(), q.one(), q.one());
-		NumberField nf = new NumberField(minpoly);
+		NumberField nf = NumberField.getNumberField(minpoly);
 		Polynomial<NFE> polyNF = MiscAlgorithms.mapPolynomial(poly, new MathMap<>() {
 
 			@Override
@@ -360,7 +360,7 @@ public class RunTests {
 //			System.out.println("factor: " + factor);
 //		}
 
-		NumberField extended = new NumberField(minpoly);
+		NumberField extended = NumberField.getNumberField(minpoly);
 		MatrixAlgebra<Fraction> algebra = new FreeModule<>(q, 4).matrixAlgebra();
 		List<List<Fraction>> m = new ArrayList<>();
 		List<Fraction> row1 = new ArrayList<>();

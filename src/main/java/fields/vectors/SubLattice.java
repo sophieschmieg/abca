@@ -2,6 +2,7 @@ package fields.vectors;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -29,15 +30,15 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 
 	public SubLattice(Lattice<R, T, S> lattice, List<R> generators, double delta) {
 		this.lattice = lattice;
-		this.generators = lattice.getVectorSpace().latticeReduction(asFreeSubModule.getBasis(), lattice, delta);
-		this.asFreeSubModule = new FreeSubModule<>(lattice, generators);
+		this.generators = lattice.getVectorSpace().latticeReduction(generators, lattice, delta);
+		this.asFreeSubModule = new FreeSubModule<>(lattice, this.generators);
 		List<Vector<T>> asVectors = new ArrayList<>();
-		for (R generator : generators) {
+		for (R generator : this.generators) {
 			asVectors.add(lattice.getVectorSpace().asVector(lattice.embedding(generator)));
 		}
 		this.generatorsAsMatrix = Matrix.fromColumns(asVectors);
 		List<Vector<IntE>> inLatticeBase = new ArrayList<>();
-		for (R base : generators) {
+		for (R base : this.generators) {
 			inLatticeBase.add(lattice.asVector(base));
 		}
 		this.sublatticeBaseInLattice = Matrix.fromColumns(inLatticeBase);
@@ -50,6 +51,11 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 
 	public SubLattice(Lattice<R, T, S> lattice, FreeSubModule<IntE, R> asFreeSubModule, double delta) {
 		this(lattice, asFreeSubModule.getBasis(), delta);
+	}
+	
+	@Override
+	public String toString() {
+		return generators.toString();
 	}
 
 	@Override
@@ -86,6 +92,11 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 	public Ideal<IntE> annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	@Override
 	public boolean isLinearIndependent(List<R> s) {
@@ -98,7 +109,7 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<R> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<R> s) {
 		return asFreeSubModule.nonTrivialCombinations(s);
 	}
 
@@ -156,5 +167,9 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 	@Override
 	public Matrix<T> generatorsAsMatrix() {
 		return generatorsAsMatrix;
+	}
+
+	public FreeSubModule<IntE, R> asFreeSubModule() {
+		return asFreeSubModule;
 	}
 }

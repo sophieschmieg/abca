@@ -35,12 +35,17 @@ public interface VectorSpace<T extends Element<T>, S extends Element<S>> extends
 	}
 
 	@Override
-	default List<List<T>> getModuleGeneratorRelations() {
+	default List<Vector<T>> getSyzygies() {
 		return Collections.emptyList();
 	}
 
 	public default List<S> linearIndependentSubSet(List<S> s) {
 		SubVectorSpace<T, S> asSubVectorSpace = new SubVectorSpace<>(this, s);
+//		System.err.println(s);
+//		System.err.println(asSubVectorSpace);
+			if (asSubVectorSpace.dimension() == 0) {
+			return Collections.emptyList();
+		}
 		List<Vector<T>> basis = new ArrayList<>();
 		for (S basisVector : asSubVectorSpace.getBasis()) {
 			Vector<T> asVector = asVector(basisVector);

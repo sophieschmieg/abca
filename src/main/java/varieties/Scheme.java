@@ -1,6 +1,7 @@
 package varieties;
 
 import java.util.List;
+import java.util.Optional;
 
 import fields.interfaces.Element;
 import fields.interfaces.Field;
@@ -25,4 +26,7 @@ public interface Scheme<T extends Element<T>, S extends Element<S>> extends Math
 	public boolean isReduced();
 	public boolean isIrreducible();
 	public List<? extends Scheme<T, S>> irreducibleComponents();
+	public Scheme<T, S> reduced();
+	public List<S> singularPoints();
+	public Optional<? extends Morphism<T, S, S>> singularLocus();
 }

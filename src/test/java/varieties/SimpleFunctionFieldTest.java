@@ -19,7 +19,7 @@ class SimpleFunctionFieldTest {
 		Rationals q = Rationals.q();
 		UnivariatePolynomial<Fraction> eisenstein = q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.one(),
 				q.one());
-		NumberField nf = new NumberField(eisenstein);
+		NumberField nf = NumberField.getNumberField(eisenstein);
 		EllipticCurve<NFE> curve = new EllipticCurve<>(nf, nf.zero(), nf.one());
 		assertEquals(3, curve.degree());
 		SimpleFunctionFieldFromCoordinateRingOverExtension<Fraction, NFE> sff = SimpleFunctionField.forProjectiveVarietyOverExtensionField(nf, curve);

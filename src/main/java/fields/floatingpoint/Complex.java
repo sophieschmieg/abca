@@ -16,6 +16,7 @@ import fields.helper.FieldAutomorphism;
 import fields.helper.GaloisGroup;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.FloatingPointSet;
@@ -25,6 +26,10 @@ import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.ValueField;
+import fields.numberfields.NumberField;
+import fields.numberfields.NumberField.NFE;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.Identity;
 import util.SingletonSortedMap;
@@ -74,7 +79,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	private Complex(Reals reals) {
-		super(reals.getUnivariatePolynomialRing().getPolynomial(reals.one(), reals.zero(), reals.one()), reals);
+		super(reals.getUnivariatePolynomialRing().getPolynomial(reals.one(), reals.zero(), reals.one()), reals, "i");
 		this.r = reals;
 	}
 
@@ -199,7 +204,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	public boolean isReal(ComplexNumber t) {
 		return r.abs(t.complexPart()).compareTo(r.getPowerOfTwo(-r.precision() + t.realPart().exponent())) < 0;
 	}
-	
+
 	public Real asReal(ComplexNumber t) {
 		if (!isReal(t)) {
 			throw new ArithmeticException("Not a real number!");
@@ -254,6 +259,11 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 
 	@Override
 	public Reals getReals() {
+		return r;
+	}
+
+	@Override
+	public Reals getBaseField() {
 		return r;
 	}
 
@@ -379,8 +389,38 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 			return new FactorizationResult<>(t.leadingCoefficient(),
 					SingletonSortedMap.map(getUnivariatePolynomialRing().normalize(t), 1));
 		}
-		FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> squareFree = getUnivariatePolynomialRing()
-				.squareFreeFactorization(t);
+		Rationals q = Rationals.q();
+		NumberField gauss = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
+		UnivariatePolynomial<NFE> rationalPolynomial = gauss.getUnivariatePolynomialRing().getEmbedding(t,
+				new MathMap<>() {
+					@Override
+					public NFE evaluate(ComplexNumber t) {
+						return gauss.add(gauss.getEmbedding(r.roundToFraction(t.realPart(), r.precision())),
+								gauss.scalarMultiply(r.roundToFraction(t.complexPart(), r.precision()), gauss.alpha()));
+					}
+				});
+		FactorizationResult<Polynomial<NFE>, NFE> rationalSquareFree = gauss.getUnivariatePolynomialRing()
+				.squareFreeFactorization(rationalPolynomial);
+		FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber> squareFree;
+		if (rationalSquareFree.isIrreducible()) {
+			squareFree = new FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber>(t.leadingCoefficient(),
+					SingletonSortedMap.map(getUnivariatePolynomialRing().normalize(t), 1));
+		} else {
+			SortedMap<Polynomial<ComplexNumber>, Integer> squareFreeResult = new TreeMap<>();
+			for (Polynomial<NFE> rationalSquareFreeFactor : rationalSquareFree.primeFactors()) {
+				squareFreeResult
+						.put(getUnivariatePolynomialRing().getEmbedding(rationalSquareFreeFactor, new MathMap<>() {
+							@Override
+							public ComplexNumber evaluate(NFE t) {
+								return getNumber(r.getEmbedding(t.asPolynomial().univariateCoefficient(0)),
+										r.getEmbedding(t.asPolynomial().univariateCoefficient(1)));
+							}
+						}), rationalSquareFree.multiplicity(rationalSquareFreeFactor));
+			}
+			squareFree = new FactorizationResult<Polynomial<ComplexNumber>, ComplexNumber>(t.leadingCoefficient(),
+					squareFreeResult);
+		}
 		SortedMap<Polynomial<ComplexNumber>, Integer> result = new TreeMap<>();
 		for (Polynomial<ComplexNumber> squareFreeFactor : squareFree.primeFactors()) {
 			for (Polynomial<ComplexNumber> factor : squareFreeFactorization(squareFreeFactor)) {
@@ -404,6 +444,33 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 			f = ring.divide(f, factor);
 		}
 		return factors;
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<ComplexNumber> module, Matrix<ComplexNumber> m,
+			Vector<ComplexNumber> b) {
+		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, b.dimension());
+		return space.isSubModuleMember(module, m, b);
+	}
+
+	@Override
+	public Vector<ComplexNumber> asSubModuleMember(MatrixModule<ComplexNumber> module, Matrix<ComplexNumber> m,
+			Vector<ComplexNumber> b) {
+		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, b.dimension());
+		return space.asSubModuleMember(module, m, b);
+	}
+
+	@Override
+	public List<Vector<ComplexNumber>> syzygyProblem(MatrixModule<ComplexNumber> module, Matrix<ComplexNumber> m) {
+		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, m.rows());
+		return space.syzygyProblem(module, m);
+	}
+
+	@Override
+	public List<Vector<ComplexNumber>> simplifySubModuleGenerators(MatrixModule<ComplexNumber> module,
+			Matrix<ComplexNumber> m) {
+		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, m.columns());
+		return space.simplifySubModuleGenerators(module, m);
 	}
 
 	@Override

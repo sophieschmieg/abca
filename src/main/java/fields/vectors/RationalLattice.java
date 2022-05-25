@@ -2,117 +2,82 @@ package fields.vectors;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
-import fields.floatingpoint.FiniteRealVectorSpace;
-import fields.floatingpoint.Reals;
-import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractModule;
+import fields.integers.FiniteRationalVectorSpace;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Integers.IntegerIdeal;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
-import fields.interfaces.InnerProductSpace;
 import fields.interfaces.Lattice;
-import fields.interfaces.RealInnerProductSpace;
+import fields.interfaces.MathMap;
 
-public class RationalLattice extends AbstractModule<IntE, Vector<Real>>
-		implements Lattice<Vector<Real>, Real, Vector<Real>> {
-	private RealInnerProductSpace<Real, Vector<Real>> space;
-	private List<Vector<Real>> basis;
-	private Matrix<Real> baseChangeMatrix;
-	private MatrixModule<Real> matrixModule;
+public class RationalLattice extends AbstractModule<IntE, Vector<Fraction>>
+		implements Lattice<Vector<Fraction>, Fraction, Vector<Fraction>> {
+	private FiniteRationalVectorSpace space;
+	private List<Vector<Fraction>> basis;
+	private Matrix<Fraction> baseChangeMatrix;
+	private MatrixModule<Fraction> matrixModule;
 	private FreeModule<IntE> asIntModule;
+	private double delta;
 
-	public RationalLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators) {
+	public static RationalLattice fromIntegerLattice(int dimension, List<Vector<IntE>> generators) {
+		return fromIntegerLattice(dimension, generators, 0.75);
+	}
+
+	public static RationalLattice fromIntegerLattice(int dimension, List<Vector<IntE>> generators, double delta) {
+		FiniteRationalVectorSpace space = new FiniteRationalVectorSpace(dimension);
+		List<Vector<Fraction>> rationalGenerators = new ArrayList<>();
+		for (Vector<IntE> generator : generators) {
+			rationalGenerators.add(Vector.mapVector(Rationals.q().getEmbeddingMap(), generator));
+		}
+		return new RationalLattice(space, rationalGenerators, delta);
+	}
+
+	public RationalLattice(FiniteRationalVectorSpace space, List<Vector<Fraction>> generators) {
 		this(space, generators, 0.75);
 	}
 
-	public RationalLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, double delta) {
+	public RationalLattice(FiniteRationalVectorSpace space, List<Vector<Fraction>> generators, double delta) {
 		this.space = space;
-		Matrix<Real> generatorMatrix = Matrix.fromColumns(generators);
-		MatrixModule<Real> generatorMatrixModule = new MatrixModule<>(space.getField(), space.dimension(),
+		this.delta = delta;
+		Matrix<Fraction> generatorMatrix = Matrix.fromColumns(generators);
+		MatrixModule<Fraction> generatorMatrixModule = new MatrixModule<>(space.getField(), space.dimension(),
 				generators.size());
 		this.basis = new ArrayList<>();
 		if (generatorMatrixModule.rank(generatorMatrix) < generators.size()) {
 			Integers z = Integers.z();
 			Rationals q = Rationals.q();
-			Reals r = space.getValueField().getReals();
-			List<Vector<Real>> independentSubset = space.linearIndependentSubSet(generators);
-			int[] subSetIndeces = new int[independentSubset.size()];
-			for (int i = 0; i < subSetIndeces.length; i++) {
-				for (int j = 0; j < generators.size(); j++) {
-					Vector<Real> generator = generators.get(j);
-					if (independentSubset.get(i).equals(generator)) {
-						subSetIndeces[i] = j;
-						break;
+			IntE lcmDenominator = z.one();
+			for (Vector<Fraction> generator : generators) {
+				for (Fraction coeff : generator.asList()) {
+					lcmDenominator = z.lcm(coeff.getDenominator(), lcmDenominator);
+				}
+			}
+			IntE denominator = lcmDenominator;
+			List<Vector<IntE>> integerList = new ArrayList<>();
+			for (Vector<Fraction> generator : generators) {
+				integerList.add(Vector.mapVector(new MathMap<Fraction, IntE>() {
+					@Override
+					public IntE evaluate(Fraction t) {
+						return q.multiply(denominator, t).asInteger();
 					}
-				}
+				}, generator));
 			}
-			Matrix<Real> baseChange = Matrix.fromColumns(independentSubset);
-			List<List<IntE>> integerKernel = new ArrayList<>();
-			for (int i = 0; i < generators.size(); i++) {
-				Vector<Real> generator = generators.get(i);
-				Vector<Real> inBasis = generatorMatrixModule.solve(baseChange, generator);
-				List<Fraction> asFractions = new ArrayList<>();
-				IntE lcm = z.one();
-				for (Real coefficient : inBasis.asList()) {
-					Fraction asFraction = r.roundToFraction(coefficient, r.precision() / 2);
-					asFractions.add(asFraction);
-					lcm = z.lcm(asFraction.getDenominator(), lcm);
-				}
-				List<IntE> integerRelation = new ArrayList<>();
-				for (int j = 0; j < generators.size(); j++) {
-					integerRelation.add(z.zero());
-				}
-				integerRelation.set(i, z.negative(lcm));
-				for (int j = 0; j < independentSubset.size(); j++) {
-					integerRelation.set(subSetIndeces[j], z.add(integerRelation.get(subSetIndeces[j]),
-							q.multiply(lcm, asFractions.get(j)).asInteger()));
-				}
-				integerKernel.add(integerRelation);
-			}
-//			List<Vector<Real>> kernel = generatorMatrixModule.kernelBasis(generatorMatrix);
-//			for (Vector<Real> kernelVector : kernel) {
-//				Real coeff = null;
-//				for (int i = 0; i < generators.size(); i++) {
-//					coeff = kernelVector.get(i + 1);
-//					if (r.abs(coeff).compareTo(r.getPowerOfTwo(-100)) > 0) {
-//						break;
-//					}
-//				}
-//				kernelVector = generatorMatrixModule.domain().scalarMultiply(r.inverse(coeff), kernelVector);
-//				IntE lcm = z.one();
-//				List<Fraction> asFractions = new ArrayList<>();
-//				for (Real coefficient : kernelVector.asList()) {
-//					Fraction asFraction = r.roundToFraction(coefficient, 100);
-//					asFractions.add(asFraction);
-//					lcm = z.lcm(asFraction.getDenominator(), lcm);
-//				}
-//				List<IntE> integerVector = new ArrayList<>();
-//				for (Fraction coefficient : asFractions) {
-//					integerVector.add(q.multiply(lcm, coefficient).asInteger());
-//				}
-//				integerKernel.add(integerVector);
-//			}
-			FreeModule<IntE> freeModule = new FreeModule<>(z, generators.size());
-			GenericPIDModule<IntE, Vector<IntE>> modKernel = GenericPIDModule.fromSyzygies(freeModule, integerKernel);
-			List<IntE> diagonalRanks = modKernel.diagonalRanks();
-			for (int i = 0; i < generators.size(); i++) {
-				IntE diagonalRank = diagonalRanks.get(i);
-				if (!diagonalRank.equals(z.zero())) {
-					continue;
-				}
-				Vector<IntE> diagonal = modKernel.lift(modKernel.fromDiagonalVector(freeModule.getUnitVector(i + 1)));
-				Vector<Real> basisVector = space.zero();
-				for (int j = 0; j < generators.size(); j++) {
-					basisVector = space.add(space.scalarMultiply(diagonal.get(j + 1).getValue(), generators.get(j)),
-							basisVector);
-				}
-				this.basis.add(basisVector);
+			Matrix<IntE> asMatrix = Matrix.fromColumns(integerList);
+			List<Vector<IntE>> reducedList = asMatrix.getModule(z).imageBasis(asMatrix);
+			for (Vector<IntE> generator : reducedList) {
+				basis.add(Vector.mapVector(new MathMap<IntE, Fraction>() {
+					@Override
+					public Fraction evaluate(IntE t) {
+						return q.getFraction(t, denominator);
+					}
+				}, generator));
 			}
 		} else {
 			this.basis.addAll(generators);
@@ -127,6 +92,10 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Real>>
 	public String toString() {
 		return basis.toString();
 	}
+	
+	public double delta() {
+		return delta;
+	}
 
 	@Override
 	public Integers getRing() {
@@ -134,22 +103,22 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Real>>
 	}
 
 	@Override
-	public Vector<Real> zero() {
+	public Vector<Fraction> zero() {
 		return space.zero();
 	}
 
 	@Override
-	public Vector<Real> add(Vector<Real> s1, Vector<Real> s2) {
+	public Vector<Fraction> add(Vector<Fraction> s1, Vector<Fraction> s2) {
 		return space.add(s1, s2);
 	}
 
 	@Override
-	public Vector<Real> negative(Vector<Real> s) {
+	public Vector<Fraction> negative(Vector<Fraction> s) {
 		return space.negative(s);
 	}
 
 	@Override
-	public Vector<Real> scalarMultiply(IntE t, Vector<Real> s) {
+	public Vector<Fraction> scalarMultiply(IntE t, Vector<Fraction> s) {
 		return space.scalarMultiply(t.getValue(), s);
 	}
 
@@ -167,59 +136,62 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Real>>
 	public IntegerIdeal annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	@Override
-	public boolean isLinearIndependent(List<Vector<Real>> s) {
+	public boolean isLinearIndependent(List<Vector<Fraction>> s) {
 		return space.isLinearIndependent(s);
 	}
 
 	@Override
-	public boolean isGeneratingModule(List<Vector<Real>> s) {
+	public boolean isGeneratingModule(List<Vector<Fraction>> s) {
 		return asIntModule.isGeneratingModule(asIntVectors(s));
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<Vector<Real>> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<Vector<Fraction>> s) {
 		return asIntModule.nonTrivialCombinations(asIntVectors(s));
 	}
 
-	private List<Vector<IntE>> asIntVectors(List<Vector<Real>> s) {
+	private List<Vector<IntE>> asIntVectors(List<Vector<Fraction>> s) {
 		List<Vector<IntE>> result = new ArrayList<>();
-		for (Vector<Real> vector : s) {
+		for (Vector<Fraction> vector : s) {
 			result.add(asVector(vector));
 		}
 		return result;
 	}
 
 	@Override
-	public List<Vector<Real>> getModuleGenerators() {
+	public List<Vector<Fraction>> getModuleGenerators() {
 		return basis;
 	}
 
 	@Override
-	public Matrix<Real> generatorsAsMatrix() {
+	public Matrix<Fraction> generatorsAsMatrix() {
 		return baseChangeMatrix;
 	}
 
 	@Override
-	public Vector<IntE> asVector(Vector<Real> s) {
-		Vector<Real> realSolution = matrixModule.solve(baseChangeMatrix, s);
+	public Vector<IntE> asVector(Vector<Fraction> s) {
+		Vector<Fraction> realSolution = matrixModule.solve(baseChangeMatrix, s);
 		List<IntE> integerSolution = new ArrayList<>();
-		for (Real realCoefficient : realSolution.asList()) {
+		for (Fraction realCoefficient : realSolution.asList()) {
 			integerSolution.add(realCoefficient.round());
 		}
 		return new Vector<>(integerSolution);
 	}
 
-	public boolean contains(Vector<Real> vector) {
+	public boolean contains(Vector<Fraction> vector) {
 		if (!matrixModule.hasSolution(baseChangeMatrix, vector)) {
 			return false;
 		}
-		Vector<Real> realSolution = matrixModule.solve(baseChangeMatrix, vector);
-		Reals r = (Reals) space.getField();
-		Integers z = Integers.z();
-		for (Real coefficient : realSolution.asList()) {
-			if (!r.roundToFraction(coefficient, 100).getDenominator().equals(z.one())) {
+		Vector<Fraction> solution = matrixModule.solve(baseChangeMatrix, vector);
+		for (Fraction coefficient : solution.asList()) {
+			if (!coefficient.getDenominator().equals(Integers.z().one())) {
 				return false;
 			}
 		}
@@ -228,11 +200,11 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Real>>
 
 	@Override
 	public Exactness exactness() {
-		return Exactness.FLOATING_POINT;
+		return Exactness.EXACT;
 	}
 
 	@Override
-	public Vector<Real> getRandomElement() {
+	public Vector<Fraction> getRandomElement() {
 		return fromVector(asIntModule.getRandomElement());
 	}
 
@@ -247,17 +219,17 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Real>>
 	}
 
 	@Override
-	public Iterator<Vector<Real>> iterator() {
+	public Iterator<Vector<Fraction>> iterator() {
 		throw new InfinityException();
 	}
 
 	@Override
-	public InnerProductSpace<Real, Vector<Real>> getVectorSpace() {
+	public FiniteRationalVectorSpace getVectorSpace() {
 		return space;
 	}
 
 	@Override
-	public Vector<Real> embedding(Vector<Real> t) {
+	public Vector<Fraction> embedding(Vector<Fraction> t) {
 		return t;
 	}
 

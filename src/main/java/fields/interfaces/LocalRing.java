@@ -8,6 +8,6 @@ public interface LocalRing<T extends Element<T>, S extends Element<S>, R extends
 	public R reduce(T t);
 	public T lift(R t);
 
-	public ModuloMaximalIdealResult<T, R> moduloMaximalIdeal(Ideal<T> ideal);
+	public ModuloMaximalIdealResult<T, R, ?, ?, ?> moduloMaximalIdeal(Ideal<T> ideal);
 	public FieldOfFractionsResult<T, S> fieldOfFractions();
 }

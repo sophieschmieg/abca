@@ -13,6 +13,7 @@ import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
 import varieties.AbstractScheme;
+import varieties.FunctionField;
 import varieties.Morphism;
 import varieties.SpectrumOfField;
 import varieties.SpectrumOfField.SingletonPoint;
@@ -27,6 +28,7 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 	private List<Polynomial<T>> generators;
 	private Field<T> field;
 	private AffineCover<T> cover;
+	private FunctionField<T> functionField;
 
 	public GenericProjectiveScheme(Field<T> field, PolynomialRing<T> polynomialRing, List<Polynomial<T>> generators) {
 		this.field = field;
@@ -163,6 +165,10 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 		}
 		return true;
 	}
+	
+	public List<Polynomial<T>> generators() {
+		return generators;
+	}
 
 	public int projectiveEmbeddingDimension() {
 		return polynomialRing.numberOfVariables() - 1;
@@ -289,9 +295,22 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 		}
 		return result;
 	}
+	
+	@Override
+	public GenericProjectiveScheme<T> reduced() {
+		return fromAffineScheme(getAffineCover().getCover().get(0).reduced());
+	}
 
 	@Override
 	public GenericProjectiveScheme<T> asGenericProjectiveScheme() {
 		return this;
+	}
+	
+	@Override
+	public FunctionField<T> getFunctionField() {
+		if (functionField == null) {
+			functionField = new FunctionField<>(this);
+		}
+		return functionField;
 	}
 }

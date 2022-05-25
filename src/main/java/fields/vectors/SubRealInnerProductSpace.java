@@ -115,7 +115,7 @@ public class SubRealInnerProductSpace<T extends Element<T>, S extends Element<S>
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<S> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<S> s) {
 		return asSubVectorSpace.nonTrivialCombinations(s);
 	}
 

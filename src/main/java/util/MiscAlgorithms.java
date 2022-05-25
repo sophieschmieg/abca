@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import fields.finitefields.PrimeField;
 import fields.integers.Integers;
@@ -94,6 +96,66 @@ public class MiscAlgorithms {
 			return kroneckerSymbol(a, b.negate());
 		}
 		return jacobiSymbol(a, b);
+	}
+
+	public static int binomial(int n, int k) {
+		Integers z = Integers.z();
+		return binomial(z.getInteger(n), z.getInteger(k)).intValueExact();
+	}
+
+	public static IntE binomial(IntE n, IntE k) {
+		Integers z = Integers.z();
+		Rationals q = Rationals.q();
+		if (k.compareTo(z.zero()) < 0 || k.compareTo(n) > 0) {
+			return z.zero();
+		}
+		if (k.equals(n) || k.equals(z.zero())) {
+			return z.one();
+		}
+		if (z.subtract(n, k).compareTo(k) < 0) {
+			k = z.subtract(n, k);
+		}
+		Fraction result = q.one();
+		for (int i = 0; i < k.intValueExact(); i++) {
+			result = q.multiply(q.getFraction(z.subtract(n, z.getInteger(i)), z.getInteger(i + 1)), result);
+		}
+		return result.asInteger();
+	}
+
+	public static List<Integer> grayCode(int length) {
+		if (length == 0) {
+			return Collections.singletonList(0);
+		}
+		int bit = 1 << (length - 1);
+		List<Integer> result = new ArrayList<>();
+		List<Integer> grayCode = grayCode(length - 1);
+		result.addAll(grayCode);
+		Collections.reverse(grayCode);
+		for (int codeword : grayCode) {
+			result.add(codeword + bit);
+		}
+		return result;
+	}
+
+	private static <T extends Comparable<T>> List<SortedSet<T>> subsets(SortedSet<T> t, SortedSet<T> subset, int size) {
+		if (subset.size() == size) {
+			return Collections.singletonList(subset);
+		}
+		List<SortedSet<T>> result = new ArrayList<>();
+		for (T element : t) {
+			if (!subset.isEmpty() && subset.first().compareTo(element) >= 0) {
+				continue;
+			}
+			SortedSet<T> copy = new TreeSet<>();
+			copy.addAll(subset);
+			copy.add(element);
+			result.addAll(subsets(t, copy, size));
+		}
+		return result;
+	}
+
+	public static <T extends Comparable<T>> List<SortedSet<T>> subsets(SortedSet<T> t, int size) {
+		return subsets(t, Collections.emptySortedSet(), size);
 	}
 
 	public static int jacobiSymbol(BigInteger a, BigInteger b) {
@@ -207,6 +269,18 @@ public class MiscAlgorithms {
 			return (dividend + divisor - 1) / divisor;
 		}
 		return dividend / divisor;
+	}
+
+	public static int roundUpToPowerOfTwo(int n) {
+		return roundUpToPowerOfTwo(BigInteger.valueOf(n)).intValueExact();
+	}
+
+	public static BigInteger roundUpToPowerOfTwo(BigInteger n) {
+		return BigInteger.ONE.shiftLeft(n.bitLength() - 1);
+	}
+
+	public static IntE roundUpToPowerOfTwo(IntE n) {
+		return Integers.z().getInteger(roundUpToPowerOfTwo(n.getValue()));
 	}
 
 	public static <T> List<List<T>> crossProduct(List<List<T>> setOfSets) {
@@ -349,7 +423,7 @@ public class MiscAlgorithms {
 		if (z.hasSqrt(d)) {
 			return q.continuedFraction(q.getInteger(z.sqrt(d).keySet().iterator().next()));
 		}
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(z.negative(d)), q.zero(), q.one()));
 		return continuedFraction(nf, nf.alpha(), roundDownSqrt(d));
 	}
@@ -360,7 +434,7 @@ public class MiscAlgorithms {
 		if (z.hasSqrt(d)) {
 			return q.continuedFractionApproximation(q.getInteger(z.sqrt(d).keySet().iterator().next()));
 		}
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(z.negative(d)), q.zero(), q.one()));
 		return continuedFractionApproximation(nf, nf.alpha(), roundDownSqrt(d));
 	}
@@ -452,7 +526,8 @@ public class MiscAlgorithms {
 				squareFree = z.multiply(squareFree, z.power(factor, factors.multiplicity(factor) % 2));
 			}
 			Vector<IntE> squareFreeSolution = sumOfThreeSquares(squareFree).get();
-			return Optional.of(new Vector<>(z.multiply(sqrt, squareFreeSolution.get(1)), z.multiply(sqrt, squareFreeSolution.get(2)), z.multiply(sqrt, squareFreeSolution.get(3))));
+			return Optional.of(new Vector<>(z.multiply(sqrt, squareFreeSolution.get(1)),
+					z.multiply(sqrt, squareFreeSolution.get(2)), z.multiply(sqrt, squareFreeSolution.get(3))));
 		}
 		int mod8 = z.remainder(n, z.getInteger(8)).intValueExact();
 		return null;
@@ -549,7 +624,7 @@ public class MiscAlgorithms {
 		for (List<BigInteger> modSqrt : modSqrtsCross) {
 			IntE p0 = z.getInteger(MiscAlgorithms.chineseRemainder(modSqrt, mods, true));
 			IntE nAbs = n.compareTo(z.zero()) < 0 ? z.negative(n) : n;
-			NumberField nf = new NumberField(
+			NumberField nf = NumberField.getNumberField(
 					q.getUnivariatePolynomialRing().getPolynomial(q.negative(q.getInteger(d)), q.zero(), q.one()));
 			NFE sqrt = nf.divide(nf.add(nf.getInteger(p0), nf.alpha()), nf.getInteger(nAbs));
 			Iterator<Fraction> approximation = continuedFractionApproximation(nf, sqrt, roundDownSqrt(d));

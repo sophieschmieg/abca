@@ -3,9 +3,13 @@ package fields.vectors;
 import java.lang.reflect.Array;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
@@ -17,12 +21,12 @@ import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractModule;
 import fields.interfaces.Element;
-import fields.interfaces.Field;
 import fields.interfaces.Ideal;
 import fields.interfaces.InnerProductSpace;
 import fields.interfaces.InnerProductSpace.SingularValueDecompositionResult;
 import fields.interfaces.Ring;
-import fields.interfaces.ValueField;
+import util.MiscAlgorithms;
+import util.Pair;
 
 public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix<T>> {
 	private Ring<T> ring;
@@ -153,6 +157,11 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	public Ideal<T> annihilator() {
 		return ring.getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	@Override
 	public Matrix<T> getRandomElement() {
@@ -246,15 +255,15 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	}
 
 	public Matrix<T> multiply(Matrix<T> t1, Matrix<T> t2) {
-		if (t1.rows() != rows || t2.columns() != columns || t1.columns() != t2.rows()) {
+		if (t1.columns() != t2.rows()) {
 			System.err.println(t1);
 			System.err.println(t2);
 			throw new ArithmeticException("Matricies have wrong dimension");
 		}
 		List<List<T>> result = new ArrayList<>();
-		for (int i = 0; i < rows; i++) {
+		for (int i = 0; i < t1.rows(); i++) {
 			result.add(new ArrayList<>());
-			for (int j = 0; j < columns; j++) {
+			for (int j = 0; j < t2.columns(); j++) {
 				T r = ring.zero();
 				for (int k = 0; k < t1.columns(); k++) {
 					r = ring.add(r, ring.multiply(t1.entry(i + 1, k + 1), t2.entry(k + 1, j + 1)));
@@ -344,18 +353,25 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 		return codomainInnerProductSpace;
 	}
 
-	// LD^-1U=PA
+	// LD^-1U=P^-1A
 	public class LDUPResult {
 		private int[] permutation;
+		private int[] inversePermutation;
 		private Matrix<T> lowerTriangle;
 		private Matrix<T> inverseDiagonal;
 		private Matrix<T> upperTriangle;
+		private int rank;
 		private int signum;
 		private T determinant;
 		private Set<Integer> slips;
+		private Map<Integer, Integer> steps;
 
 		public int[] getPermutation() {
 			return permutation;
+		}
+
+		public int[] getInversePermutation() {
+			return inversePermutation;
 		}
 
 		public Matrix<T> getLowerTriangle() {
@@ -364,6 +380,10 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 
 		public Matrix<T> getUpperTriangle() {
 			return upperTriangle;
+		}
+
+		public int getRank() {
+			return rank;
 		}
 
 		public int getSignum() {
@@ -381,6 +401,10 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 		public Set<Integer> getSlips() {
 			return slips;
 		}
+
+		public Map<Integer, Integer> getSteps() {
+			return steps;
+		}
 	}
 
 	public LDUPResult ldup(Matrix<T> t) {
@@ -396,7 +420,9 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 			return t.ldupResult;
 		}
 		LDUPResult r = new LDUPResult();
+		r.rank = 0;
 		r.slips = new TreeSet<>();
+		r.steps = new TreeMap<>();
 		r.determinant = ring.one();
 		r.signum = 1;
 		@SuppressWarnings("unchecked")
@@ -434,6 +460,7 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 				r.slips.add(pivotColumn + 1);
 				continue;
 			}
+			r.steps.put(pivotRow + 1, pivotColumn + 1);
 			minRow += pivotRow;
 			if (minRow != pivotRow) {
 				r.signum *= -1;
@@ -470,9 +497,11 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 		for (int j = pivotColumn + 1; j < columns; j++) {
 			r.slips.add(j + 1);
 		}
+		r.rank = columns - r.slips.size();
 		r.upperTriangle = new Matrix<T>(matrix);
 		r.inverseDiagonal = new Matrix<T>(inverseDiagonal);
 		r.lowerTriangle = new Matrix<T>(lower);
+		r.inversePermutation = permutation;
 		r.permutation = invertPermutation(permutation);
 		t.ldupResult = r;
 		return r;
@@ -648,7 +677,7 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 		}
 	}
 
-	public SmithNormalFormResult smithNormalForm(Matrix<T> t) {
+	public SmithNormalFormResult smithNormalFormEuclidean(Matrix<T> t) {
 		if (!ring.isEuclidean()) {
 			throw new RuntimeException();
 		}
@@ -831,6 +860,157 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 		return r;
 	}
 
+	private void multiplyFourPointMatrixRight(T[][] matrix, int pivotIndex, int secondIndex, T a11, T a12, T a21,
+			T a22) {
+		for (int i = 0; i < matrix.length; i++) {
+			T tmp = matrix[i][pivotIndex];
+			matrix[i][pivotIndex] = ring.add(ring.multiply(a11, matrix[i][pivotIndex]),
+					ring.multiply(a21, matrix[i][secondIndex]));
+			matrix[i][secondIndex] = ring.add(ring.multiply(a12, tmp), ring.multiply(a22, matrix[i][secondIndex]));
+		}
+	}
+
+	private void multiplyFourPointMatrixLeft(T[][] matrix, int pivotIndex, int secondIndex, T a11, T a12, T a21,
+			T a22) {
+		for (int j = 0; j < matrix[0].length; j++) {
+			T tmp = matrix[pivotIndex][j];
+			matrix[pivotIndex][j] = ring.add(ring.multiply(a11, matrix[pivotIndex][j]),
+					ring.multiply(a12, matrix[secondIndex][j]));
+			matrix[secondIndex][j] = ring.add(ring.multiply(a21, tmp), ring.multiply(a22, matrix[secondIndex][j]));
+		}
+	}
+
+	public SmithNormalFormResult smithNormalForm(Matrix<T> t) {
+		if (t.smithNormalFormResult != null) {
+			return t.smithNormalFormResult;
+		}
+		if (t.rows() != rows || t.columns() != columns) {
+			throw new RuntimeException("Wrong Algebra");
+		}
+		if (ring.isIntegral() && ring.krullDimension() == 0) {
+			return smithNormalFormField(t);
+		}
+		SmithNormalFormResult r = new SmithNormalFormResult();
+		@SuppressWarnings("unchecked")
+		T[][] matrix = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), rows, columns);
+		@SuppressWarnings("unchecked")
+		T[][] rowOps = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), rows, rows);
+		@SuppressWarnings("unchecked")
+		T[][] colOps = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), columns, columns);
+		@SuppressWarnings("unchecked")
+		T[][] rowOpsInv = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), rows, rows);
+		@SuppressWarnings("unchecked")
+		T[][] colOpsInv = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), columns, columns);
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < columns; j++) {
+				matrix[i][j] = t.entry(i + 1, j + 1);
+			}
+		}
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < rows; j++) {
+				rowOps[i][j] = i == j ? ring.one() : ring.zero();
+				rowOpsInv[i][j] = i == j ? ring.one() : ring.zero();
+			}
+		}
+		for (int i = 0; i < columns; i++) {
+			for (int j = 0; j < columns; j++) {
+				colOps[i][j] = i == j ? ring.one() : ring.zero();
+				colOpsInv[i][j] = i == j ? ring.one() : ring.zero();
+			}
+		}
+		int pivotIndex = 0;
+		pivotLoop: while (pivotIndex < Math.min(rows, columns)) {
+			T pivotElement = matrix[pivotIndex][pivotIndex];
+			for (int i = pivotIndex + 1; i < rows; i++) {
+				T element = matrix[i][pivotIndex];
+				if (!element.equals(ring.zero())) {
+					T a11;
+					T a12;
+					T a21;
+					T a22;
+					if (!pivotElement.equals(ring.zero()) && ring.isDivisible(element, pivotElement)) {
+						a11 = ring.one();
+						a12 = ring.zero();
+						a21 = ring.negative(ring.divideChecked(element, pivotElement));
+						a22 = ring.one();
+					} else {
+						T gcd = ring.gcd(pivotElement, element);
+						T reducedPivot = ring.divideChecked(pivotElement, gcd);
+						T reducedElement = ring.divideChecked(element, gcd);
+						Pair<T, T> bezout = ring.bezoutIdentity(reducedPivot, reducedElement);
+						a11 = bezout.getFirst();
+						a12 = bezout.getSecond();
+						a21 = ring.negative(reducedElement);
+						a22 = reducedPivot;
+					}
+					multiplyFourPointMatrixLeft(matrix, pivotIndex, i, a11, a12, a21, a22);
+					multiplyFourPointMatrixRight(rowOps, pivotIndex, i, a22, ring.negative(a12), ring.negative(a21),
+							a11);
+					multiplyFourPointMatrixLeft(rowOpsInv, pivotIndex, i, a11, a12, a21, a22);
+					continue pivotLoop;
+				}
+			}
+			for (int j = pivotIndex + 1; j < columns; j++) {
+				T element = matrix[pivotIndex][j];
+				if (!element.equals(ring.zero())) {
+					T a11;
+					T a12;
+					T a21;
+					T a22;
+					if (!pivotElement.equals(ring.zero()) && ring.isDivisible(element, pivotElement)) {
+						a11 = ring.one();
+						a12 = ring.negative(ring.divideChecked(element, pivotElement));
+						a21 = ring.zero();
+						a22 = ring.one();
+					} else {
+						T gcd = ring.gcd(pivotElement, element);
+						T reducedPivot = ring.divideChecked(pivotElement, gcd);
+						T reducedElement = ring.divideChecked(element, gcd);
+						Pair<T, T> bezout = ring.bezoutIdentity(reducedPivot, reducedElement);
+						a11 = bezout.getFirst();
+						a12 = ring.negative(reducedElement);
+						a21 = bezout.getSecond();
+						a22 = reducedPivot;
+					}
+					multiplyFourPointMatrixRight(matrix, pivotIndex, j, a11, a12, a21, a22);
+					multiplyFourPointMatrixLeft(colOps, pivotIndex, j, a22, ring.negative(a12), ring.negative(a21),
+							a11);
+					multiplyFourPointMatrixRight(colOpsInv, pivotIndex, j, a11, a12, a21, a22);
+					continue pivotLoop;
+				}
+			}
+			for (int i = pivotIndex + 1; i < rows; i++) {
+				for (int j = pivotIndex + 1; j < columns; j++) {
+					T element = matrix[i][j];
+					if (!element.equals(ring.zero()) && !ring.isDivisible(element, pivotElement)) {
+						multiplyFourPointMatrixLeft(matrix, pivotIndex, i, ring.one(), ring.one(), ring.zero(),
+								ring.one());
+						multiplyFourPointMatrixRight(rowOps, pivotIndex, i, ring.one(), ring.negative(ring.one()),
+								ring.zero(), ring.one());
+						multiplyFourPointMatrixLeft(rowOpsInv, pivotIndex, i, ring.one(), ring.one(), ring.zero(),
+								ring.one());
+						continue pivotLoop;
+					}
+				}
+			}
+			pivotIndex++;
+		}
+		r.rank = Math.min(rows, columns);
+		for (int i = 0; i < Math.min(rows, columns); i++) {
+			if (matrix[i][i].equals(ring.zero())) {
+				r.rank = i;
+				break;
+			}
+		}
+		r.diagonalMatrix = new Matrix<T>(matrix);
+		r.rowOperations = new Matrix<T>(rowOps);
+		r.rowOperationsInverse = new Matrix<T>(rowOpsInv);
+		r.colOperations = new Matrix<T>(colOps);
+		r.colOperationsInverse = new Matrix<T>(colOpsInv);
+		t.smithNormalFormResult = r;
+		return r;
+	}
+
 	public Matrix<T> invertUpperTriangleMatrix(Matrix<T> t) {
 		if (t.rows() != rows || t.columns() != columns) {
 			throw new ArithmeticException("Matrix and Vector have wrong dimension");
@@ -863,13 +1043,13 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	}
 
 	public Vector<T> multiply(Matrix<T> t, Vector<T> x) {
-		if (t.rows() != rows || x.dimension() != columns || t.columns() != columns) {
+		if (x.dimension() != t.columns()) {
 			throw new ArithmeticException("Matrix and Vector have wrong dimension");
 		}
 		List<T> result = new ArrayList<>();
-		for (int i = 0; i < rows; i++) {
+		for (int i = 0; i < t.rows(); i++) {
 			T rowValue = ring.zero();
-			for (int j = 0; j < columns; j++) {
+			for (int j = 0; j < t.columns(); j++) {
 				rowValue = ring.add(rowValue, ring.multiply(t.entry(i + 1, j + 1), x.get(j + 1)));
 			}
 			result.add(rowValue);
@@ -897,30 +1077,29 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	}
 
 	public List<Vector<T>> kernelBasis(Matrix<T> t) {
-		if (t.equals(zero())) {
-			return codomain.getBasis();
-		}
-		if (hasInnerProductSpace()) {
-			InnerProductSpace<T, Vector<T>> space = domainInnerProductSpace();
-			SingularValueDecompositionResult<T> svd = space.singularValueDecomposition(t);
-			Matrix<T> inverted = space.conjugateTranspose(svd.getRightUnitaryMatrix());
-			List<Vector<T>> result = new ArrayList<>();
-			for (int i = svd.getRank(); i < space.dimension(); i++) {
-				result.add(inverted.column(i + 1));
-			}
-			return result;
-		}
-		List<Vector<T>> result = new ArrayList<>();
-		if (ring.isEuclidean()) {
-			SmithNormalFormResult smith = smithNormalForm(t);
-			for (int i = 0; i < columns; i++) {
-				if (i >= rows || smith.getDiagonalMatrix().entry(i + 1, i + 1).equals(ring.zero())) {
-					result.add(smith.getColOperationsInverse().column(i + 1));
-				}
-			}
-			return result;
-		}
-		throw new ArithmeticException("Cannot compute kernel!");
+		return ring.syzygyProblem(this, t);
+//		if (t.equals(zero())) {
+//			return codomain.getBasis();
+//		}
+//		if (hasInnerProductSpace()) {
+//			InnerProductSpace<T, Vector<T>> space = domainInnerProductSpace();
+//			SingularValueDecompositionResult<T> svd = space.singularValueDecomposition(t);
+//			Matrix<T> inverted = space.conjugateTranspose(svd.getRightUnitaryMatrix());
+//			List<Vector<T>> result = new ArrayList<>();
+//			for (int i = svd.getRank(); i < space.dimension(); i++) {
+//				result.add(inverted.column(i + 1));
+//			}
+//			return result;
+//		}
+//		List<Vector<T>> result = new ArrayList<>();
+//		SmithNormalFormResult smith = smithNormalForm(t);
+//		for (int i = 0; i < columns; i++) {
+//			if (i >= rows || smith.getDiagonalMatrix().entry(i + 1, i + 1).equals(ring.zero())) {
+//				result.add(smith.getColOperationsInverse().column(i + 1));
+//			}
+//		}
+//		return result;
+//		throw new ArithmeticException("Cannot compute kernel!");
 //		LDUPResult gauss = ldup(t);
 //		// LD^-1U=PA
 //		// LD^-1Ux=PAx=0
@@ -947,111 +1126,115 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	}
 
 	public List<Vector<T>> imageBasis(Matrix<T> t) {
-		if (hasInnerProductSpace()) {
-			InnerProductSpace<T, Vector<T>> space = codomainInnerProductSpace();
-			SingularValueDecompositionResult<T> svd = space.singularValueDecomposition(t);
-			List<Vector<T>> result = new ArrayList<>();
-			Matrix<T> left = space.conjugateTranspose(svd.getLeftUnitaryMatrix());
-			for (int i = 0; i < svd.getRank(); i++) {
-				result.add(left.column(i + 1));
-			}
-			return result;
-		}
-		if (ring instanceof Field<?>) {
-			List<Vector<T>> asVectors = new ArrayList<>();
-			LDUPResult gauss = ldup(t);
-			for (int j = 0; j < columns; j++) {
-				if (gauss.getSlips().contains(j + 1)) {
-					continue;
-				}
-				asVectors.add(t.column(j + 1));
-			}
-			return asVectors;
-		}
-		SmithNormalFormResult gauss = smithNormalForm(t);
-		List<List<T>> result = new ArrayList<>();
-		for (int i = 0; i < rows; i++) {
-			List<T> row = new ArrayList<>();
-			for (int j = 0; j < gauss.rank; j++) {
-				row.add(gauss.getDiagonalMatrix().entry(i + 1, j + 1));
-			}
-			result.add(row);
-		}
-		Matrix<T> asMatrix = new MatrixModule<>(ring, rows, gauss.rank).multiply(gauss.rowOperations,
-				new Matrix<>(result));
-		List<Vector<T>> asVectors = new ArrayList<>();
-		for (int i = 0; i < gauss.rank; i++) {
-			asVectors.add(asMatrix.column(i + 1));
-		}
-		return asVectors;
+		return ring.simplifySubModuleGenerators(this, t);
+//		if (hasInnerProductSpace()) {
+//			InnerProductSpace<T, Vector<T>> space = codomainInnerProductSpace();
+//			System.err.println(t);
+//			SingularValueDecompositionResult<T> svd = space.singularValueDecomposition(t);
+//			System.err.println(svd.getDiagonalMatrix());
+//			System.err.println(svd.getLeftUnitaryMatrix());
+//			System.err.println(svd.getRightUnitaryMatrix());
+//			List<Vector<T>> result = new ArrayList<>();
+//			Matrix<T> left = space.conjugateTranspose(svd.getLeftUnitaryMatrix());
+//			for (int i = 0; i < svd.getRank(); i++) {
+//				result.add(left.column(i + 1));
+//			}
+//			return result;
+//		}
+//		if (ring instanceof Field<?>) {
+//			List<Vector<T>> asVectors = new ArrayList<>();
+//			LDUPResult gauss = ldup(t);
+//			for (int j = 0; j < columns; j++) {
+//				if (gauss.getSlips().contains(j + 1)) {
+//					continue;
+//				}
+//				asVectors.add(t.column(j + 1));
+//			}
+//			return asVectors;
+//		}
+//		SmithNormalFormResult gauss = smithNormalForm(t);
+//		List<List<T>> result = new ArrayList<>();
+//		for (int i = 0; i < rows; i++) {
+//			List<T> row = new ArrayList<>();
+//			for (int j = 0; j < gauss.rank; j++) {
+//				row.add(gauss.getDiagonalMatrix().entry(i + 1, j + 1));
+//			}
+//			result.add(row);
+//		}
+//		Matrix<T> asMatrix = new MatrixModule<>(ring, rows, gauss.rank).multiply(gauss.rowOperations,
+//				new Matrix<>(result));
+//		List<Vector<T>> asVectors = new ArrayList<>();
+//		for (int i = 0; i < gauss.rank; i++) {
+//			asVectors.add(asMatrix.column(i + 1));
+//		}
+//		return asVectors;
 	}
 
 	public boolean hasSolution(Matrix<T> t, Vector<T> b) {
-		if (hasInnerProductSpace()) {
-			InnerProductSpace<T, Vector<T>> space = domainInnerProductSpace();
-			ValueField<T> f = space.getValueField();
-			int precisionDiscount = 0;
-			for (int i = 0; i < t.rows(); i++) {
-				for (int j = 0; j < t.columns(); j++) {
-					int exp = f.value(t.entry(i + 1, j + 1)).exponent();
-					if (precisionDiscount < exp) {
-						precisionDiscount = exp;
-					}
-				}
-			}
-			for (int i = 0; i < b.dimension(); i++) {
-				int exp = f.value(b.get(i + 1)).exponent();
-				if (precisionDiscount < exp) {
-					precisionDiscount = exp;
-				}
-			}
-			Real eps = f.getReals().getPowerOfTwo(-f.getReals().precision() + precisionDiscount);
-			SingularValueDecompositionResult<T> svd = space.singularValueDecomposition(t);
-			Vector<T> x = codomainAlgebra.multiply(svd.getLeftUnitaryMatrix(), b);
-			for (int i = svd.getRank(); i < t.rows(); i++) {
-				if (f.value(x.get(i + 1)).compareTo(eps) >= 0) {
-					return false;
-				}
-			}
-		}
-		if (ring.isEuclidean()) {
-			SmithNormalFormResult gauss = smithNormalForm(t);
-			Vector<T> rhs = codomainAlgebra.multiply(gauss.rowOperationsInverse, b);
-			for (int i = 0; i < rows; i++) {
-				if (i < columns && !ring.isDivisible(rhs.get(i + 1), gauss.diagonalMatrix.entry(i + 1, i + 1))) {
-					return false;
-				}
-				if (i >= columns && !rhs.get(i + 1).equals(ring.zero())) {
-					return false;
-				}
-			}
-			return true;
-		}
-		throw new ArithmeticException("Cannot solve!");
+		return ring.isSubModuleMember(this, t, b);
+//		if (hasInnerProductSpace()) {
+//			InnerProductSpace<T, Vector<T>> space = domainInnerProductSpace();
+//			ValueField<T> f = space.getValueField();
+//			int precisionDiscount = 0;
+//			for (int i = 0; i < t.rows(); i++) {
+//				for (int j = 0; j < t.columns(); j++) {
+//					int exp = f.value(t.entry(i + 1, j + 1)).exponent();
+//					if (precisionDiscount < exp) {
+//						precisionDiscount = exp;
+//					}
+//				}
+//			}
+//			for (int i = 0; i < b.dimension(); i++) {
+//				int exp = f.value(b.get(i + 1)).exponent();
+//				if (precisionDiscount < exp) {
+//					precisionDiscount = exp;
+//				}
+//			}
+//			Real eps = f.getReals().getPowerOfTwo(-f.getReals().precision() + precisionDiscount);
+//			SingularValueDecompositionResult<T> svd = space.singularValueDecomposition(t);
+//			Vector<T> x = codomainAlgebra.multiply(svd.getLeftUnitaryMatrix(), b);
+//			for (int i = svd.getRank(); i < t.rows(); i++) {
+//				if (f.value(x.get(i + 1)).compareTo(eps) >= 0) {
+//					return false;
+//				}
+//			}
+//		}
+//		if (ring.isEuclidean()) {
+//			SmithNormalFormResult gauss = smithNormalForm(t);
+//			Vector<T> rhs = codomainAlgebra.multiply(gauss.rowOperationsInverse, b);
+//			for (int i = 0; i < rows; i++) {
+//				if (i < columns && !ring.isDivisible(rhs.get(i + 1), gauss.diagonalMatrix.entry(i + 1, i + 1))) {
+//					return false;
+//				}
+//				if (i >= columns && !rhs.get(i + 1).equals(ring.zero())) {
+//					return false;
+//				}
+//			}
+//			return true;
+//		}
+//		throw new ArithmeticException("Cannot solve!");
 	}
 
 	public Vector<T> solve(Matrix<T> t, Vector<T> b) {
-		if (hasInnerProductSpace()) {
-			InnerProductSpace<T, Vector<T>> space = domainInnerProductSpace();
-			Matrix<T> pseudoInverse = space.pseudoInverse(t);
-			return pseudoInverse.getModule(ring).multiply(pseudoInverse, b);
-		}
-		if (ring.isEuclidean()) {
-			List<T> result = new ArrayList<>();
-			SmithNormalFormResult gauss = smithNormalForm(t);
-			Vector<T> rhs = codomainAlgebra.multiply(gauss.rowOperationsInverse, b);
-			for (int i = 0; i < columns; i++) {
-				if (i < rows && (!rhs.get(i + 1).equals(ring.zero())
-						|| !gauss.diagonalMatrix.entry(i + 1, i + 1).equals(ring.zero()))) {
-					T r = ring.divideChecked(rhs.get(i + 1), gauss.diagonalMatrix.entry(i + 1, i + 1));
-					result.add(r);
-				} else {
-					result.add(ring.zero());
-				}
-			}
-			return domainAlgebra.multiply(gauss.colOperationsInverse, new Vector<>(result));
-		}
-		throw new ArithmeticException("Cannot solve!");
+		return ring.asSubModuleMember(this, t, b);
+//		if (hasInnerProductSpace()) {
+//			InnerProductSpace<T, Vector<T>> space = domainInnerProductSpace();
+//			Matrix<T> pseudoInverse = space.pseudoInverse(t);
+//			return pseudoInverse.getModule(ring).multiply(pseudoInverse, b);
+//		}
+//		List<T> result = new ArrayList<>();
+//		SmithNormalFormResult gauss = smithNormalForm(t);
+//		Vector<T> rhs = codomainAlgebra.multiply(gauss.rowOperationsInverse, b);
+//		for (int i = 0; i < columns; i++) {
+//			if (i < rows && (!rhs.get(i + 1).equals(ring.zero())
+//					|| !gauss.diagonalMatrix.entry(i + 1, i + 1).equals(ring.zero()))) {
+//				T r = ring.divideChecked(rhs.get(i + 1), gauss.diagonalMatrix.entry(i + 1, i + 1));
+//				result.add(r);
+//			} else {
+//				result.add(ring.zero());
+//			}
+//		}
+//		return domainAlgebra.multiply(gauss.colOperationsInverse, new Vector<>(result));
 	}
 
 	public int rank(Matrix<T> m) {
@@ -1061,6 +1244,52 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 			return svd.getRank();
 		}
 		return columns - ldup(m).getSlips().size();
+	}
+
+	public List<T> minors(Matrix<T> t, int rank) {
+		SortedSet<Integer> rowIndeces = new TreeSet<>();
+		SortedSet<Integer> colIndeces = new TreeSet<>();
+		for (int i = 0; i < t.rows(); i++) {
+			rowIndeces.add(i + 1);
+		}
+		for (int i = 0; i < t.columns(); i++) {
+			colIndeces.add(i + 1);
+		}
+		List<SortedSet<Integer>> rowIndexSets = MiscAlgorithms.subsets(rowIndeces, t.rows() - rank);
+		List<SortedSet<Integer>> colIndexSets = MiscAlgorithms.subsets(colIndeces, t.columns() - rank);
+		List<T> result = new ArrayList<>();
+		for (SortedSet<Integer> rows : rowIndexSets) {
+			for (SortedSet<Integer> cols : colIndexSets) {
+				result.add(minor(t, rows, cols));
+			}
+		}
+		return result;
+	}
+
+	public T minor(Matrix<T> t, int row, int col) {
+		return minor(t, Collections.singleton(row), Collections.singleton(col));
+	}
+
+	public T minor(Matrix<T> t, Set<Integer> rowIndices, Set<Integer> colIndeces) {
+		if (t.rows() - rowIndices.size() != t.columns() - colIndeces.size()) {
+			throw new ArithmeticException("Not a square matrix!");
+		}
+		List<List<T>> subMatrix = new ArrayList<>();
+		for (int i = 0; i < t.rows(); i++) {
+			if (rowIndices.contains(i + 1)) {
+				continue;
+			}
+			List<T> row = new ArrayList<>();
+			for (int j = 0; j < t.columns(); j++) {
+				if (colIndeces.contains(j + 1)) {
+					continue;
+				}
+				row.add(t.entry(i + 1, j + 1));
+			}
+			subMatrix.add(row);
+		}
+		return new FreeModule<>(ring, t.rows() - rowIndices.size()).matrixAlgebra()
+				.determinant(new Matrix<>(subMatrix));
 	}
 
 	public Matrix<T> transpose(Matrix<T> t) {
@@ -1118,7 +1347,7 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Matrix<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Matrix<T>> s) {
 		List<Vector<T>> asVectors = new ArrayList<>();
 		for (Matrix<T> m : s) {
 			asVectors.add(asVector(m));

@@ -39,6 +39,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		this.ring = ring;
 		this.numvars = numvars;
 		this.comparator = comparator;
+		setVariableNames(getMonomial(new int[numberOfVariables()]).defaultVariableNames());
 	}
 
 	@Override
@@ -48,6 +49,13 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 
 	public Ring<T> getRing() {
 		return this.ring;
+	}
+
+	@Override
+	public PolynomialRing<T> withVariableNames(String[] variableNames) {
+		PolynomialRing<T> clone = new MultivariatePolynomialRing<>(ring, numvars, comparator);
+		clone.setVariableNames(variableNames);
+		return clone;
 	}
 
 	@Override
@@ -71,7 +79,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Polynomial<T>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Polynomial<T>> s) {
 		Monomial degrees = getMonomial(new int[numvars]);
 		for (Polynomial<T> t : s) {
 			degrees = degrees.lcm(t.leadingMonomial());
@@ -131,7 +139,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		}
 		return asVector(s, dimensions);
 	}
-	
+
 	@Override
 	public Polynomial<T> fromVector(Vector<T> t, int[] degrees) {
 		Map<Monomial, T> result = new TreeMap<>();
@@ -142,7 +150,7 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 				exponents[j] = value % degrees[j];
 				value /= degrees[j];
 			}
-			result.put(getMonomial(exponents), t.get(i+1));
+			result.put(getMonomial(exponents), t.get(i + 1));
 		}
 		return getPolynomial(result);
 	}

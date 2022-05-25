@@ -1,6 +1,7 @@
 package fields.numberfields;
 
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.Iterator;
 
 import fields.exceptions.InfinityException;
@@ -16,14 +17,15 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.ValueField;
 import fields.numberfields.NumberField.NFE;
 
-public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE> implements ValueField<NFE> {
+public class EmbeddedNumberField<T extends Element<T>, F extends ValueField<T>> extends AbstractField<NFE>
+		implements ValueField<NFE> {
 	private NumberField field;
-	private ValueField<T> embeddingField;
+	private F embeddingField;
 	private T alpha;
 	private MathMap<T, NFE> round;
 	private boolean realEmbedding;
-	
-	EmbeddedNumberField(NumberField field, ValueField<T> embeddingField, T alpha, MathMap<T, NFE> round) {
+
+	EmbeddedNumberField(NumberField field, F embeddingField, T alpha, MathMap<T, NFE> round) {
 		this.field = field;
 		this.embeddingField = embeddingField;
 		this.alpha = alpha;
@@ -40,7 +42,7 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	public boolean isComplete() {
 		return false;
 	}
-	
+
 	public NFE getEmbedding(Fraction t) {
 		return field.getEmbedding(t);
 	}
@@ -61,8 +63,8 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	public Polynomial<Fraction> minimalPolynomial() {
 		return field.minimalPolynomial();
 	}
-	
-	public ValueField<T> embeddingField() {
+
+	public F embeddingField() {
 		return embeddingField;
 	}
 
@@ -113,7 +115,7 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	public Iterator<NFE> iterator() {
 		return field.iterator();
 	}
-	
+
 	@Override
 	public FactorizationResult<Polynomial<NFE>, NFE> factorization(UnivariatePolynomial<NFE> t) {
 		return field.factorization(t);
@@ -137,18 +139,27 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	public boolean isRealEmbedding() {
 		return realEmbedding;
 	}
-	
-	@SuppressWarnings("unchecked")
+
 	public T embedding(NFE t) {
-		Polynomial<T> asPolynomial = embeddingField.getUnivariatePolynomialRing().getEmbedding(t.asPolynomial(), new MathMap<>() {
+		Polynomial<T> asPolynomial = embeddingField.getUnivariatePolynomialRing().getEmbedding(t.asPolynomial(),
+				new MathMap<>() {
 					@Override
 					public T evaluate(Fraction q) {
 						return embeddingField.getFraction(q);
 					}
 				});
-		return embeddingField.getUnivariatePolynomialRing().evaluate(asPolynomial, alpha);
+		return embeddingField.getUnivariatePolynomialRing().evaluate(asPolynomial, Collections.singletonList(alpha));
 	}
-	
+
+	public MathMap<NFE, T> embeddingMap() {
+		return new MathMap<>() {
+			@Override
+			public T evaluate(NFE t) {
+				return embedding(t);
+			}
+		};
+	}
+
 	public NFE roundToInteger(T t) {
 		return round.evaluate(t);
 	}
@@ -157,12 +168,11 @@ public class EmbeddedNumberField<T extends Element<T>> extends AbstractField<NFE
 	public Real value(NFE t) {
 		return embeddingField.value(embedding(t));
 	}
-	
+
 	@Override
 	public Reals getReals() {
 		return embeddingField.getReals();
 	}
-	
 
 	@Override
 	public String toString() {

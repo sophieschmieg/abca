@@ -12,6 +12,7 @@ import fields.finitefields.PrimeField.PFE;
 import fields.integers.Integers;
 import fields.integers.Rationals;
 import fields.interfaces.PolynomialRing;
+import fields.numberfields.NumberField;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 
@@ -96,5 +97,25 @@ class ParserTest {
 				polynomialRing.multiply(polynomialRing.subtract(polynomialRing.getVar(1), polynomialRing.getVar(3)),
 						polynomialRing.subtract(polynomialRing.getVar(2), polynomialRing.getVar(4))),
 				polynomialRing.parse("X*Y + -1*b*X + -1*a*Y + a*b"));
+		assertEquals(
+				polynomialRing.multiply(polynomialRing.subtract(polynomialRing.getVar(1), polynomialRing.getVar(3)),
+						polynomialRing.subtract(polynomialRing.getVar(2), polynomialRing.getVar(4))),
+				polynomialRing.parse("(X*Y + -1*b*X + -1*a*Y + a*b)"));
+	}
+
+	@Test
+	void testParseGaussian() throws IOException {
+		NumberField gauss = NumberField.getNumberField(Rationals.q().getUnivariatePolynomialRing().parse("X^2 + 1"));
+		assertEquals(gauss.alpha(), gauss.parse("i"));
+		assertEquals(gauss.add(gauss.getInteger(3), gauss.multiply(2, gauss.alpha())), gauss.parse("3 + 2*i"));
+	}
+
+	@Test
+	void testParseEisenstein() throws IOException {
+		Rationals q = Rationals.q();
+		NumberField eisenstein = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().parse("X^2 + 3"));
+		assertEquals(eisenstein.alpha(), eisenstein.parse("x"));
+		assertEquals(eisenstein.add(eisenstein.getEmbedding(q.getFraction(1, 2)), eisenstein.scalarMultiply(q.getFraction(1, 2), eisenstein.alpha())), eisenstein.parse("1/2 + 1/2*x"));
 	}
 }

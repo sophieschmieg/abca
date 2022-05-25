@@ -7,11 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
-import java.util.TreeSet;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,36 +16,110 @@ import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
+import fields.floatingpoint.Complex;
+import fields.floatingpoint.Complex.ComplexNumber;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
-import fields.interfaces.Element;
-import fields.interfaces.FieldExtension;
-import fields.interfaces.Ideal;
 import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.DiscreteValuationRing.OkutsuType;
 import fields.interfaces.DiscreteValuationRing.TheMontesResult;
+import fields.interfaces.Element;
+import fields.interfaces.Field.Extension;
+import fields.interfaces.FieldExtension;
+import fields.interfaces.Ideal;
 import fields.interfaces.Ring.FactorizationResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.local.PAdicField;
 import fields.local.Value;
+import fields.numberfields.CompletedNumberField.Ext;
 import fields.numberfields.NumberField.NFE;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
-import fields.vectors.Matrix;
-import fields.vectors.MatrixModule;
-import fields.vectors.Vector;
-import util.MiscAlgorithms;
 
 class NumberFieldTest {
+
+	@Test
+	void findIntegerMinimalPolynomialTest() {
+		Rationals q = Rationals.q();
+		Complex c = Complex.c(128);
+		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+		NumberField gauss = NumberField.getNumberField(polynomials.getPolynomial(q.one(), q.zero(), q.one()));
+		EmbeddedNumberField<ComplexNumber, Complex> embedded = gauss.complexEmbeddings().get(0);
+		for (int tc = 0; tc < 20; tc++) {
+			int degree = new Random().nextInt(10) + 1;
+			List<NFE> rng = new ArrayList<>();
+			for (int i = 0; i <= degree; i++) {
+				rng.add(gauss.maximalOrder().getRandomElement());
+			}
+			rng.add(gauss.one());
+			UnivariatePolynomial<NFE> polynomial = gauss.getUnivariatePolynomialRing().getPolynomial(rng);
+			List<ComplexNumber> conjugates = new ArrayList<>();
+			conjugates.addAll(
+					c.roots(c.getUnivariatePolynomialRing().getEmbedding(polynomial, embedded.embeddingMap()))
+							.keySet());
+			System.out.println(polynomial);
+			assertEquals(polynomial, gauss.integerMinimalPolynomial(c, conjugates));
+		}
+	}
+
+	@Test
+	void fixTheStupidValuationBugTest() {
+		Integers z = Integers.z();
+		DiscreteValuationRing<Fraction, PFE> z2 = z.localize(z.getInteger(2));
+		PrimeField f2 = PrimeField.getPrimeField(2);
+		Extension<PFE, PFE, FFE, FiniteField> trivial = f2.getExtension(f2.getUnivariatePolynomialRing().getVar());
+		UnivariatePolynomialRing<Fraction> polynomials = z2.getUnivariatePolynomialRing();
+		UnivariatePolynomial<Fraction> polynomial1 = polynomials.getPolynomial(z2.getInteger(23), z2.zero(), z2.one());
+		UnivariatePolynomial<Fraction> polynomial2 = polynomials.getPolynomial(z2.getInteger(6), z2.one(), z2.one());
+		TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes1 = z2.theMontesAlgorithm(polynomial1, trivial);
+		TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes2 = z2.theMontesAlgorithm(polynomial2, trivial);
+		UnivariatePolynomial<Fraction> test1 = polynomials.getPolynomial(z2.getInteger(-3), z2.one());
+		UnivariatePolynomial<Fraction> test2 = polynomials.getPolynomial(z2.getInteger(3), z2.one());
+		for (OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type : theMontes1.getTypes()) {
+			type.valuation(test1);
+			type.valuation(test2);
+		}
+		for (OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type : theMontes2.getTypes()) {
+			type.valuation(test1);
+			type.valuation(test2);
+		}
+	}
+
+	@Test
+	void padicEmbeddingTest() {
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+		NumberField gauss = NumberField.getNumberField(polynomials.getPolynomial(q.one(), q.zero(), q.one()));
+		PAdicField base = new PAdicField(5, 20);
+		List<EmbeddedNumberField<Ext, CompletedNumberField>> padicEmbeddings = gauss.padicEmbeddings(base);
+		NFE random = gauss.maximalOrder().getRandomElement();
+		System.out.println(random);
+		Ext embedded = padicEmbeddings.get(0).embedding(random);
+		System.out.println(embedded);
+		NFE recovered = padicEmbeddings.get(0).roundToInteger(embedded);
+		System.out.println(recovered);
+
+		NumberField eisenstein = NumberField
+				.getNumberField(polynomials.getPolynomial(q.getInteger(3), q.zero(), q.one()));
+		List<EmbeddedNumberField<Ext, CompletedNumberField>> padicEmbeddingsEisenstein = eisenstein
+				.padicEmbeddings(base);
+		NFE randomEisenstein = eisenstein.maximalOrder().getRandomElement();
+		System.out.println(randomEisenstein);
+		Ext embeddedEisenstein = padicEmbeddingsEisenstein.get(0).embedding(randomEisenstein);
+		System.out.println(embeddedEisenstein);
+		NFE recoveredEisenstein = padicEmbeddingsEisenstein.get(0).roundToInteger(embeddedEisenstein);
+		System.out.println(recoveredEisenstein);
+	}
 
 	@Test
 	void numberFieldNoPowerBasisTest() {
 		Rationals q = Rationals.q();
 		Integers z = Integers.z();
 		UnivariatePolynomialRing<Fraction> rationalPolynomialRing = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				rationalPolynomialRing.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<NumberFieldIdeal> ideals = order.idealsOver(z.getIdeal(z.getInteger(2)));
@@ -69,7 +140,7 @@ class NumberFieldTest {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				polynomials.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<IntE> primes = new ArrayList<>();
@@ -120,7 +191,7 @@ class NumberFieldTest {
 	void testNoPowerBasisIdealFactorization() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-		NumberField nf = new NumberField(
+		NumberField nf = NumberField.getNumberField(
 				polynomials.getPolynomial(q.getInteger(-8), q.getInteger(-2), q.getInteger(-1), q.one()));
 		NumberFieldIntegers order = nf.maximalOrder();
 		List<NFE> toFactorize = new ArrayList<>();
@@ -139,7 +210,9 @@ class NumberFieldTest {
 		toFactorize.add(nf.add(nf.multiply(-3, nf.alpha()), nf.getInteger(3)));
 		for (NFE factorize : toFactorize) {
 			Ideal<NFE> ideal = order.getIdeal(factorize);
+			System.out.println(factorize + ": " + ideal);
 			for (NFE g : toFactorize) {
+				System.out.println(g);
 				List<NFE> coefficients = ideal.generate(g);
 				NFE reconstructed = ideal.residue(g);
 				if (ideal.contains(g)) {
@@ -304,7 +377,7 @@ class NumberFieldTest {
 		return true;
 	}
 
-	@Test
+	// @Test
 	void testInvertInType() {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> ring = q.getUnivariatePolynomialRing();
@@ -379,15 +452,16 @@ class NumberFieldTest {
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		List<UnivariatePolynomial<Fraction>> minimalPolynomials = new ArrayList<>();
-	//	minimalPolynomials.add(
-	//			polynomials.getPolynomial(q.getInteger(7), q.getInteger(0), q.getInteger(5), q.getInteger(0), q.one()));
+		// minimalPolynomials.add(
+		// polynomials.getPolynomial(q.getInteger(7), q.getInteger(0), q.getInteger(5),
+		// q.getInteger(0), q.one()));
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(93), q.getInteger(63), q.getInteger(58),
 				q.getInteger(39), q.getInteger(14), q.getInteger(3), q.one()));
 		printTime("Setup", System.currentTimeMillis(), start);
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-			NumberField nf = new NumberField(minimalPolynomial);
+			NumberField nf = NumberField.getNumberField(minimalPolynomial);
 			// System.out.println(nf);
-			NumberFieldIntegers order = new NumberFieldIntegers(nf);
+			NumberFieldIntegers order = nf.maximalOrder();
 			List<IntE> primes = new ArrayList<>();
 			primes.add(new IntE(2));
 //			primes.add(new IntE(3));
@@ -451,7 +525,7 @@ class NumberFieldTest {
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(6), q.zero(), q.one()));
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-			NumberField nf = new NumberField(minimalPolynomial);
+			NumberField nf = NumberField.getNumberField(minimalPolynomial);
 			NumberFieldIntegers order = nf.maximalOrder();
 			List<IntE> primes = new ArrayList<>();
 			primes.add(new IntE(2));
@@ -507,7 +581,7 @@ class NumberFieldTest {
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(6), q.zero(), q.one()));
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-			NumberField nf = new NumberField(minimalPolynomial);
+			NumberField nf = NumberField.getNumberField(minimalPolynomial);
 			NumberFieldIntegers order = nf.maximalOrder();
 			List<NFE> toFactorize = new ArrayList<>();
 			toFactorize.add(nf.one());
@@ -542,83 +616,96 @@ class NumberFieldTest {
 		}
 	}
 
-//	@Test
+	@Test
 	void testNumberFieldIndexCalculus() {
-		Rationals q = Rationals.q();
-		Integers z = Integers.z();
-		FiniteField field = FiniteField.getFiniteField(125);
-		DiscreteValuationRing<Fraction, PFE> z5 = z.localize(field.characteristic());
-		NumberField nf = new NumberField(z5.liftUnivariatePolynomial(field.minimalPolynomial()));
-		NumberFieldIntegers order = nf.maximalOrder();
-		DiscreteValuationRing<NFE, FFE> localized = order
-				.localize(order.idealsOver(z.getIdeal(new IntE(field.characteristic()))).get(0));
-		Set<IntE> primes = new TreeSet<>();
-		Iterator<IntE> primeIt = z.primes();
-		while (primes.size() < Math.ceil(Math.log(field.getNumberOfElements().doubleValue()))) {
-			IntE prime = primeIt.next();
-			if (prime.getValue().equals(field.characteristic())) {
-				continue;
-			}
-			primes.add(prime);
-		}
-		List<Ideal<NFE>> ideals = new ArrayList<>();
-		for (IntE prime : primes) {
-			ideals.addAll(order.idealsOver(z.getIdeal(prime)));
-		}
-		FFE base = field.primitiveRoot();
-		base = field.power(base, 4);
-		for (int i = 0; i < 64; i++) {
-			NFE lifted = localized.lift(field.power(base, i));
-			System.out.println("i: " + i + " result: " + lifted + " norm: " + nf.norm(lifted));
-		}
-		List<List<Fraction>> sieved = new ArrayList<>();
-		List<Fraction> rhs = new ArrayList<>();
-		Vector<Fraction> exponents;
-		while (true) {
-			BigInteger rng = MiscAlgorithms.randomBigInteger(new Random(), field.getNumberOfUnits().shiftRight(2));
-			FFE power = field.power(base, rng);
-			NFE lift = localized.lift(power);
-			Ideal<NFE> ideal = order.getIdealIfSmoothOver(Collections.singletonList(lift), primes);
-			if (ideal == null) {
-				continue;
-			}
-			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(ideal);
-			List<Fraction> powers = new ArrayList<>();
-			for (Ideal<NFE> primeIdeal : ideals) {
-				powers.add(q.getInteger(factorization.multiplicity(primeIdeal)));
-			}
-			sieved.add(powers);
-			rhs.add(q.getInteger(rng));
-			Matrix<Fraction> m = new Matrix<>(sieved);
-			Vector<Fraction> b = new Vector<>(rhs);
-			MatrixModule<Fraction> module = m.getModule(q);
-			if (module.kernelBasis(m).size() != 0) {
-				continue;
-			}
-			exponents = module.solve(m, b);
-			break;
-		}
-		for (FFE power : field.getMultiplicativeGroup()) {
-			Fraction exponent;
-			while (true) {
-				BigInteger rng = MiscAlgorithms.randomBigInteger(new Random(), field.getNumberOfUnits());
-				FFE result = field.divide(power, field.power(base, rng));
-				NFE lift = localized.lift(result);
-				Ideal<NFE> ideal = order.getIdealIfSmoothOver(Collections.singletonList(lift), primes);
-				if (ideal == null) {
-					continue;
-				}
-				FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(ideal);
-				exponent = q.getInteger(rng);
-				for (int i = 0; i < ideals.size(); i++) {
-					Ideal<NFE> primeIdeal = ideals.get(i);
-					exponent = q.add(exponent,
-							q.multiply(factorization.multiplicity(primeIdeal), exponents.get(i + 1)));
-				}
-				break;
-			}
-			assertEquals(power, field.power(base, exponent.asInteger().getValue()));
-		}
+		PrimeField base = PrimeField.getPrimeField(11);
+		FiniteField field = FiniteField.getFiniteField(
+				base.getUnivariatePolynomialRing().getPolynomial(base.getInteger(5), base.zero(), base.one()), base);
+		FFE primitive = field.add(field.one(), field.alpha()); // field.primitiveRoot();
+		FFE power;
+//		do {
+//			power = field.getRandomElement();
+//		} while (power.equals(field.zero()));
+		power = field.add(field.getInteger(4), field.multiply(-3, field.alpha()));
+		System.out.println(primitive);
+		System.out.println(power);
+		IntE discreteLog = field.discreteLogarithm(primitive, power);
+		assertEquals(power, field.power(primitive, discreteLog));
+//		Rationals q = Rationals.q();
+//		Integers z = Integers.z();
+//		FiniteField field = FiniteField.getFiniteField(125);
+//		DiscreteValuationRing<Fraction, PFE> z5 = z.localize(field.characteristic());
+//		NumberField nf = NumberField.getNumberField(z5.liftUnivariatePolynomial(field.minimalPolynomial()));
+//		NumberFieldIntegers order = nf.maximalOrder();
+//		DiscreteValuationRing<NFE, FFE> localized = order
+//				.localize(order.idealsOver(z.getIdeal(new IntE(field.characteristic()))).get(0));
+//		Set<IntE> primes = new TreeSet<>();
+//		Iterator<IntE> primeIt = z.primes();
+//		while (primes.size() < Math.ceil(Math.log(field.getNumberOfElements().doubleValue()))) {
+//			IntE prime = primeIt.next();
+//			if (prime.getValue().equals(field.characteristic())) {
+//				continue;
+//			}
+//			primes.add(prime);
+//		}
+//		List<Ideal<NFE>> ideals = new ArrayList<>();
+//		for (IntE prime : primes) {
+//			ideals.addAll(order.idealsOver(z.getIdeal(prime)));
+//		}
+//		FFE base = field.primitiveRoot();
+//		base = field.power(base, 4);
+//		for (int i = 0; i < 64; i++) {
+//			NFE lifted = localized.lift(field.power(base, i));
+//			System.out.println("i: " + i + " result: " + lifted + " norm: " + nf.norm(lifted));
+//		}
+//		List<List<Fraction>> sieved = new ArrayList<>();
+//		List<Fraction> rhs = new ArrayList<>();
+//		Vector<Fraction> exponents;
+//		while (true) {
+//			BigInteger rng = MiscAlgorithms.randomBigInteger(new Random(), field.getNumberOfUnits().shiftRight(2));
+//			FFE power = field.power(base, rng);
+//			NFE lift = localized.lift(power);
+//			Optional<NumberFieldIdeal> ideal = order.getIdealIfSmoothOver(Collections.singletonList(lift), primes);
+//			if (ideal.isEmpty()) {
+//				continue;
+//			}
+//			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(ideal.get());
+//			List<Fraction> powers = new ArrayList<>();
+//			for (Ideal<NFE> primeIdeal : ideals) {
+//				powers.add(q.getInteger(factorization.multiplicity(primeIdeal)));
+//			}
+//			sieved.add(powers);
+//			rhs.add(q.getInteger(rng));
+//			Matrix<Fraction> m = new Matrix<>(sieved);
+//			Vector<Fraction> b = new Vector<>(rhs);
+//			MatrixModule<Fraction> module = m.getModule(q);
+//			if (module.kernelBasis(m).size() != 0) {
+//				continue;
+//			}
+//			exponents = module.solve(m, b);
+//			break;
+//		}
+//		for (FFE power : field.getMultiplicativeGroup()) {
+//			Fraction exponent;
+//			while (true) {
+//				BigInteger rng = MiscAlgorithms.randomBigInteger(new Random(), field.getNumberOfUnits());
+//				FFE result = field.divide(power, field.power(base, rng));
+//				NFE lift = localized.lift(result);
+//				Optional<NumberFieldIdeal> ideal = order.getIdealIfSmoothOver(Collections.singletonList(lift), primes);
+//				if (ideal.isEmpty()) {
+//					continue;
+//				}
+//				FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = order.idealFactorization(ideal.get());
+//				exponent = q.getInteger(rng);
+//				for (int i = 0; i < ideals.size(); i++) {
+//					Ideal<NFE> primeIdeal = ideals.get(i);
+//					exponent = q.add(exponent,
+//							q.multiply(factorization.multiplicity(primeIdeal), exponents.get(i + 1)));
+//				}
+//				break;
+//			}
+//			assertEquals(power, field.power(base, exponent.asInteger().getValue()));
+//		}
 	}
 
 	@Test
@@ -635,7 +722,7 @@ class NumberFieldTest {
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(6), q.zero(), q.one()));
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-			NumberField nf = new NumberField(minimalPolynomial);
+			NumberField nf = NumberField.getNumberField(minimalPolynomial);
 			NumberFieldIntegers order = nf.maximalOrder();
 			for (NFE b : order.getModuleGenerators()) {
 				UnivariatePolynomial<Fraction> mipo = nf.minimalPolynomial(b);
@@ -657,7 +744,7 @@ class NumberFieldTest {
 		minimalPolynomials.add(polynomials.getPolynomial(q.getInteger(93), q.getInteger(63), q.getInteger(58),
 				q.getInteger(39), q.getInteger(14), q.getInteger(3), q.one()));
 		for (UnivariatePolynomial<Fraction> minimalPolynomial : minimalPolynomials) {
-			NumberField nf = new NumberField(minimalPolynomial);
+			NumberField nf = NumberField.getNumberField(minimalPolynomial);
 			NumberFieldIntegers order = nf.maximalOrder();
 			for (NFE b : order.getModuleGenerators()) {
 				UnivariatePolynomial<Fraction> mipo = nf.minimalPolynomial(b);

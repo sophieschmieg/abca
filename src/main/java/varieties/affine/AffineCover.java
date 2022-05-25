@@ -18,7 +18,7 @@ public class AffineCover<T extends Element<T>> {
 			if (atlas.get(i).size() != cover.size()) {
 				throw new ArithmeticException("Not enough intersections!");
 			}
-			for (int j = 0; j < i; j++) {
+			for (int j = 0; j <= i; j++) {
 				if (!atlas.get(i).get(j).getDomain().equals(atlas.get(j).get(i).getDomain())) {
 					throw new ArithmeticException("Not the same intersection!");
 				}
@@ -43,6 +43,9 @@ public class AffineCover<T extends Element<T>> {
 	}
 	
 	public AffineScheme<T> getIntersection(int i, int j) {
+		if ( i == j) {
+			
+		}
 		return atlas.get(i).get(j).getDomain();
 	}
 	

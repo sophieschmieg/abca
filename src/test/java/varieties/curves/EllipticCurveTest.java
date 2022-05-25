@@ -77,7 +77,7 @@ class EllipticCurveTest {
 	@Test
 	void testFromJInvariantNumberField() {
 		Rationals q = Rationals.q();
-		NumberField f = new NumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
+		NumberField f = NumberField.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
 		for (int i = 0; i < 500; i++) {
 			NFE element = f.getRandomElement();
 			EllipticCurve<NFE> curve = EllipticCurve.fromJInvariant(f, element);

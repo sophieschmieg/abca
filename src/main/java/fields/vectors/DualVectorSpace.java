@@ -190,7 +190,7 @@ public class DualVectorSpace<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Dual<T, S>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Dual<T, S>> s) {
 		return space.nonTrivialCombinations(dualList(s));
 	}
 

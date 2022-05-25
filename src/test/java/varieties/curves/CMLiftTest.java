@@ -2,49 +2,76 @@ package varieties.curves;
 
 import org.junit.jupiter.api.Test;
 
-import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
-import util.graph.Edge;
-import util.graph.Graph;
+import fields.integers.Rationals;
+import fields.numberfields.NumberField;
+import fields.numberfields.NumberField.NFE;
+import fields.numberfields.NumberFieldIntegers;
 import varieties.curves.elliptic.EllipticCurve;
-import varieties.curves.elliptic.Isogeny;
+import varieties.curves.elliptic.EllipticCurve.ReductionResult;
+import varieties.curves.elliptic.EllipticCurve.WithComplexMultiplication;
 
 class CMLiftTest {
+	@Test
+	void testCMCurvesSqrt23() {
+		Rationals q = Rationals.q();
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(23), q.zero(), q.one()));
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.maximalOrder().getModuleGenerators().get(1));
+		NumberFieldIntegers order =((NumberField) withComplexMultiplication.getCurve().getField()).maximalOrder();
+		System.out.println(order.idealFactorization(order.getIdeal(withComplexMultiplication.getCurve().jInvariant())));
+		ReductionResult<NFE, FFE> reduction = EllipticCurve.reduce(order.localizeAndQuotient(order.idealsOver(257).get(0)), withComplexMultiplication.getCurve());
+		System.out.println(reduction.getReducedCurve());
+		System.out.println(withComplexMultiplication.getCurve());
+	}
+	
+	@Test
+	void testCMCurvesSqrt2() {
+		Rationals q = Rationals.q();
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(2), q.zero(), q.one()));
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.maximalOrder().getModuleGenerators().get(1));
+		NumberFieldIntegers order =((NumberField) withComplexMultiplication.getCurve().getField()).maximalOrder();
+		System.out.println(order.idealFactorization(order.getIdeal(withComplexMultiplication.getCurve().jInvariant())));
+		ReductionResult<NFE, FFE> reduction = EllipticCurve.reduce(order.localizeAndQuotient(order.idealsOver(11).get(0)), withComplexMultiplication.getCurve());
+		System.out.println(reduction.getReducedCurve());
+		System.out.println(withComplexMultiplication.getCurve());
+	}
+
+	@Test
+	void testCMCurvesGauss() {
+		Rationals q = Rationals.q();
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
+		
+				WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf,
+				nf.divide(nf.multiply(nf.getInteger(3), nf.alpha()), nf.getInteger(2)));
+		System.out.println(withComplexMultiplication.getCurve());
+	}
 
 	@Test
 	void testCMCurves() {
-//		Rationals q = Rationals.q();
-//		Integers z = Integers.z();
-//		NumberField nf = new NumberField(
-//				q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
-//		UnivariatePolynomialRing<NFE> nfPolynomials = nf.getUnivariatePolynomialRing();
-//		NumberFieldIntegers order = nf.maximalOrder();
-//		NumberFieldIdeal ideal = order.idealsOver(2).get(0);
-//		NumberFieldIdeal idealSquared = order.multiply(ideal, ideal);
-//		FieldEmbedding<Fraction, NFE, NumberField> fieldEmbedding = nf.getEmbeddedExtension(
-//				nfPolynomials.getPolynomial(idealSquared.generators().get(0), nf.zero(), nf.one()));
-//		System.out.println(fieldEmbedding.getField().maximalOrder().discriminantOver(fieldEmbedding));
-//		ideal = order.idealsOver(3).get(0);
-//		idealSquared = order.multiply(ideal, ideal);
-//		fieldEmbedding = nf.getEmbeddedExtension(
-//				nfPolynomials.getPolynomial(idealSquared.generators().get(0), nf.zero(), nf.one()));
-//		System.out.println(fieldEmbedding.getField().maximalOrder().discriminantOver(fieldEmbedding));
+		Rationals q = Rationals.q();
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.alpha());
+		System.out.println(withComplexMultiplication.getCurve());
 
-		FiniteField fq = FiniteField.getFiniteField(83*83);
-		
-		EllipticCurve<FFE> curve = EllipticCurve.fromJInvariant(fq, fq.getInteger(8000));
-		System.out.println(curve);
-		System.out.println(curve.isSupersingular());
-		System.out.println(curve.getNumberOfElements());
-		System.out.println(curve.trace());
-		System.out.println(curve.getTorsionPoints(2));
-		Graph<EllipticCurve<FFE>, Isogeny<FFE>> isogenyGraph = curve.isogenyGraph(3);
-		for (EllipticCurve<FFE> vertex : isogenyGraph.vertexSet()) {
-			for (Edge<EllipticCurve<FFE>, Isogeny<FFE>> edge : isogenyGraph.edges(vertex)) {
-			System.out.println(edge.firstVertex().jInvariant()+"-->"+edge.secondVertex().jInvariant());
-			}
-		}
-				
+//		FiniteField fq = FiniteField.getFiniteField(83*83);
+//		
+//		EllipticCurve<FFE> curve = EllipticCurve.fromJInvariant(fq, fq.getInteger(8000));
+//		System.out.println(curve);
+//		System.out.println(curve.isSupersingular());
+//		System.out.println(curve.getNumberOfElements());
+//		System.out.println(curve.trace());
+//		System.out.println(curve.getTorsionPoints(2));
+//		Graph<EllipticCurve<FFE>, Isogeny<FFE>> isogenyGraph = curve.isogenyGraph(3);
+//		for (EllipticCurve<FFE> vertex : isogenyGraph.vertexSet()) {
+//			for (Edge<EllipticCurve<FFE>, Isogeny<FFE>> edge : isogenyGraph.edges(vertex)) {
+//			System.out.println(edge.firstVertex().jInvariant()+"-->"+edge.secondVertex().jInvariant());
+//			}
+//		}
+
 //		Complex c = Complex.c(40);
 //		Map<ComplexNumber, Integer> sqrts2 = c.roots(c.getUnivariatePolynomialRing().getPolynomial(c.getInteger(5), c.zero(), c.one()));
 //		ComplexNumber sqrt2 = null;

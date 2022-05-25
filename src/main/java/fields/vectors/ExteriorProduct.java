@@ -17,15 +17,14 @@ import fields.helper.AbstractAlgebra;
 import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Ideal;
-import fields.interfaces.Polynomial;
-import fields.interfaces.PolynomialRing;
-import fields.polynomials.PolynomialExteriorProduct.WedgeProductSum;
-import fields.vectors.FreeModule;
-import fields.vectors.Vector;
+import fields.interfaces.Module;
+import fields.interfaces.Ring;
+import fields.vectors.ExteriorProduct.WedgeProductSum;
+import util.MiscAlgorithms;
 
-public class PolynomialExteriorProduct<T extends Element<T>>
-		extends AbstractAlgebra<Polynomial<T>, WedgeProductSum<T>> {
-	public static class WedgeProduct<T extends Element<T>> implements Comparable<WedgeProduct<T>> {
+public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
+		extends AbstractAlgebra<T, WedgeProductSum<T>> {
+	public static class WedgeProduct implements Comparable<WedgeProduct> {
 		private SortedSet<Integer> variables;
 		private String[] variableNames;
 
@@ -33,6 +32,10 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 			this.variables = new TreeSet<>();
 			this.variables.addAll(variables);
 			this.variableNames = variableNames;
+		}
+
+		public SortedSet<Integer> getVariables() {
+			return variables;
 		}
 
 		@Override
@@ -45,14 +48,13 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 				} else {
 					build.append(" ^ ");
 				}
-				build.append("d");
 				build.append(variableNames[i - 1]);
 			}
 			return build.toString();
 		}
 
 		@Override
-		public int compareTo(WedgeProduct<T> o) {
+		public int compareTo(WedgeProduct o) {
 			if (variables.size() != o.variables.size()) {
 				return o.variables.size() - variables.size();
 			}
@@ -71,18 +73,22 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 	}
 
 	public static class WedgeProductSum<T extends Element<T>> extends AbstractElement<WedgeProductSum<T>> {
-		private Map<WedgeProduct<T>, Polynomial<T>> coefficients;
-		private PolynomialRing<T> polynomialRing;
+		private Map<WedgeProduct, T> coefficients;
+		private Ring<T> ring;
 
-		private WedgeProductSum(Map<WedgeProduct<T>, Polynomial<T>> coefficients, PolynomialRing<T> polynomialRing) {
+		private WedgeProductSum(Map<WedgeProduct, T> coefficients, Ring<T> ring) {
 			this.coefficients = new TreeMap<>();
-			for (WedgeProduct<T> primitive : coefficients.keySet()) {
-				Polynomial<T> coefficient = coefficients.get(primitive);
-				if (!coefficient.equals(polynomialRing.zero())) {
+			for (WedgeProduct primitive : coefficients.keySet()) {
+				T coefficient = coefficients.get(primitive);
+				if (!coefficient.equals(ring.zero())) {
 					this.coefficients.put(primitive, coefficient);
 				}
 			}
-			this.polynomialRing = polynomialRing;
+			this.ring = ring;
+		}
+
+		public Set<WedgeProduct> getWedgeProducts() {
+			return coefficients.keySet();
 		}
 
 		@Override
@@ -92,15 +98,15 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 			}
 			StringBuilder build = new StringBuilder();
 			boolean first = true;
-			for (WedgeProduct<T> primitive : coefficients.keySet()) {
+			for (WedgeProduct primitive : coefficients.keySet()) {
 				if (first) {
 					first = false;
 				} else {
 					build.append(" + ");
 				}
-				Polynomial<T> coefficient = coefficient(primitive);
+				T coefficient = coefficient(primitive);
 				boolean empty = primitive.variables.isEmpty();
-				if (!coefficient.equals(polynomialRing.one())) {
+				if (!coefficient.equals(ring.one())) {
 					String asString = coefficient.toString();
 					boolean space = asString.contains(" ") && !empty;
 					build.append((space ? "(" : "") + asString + (space ? ")" : "") + (empty ? "" : "*"));
@@ -112,18 +118,18 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 			return build.toString();
 		}
 
-		public Polynomial<T> coefficient(WedgeProduct<T> primitive) {
-			return coefficients.getOrDefault(primitive, polynomialRing.zero());
+		public T coefficient(WedgeProduct primitive) {
+			return coefficients.getOrDefault(primitive, ring.zero());
 		}
 
 		@Override
 		public int compareTo(WedgeProductSum<T> o) {
-			Set<WedgeProduct<T>> primitives = new TreeSet<>();
+			Set<WedgeProduct> primitives = new TreeSet<>();
 			primitives.addAll(coefficients.keySet());
 			primitives.addAll(o.coefficients.keySet());
-			for (WedgeProduct<T> primitive : primitives) {
-				Polynomial<T> here = coefficient(primitive);
-				Polynomial<T> there = o.coefficient(primitive);
+			for (WedgeProduct primitive : primitives) {
+				T here = coefficient(primitive);
+				T there = o.coefficient(primitive);
 				int cmp = here.compareTo(there);
 				if (cmp != 0) {
 					return cmp;
@@ -133,92 +139,117 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 		}
 	}
 
-	private PolynomialRing<T> polynomialRing;
+	private Ring<T> ring;
+	private Module<T, S> module;
+	private String[] variableNames;
 	private List<WedgeProductSum<T>> generators;
 	private List<List<WedgeProductSum<T>>> gradedGenerators;
-	private FreeModule<Polynomial<T>> asFreeModule;
+	private FreeModule<T> asFreeModule;
+	private List<FreeModule<T>> asGradedFreeModule;
 
-	public PolynomialExteriorProduct(PolynomialRing<T> polynomialRing) {
-		this.polynomialRing = polynomialRing;
-		this.asFreeModule = new FreeModule<>(polynomialRing,
-				BigInteger.TWO.pow(polynomialRing.numberOfVariables()).intValueExact());
-		this.generators = new ArrayList<>();
-		this.gradedGenerators = new ArrayList<>();
-		for (int i = 0; i <= polynomialRing.numberOfVariables(); i++) {
-			gradedGenerators.add(new ArrayList<>());
+	private static <T extends Element<T>, S extends Element<S>> String[] defaultVariableNames(Module<T, S> module) {
+		List<S> generators = module.getModuleGenerators();
+		String[] result = new String[generators.size()];
+		for (int i = 0; i < result.length; i++) {
+			result[i] = generators.get(i).toString();
 		}
-		for (int i = 0; i < BigInteger.TWO.pow(polynomialRing.numberOfVariables()).intValueExact(); i++) {
-			Set<Integer> variables = new TreeSet<>();
-			for (int j = 0; j < polynomialRing.numberOfVariables(); j++) {
-				if (((1 << j) & i) != 0) {
-					variables.add(j + 1);
-				}
-			}
-			WedgeProductSum<T> generator = new WedgeProductSum<>(
-					Collections.singletonMap(new WedgeProduct<>(variables, polynomialRing.getVariableNames()),
-							polynomialRing.one()),
-					polynomialRing);
-			generators.add(generator);
-			gradedGenerators.get(variables.size()).add(generator);
+		return result;
+	}
+
+	public ExteriorProduct(Module<T, S> module) {
+		this(module, defaultVariableNames(module));
+	}
+
+	public ExteriorProduct(Module<T, S> module, String[] variableNames) {
+		if (!module.isFree()) {
+			throw new ArithmeticException("Not a free module!");
 		}
-		for (int i = 0; i <= polynomialRing.numberOfVariables(); i++) {
-			Collections.sort(gradedGenerators.get(i));
+		this.module = module;
+		this.ring = module.getRing();
+		this.variableNames = variableNames;
+	}
+
+	public FreeModule<T> asFreeModule() {
+		if (asFreeModule == null) {
+			this.asFreeModule = new FreeModule<>(module.getRing(),
+					BigInteger.TWO.pow(module.getModuleGenerators().size()).intValueExact());
 		}
-		Collections.sort(generators);
+		return asFreeModule;
+	}
+	
+	public FreeModule<T> asGradedFreeModule(int degree) {
+		if (degree < 0 || degree > variableNames.length) {
+			throw new ArithmeticException("Undefined");
+		}
+		if (asGradedFreeModule == null) {
+			asGradedFreeModule = new ArrayList<>();
+		}
+		while (asGradedFreeModule.size() <= degree) {
+			asGradedFreeModule.add(null);
+		}
+		if (asGradedFreeModule.get(degree) == null) {
+			asGradedFreeModule.set(degree, new FreeModule<>(ring, MiscAlgorithms.binomial(variableNames.length, degree)));
+		}
+		return asGradedFreeModule.get(degree);
 	}
 
 	@Override
-	public PolynomialRing<T> getRing() {
-		return polynomialRing;
+	public Ring<T> getRing() {
+		return ring;
 	}
 
 	@Override
 	public WedgeProductSum<T> zero() {
-		return new WedgeProductSum<>(Collections.emptyMap(), polynomialRing);
+		return new WedgeProductSum<>(Collections.emptyMap(), ring);
 	}
 
 	@Override
 	public WedgeProductSum<T> add(WedgeProductSum<T> s1, WedgeProductSum<T> s2) {
-		Set<WedgeProduct<T>> primitives = new TreeSet<>();
+		Set<WedgeProduct> primitives = new TreeSet<>();
 		primitives.addAll(s1.coefficients.keySet());
 		primitives.addAll(s2.coefficients.keySet());
-		Map<WedgeProduct<T>, Polynomial<T>> result = new TreeMap<>();
-		for (WedgeProduct<T> primitive : primitives) {
-			result.put(primitive, polynomialRing.add(s1.coefficient(primitive), s2.coefficient(primitive)));
+		Map<WedgeProduct, T> result = new TreeMap<>();
+		for (WedgeProduct primitive : primitives) {
+			result.put(primitive, ring.add(s1.coefficient(primitive), s2.coefficient(primitive)));
 		}
-		return new WedgeProductSum<>(result, polynomialRing);
+		return new WedgeProductSum<>(result, ring);
 	}
 
 	@Override
 	public WedgeProductSum<T> negative(WedgeProductSum<T> s) {
-		Map<WedgeProduct<T>, Polynomial<T>> result = new TreeMap<>();
-		for (WedgeProduct<T> primitive : s.coefficients.keySet()) {
-			result.put(primitive, polynomialRing.negative(s.coefficient(primitive)));
+		Map<WedgeProduct, T> result = new TreeMap<>();
+		for (WedgeProduct primitive : s.coefficients.keySet()) {
+			result.put(primitive, ring.negative(s.coefficient(primitive)));
 		}
-		return new WedgeProductSum<>(result, polynomialRing);
+		return new WedgeProductSum<>(result, ring);
 	}
 
 	@Override
-	public WedgeProductSum<T> scalarMultiply(Polynomial<T> t, WedgeProductSum<T> s) {
-		Map<WedgeProduct<T>, Polynomial<T>> result = new TreeMap<>();
-		for (WedgeProduct<T> primitive : s.coefficients.keySet()) {
-			result.put(primitive, polynomialRing.multiply(t, s.coefficient(primitive)));
+	public WedgeProductSum<T> scalarMultiply(T t, WedgeProductSum<T> s) {
+		Map<WedgeProduct, T> result = new TreeMap<>();
+		for (WedgeProduct primitive : s.coefficients.keySet()) {
+			result.put(primitive, ring.multiply(t, s.coefficient(primitive)));
 		}
-		return new WedgeProductSum<>(result, polynomialRing);
+		return new WedgeProductSum<>(result, ring);
 	}
 
 	@Override
 	public boolean isFree() {
-		return true;
+		return module.isFree();
 	}
 
 	@Override
-	public PolynomialIdeal<T> annihilator() {
-		return polynomialRing.getZeroIdeal();
+	public Ideal<T> annihilator() {
+		return module.getRing().getZeroIdeal();
+	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
-	private List<Vector<Polynomial<T>>> asVectorList(List<WedgeProductSum<T>> s) {
-		List<Vector<Polynomial<T>>> result = new ArrayList<>();
+	private List<Vector<T>> asVectorList(List<WedgeProductSum<T>> s) {
+		List<Vector<T>> result = new ArrayList<>();
 		for (WedgeProductSum<T> t : s) {
 			result.add(asVector(t));
 		}
@@ -227,45 +258,83 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 
 	@Override
 	public boolean isLinearIndependent(List<WedgeProductSum<T>> s) {
-		return asFreeModule.isLinearIndependent(asVectorList(s));
+		return asFreeModule().isLinearIndependent(asVectorList(s));
 	}
 
 	@Override
 	public boolean isGeneratingModule(List<WedgeProductSum<T>> s) {
-		return asFreeModule.isGeneratingModule(asVectorList(s));
+		return asFreeModule().isGeneratingModule(asVectorList(s));
 	}
 
 	@Override
-	public List<List<Polynomial<T>>> nonTrivialCombinations(List<WedgeProductSum<T>> s) {
-		return asFreeModule.nonTrivialCombinations(asVectorList(s));
+	public List<Vector<T>> nonTrivialCombinations(List<WedgeProductSum<T>> s) {
+		return asFreeModule().nonTrivialCombinations(asVectorList(s));
 	}
 
 	@Override
 	public List<WedgeProductSum<T>> getModuleGenerators() {
+		if (generators == null) {
+			this.generators = new ArrayList<>();
+			this.gradedGenerators = new ArrayList<>();
+			int rank = module.getModuleGenerators().size();
+			for (int i = 0; i <= rank; i++) {
+				gradedGenerators.add(new ArrayList<>());
+			}
+			for (int i = 0; i < BigInteger.TWO.pow(rank).intValueExact(); i++) {
+				Set<Integer> variables = new TreeSet<>();
+				for (int j = 0; j < rank; j++) {
+					if (((1 << j) & i) != 0) {
+						variables.add(j + 1);
+					}
+				}
+				WedgeProductSum<T> generator = new WedgeProductSum<>(
+						Collections.singletonMap(new WedgeProduct(variables, variableNames), ring.one()), ring);
+				generators.add(generator);
+				gradedGenerators.get(variables.size()).add(generator);
+			}
+			for (int i = 0; i <= rank; i++) {
+				Collections.sort(gradedGenerators.get(i));
+			}
+			Collections.sort(generators);
+		}
 		return generators;
 	}
 
 	public List<WedgeProductSum<T>> getGradedModuleGenerators(int degree) {
+		getModuleGenerators();
 		return gradedGenerators.get(degree);
 	}
 
 	@Override
-	public Vector<Polynomial<T>> asVector(WedgeProductSum<T> s) {
-		List<Polynomial<T>> result = new ArrayList<>();
-		for (WedgeProductSum<T> generator : generators) {
+	public Vector<T> asVector(WedgeProductSum<T> s) {
+		List<T> result = new ArrayList<>();
+		for (WedgeProductSum<T> generator : getModuleGenerators()) {
 			result.add(s.coefficient(generator.coefficients.keySet().iterator().next()));
 		}
 		return new Vector<>(result);
 	}
 
+	public Vector<T> asGradedVector(WedgeProductSum<T> s, int degree) {
+		List<T> result = new ArrayList<>();
+		for (WedgeProductSum<T> generator : getGradedModuleGenerators(degree)) {
+			result.add(s.coefficient(generator.coefficients.keySet().iterator().next()));
+		}
+		return new Vector<>(result);
+
+	}
+
+	public T asScalar(WedgeProductSum<T> s) {
+		return s.coefficient(new WedgeProduct(Collections.emptySet(), variableNames));
+	}
+
 	@Override
 	public Exactness exactness() {
-		return polynomialRing.exactness();
+		return module.exactness();
 	}
 
 	@Override
 	public WedgeProductSum<T> getRandomElement() {
-		return fromVector(asFreeModule.getRandomElement());
+		return fromVector(asFreeModule().getRandomElement());
 	}
 
 	@Override
@@ -281,7 +350,7 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 	@Override
 	public Iterator<WedgeProductSum<T>> iterator() {
 		return new Iterator<>() {
-			Iterator<Vector<Polynomial<T>>> it = asFreeModule.iterator();
+			Iterator<Vector<T>> it = asFreeModule().iterator();
 
 			@Override
 			public boolean hasNext() {
@@ -295,13 +364,46 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 		};
 	}
 
-	@Override
-	public WedgeProductSum<T> getEmbedding(Polynomial<T> t) {
-		return new WedgeProductSum<>(Collections.singletonMap(
-				new WedgeProduct<>(Collections.emptySet(), polynomialRing.getVariableNames()), t), polynomialRing);
+	public WedgeProduct getWedgeProduct(Collection<Integer> variables) {
+		return new WedgeProduct(variables, variableNames);
 	}
 
-	private WedgeProductSum<T> wedge(WedgeProduct<T> t1, WedgeProduct<T> t2) {
+	@Override
+	public WedgeProductSum<T> getEmbedding(T t) {
+		return new WedgeProductSum<>(
+				Collections.singletonMap(new WedgeProduct(Collections.emptySet(), variableNames), t), ring);
+	}
+
+	public WedgeProductSum<T> getEmbedding(T t, WedgeProduct wedge) {
+		return new WedgeProductSum<>(Collections.singletonMap(wedge, t), ring);
+	}
+
+	public WedgeProductSum<T> getModuleEmbedding(S t) {
+		Vector<T> asVector = module.asVector(t);
+		Map<WedgeProduct, T> result = new TreeMap<>();
+		for (int i = 0; i < variableNames.length; i++) {
+			result.put(new WedgeProduct(Collections.singleton(i + 1), variableNames), asVector.get(i + 1));
+		}
+		return new WedgeProductSum<>(result, ring);
+	}
+
+	public WedgeProductSum<T> getHigherModuleEmbedding(S t) {
+		Vector<T> asVector = module.asVector(t);
+		Map<WedgeProduct, T> result = new TreeMap<>();
+		Set<Integer> allVariables = new TreeSet<>();
+		for (int i = 0; i < variableNames.length; i++) {
+			allVariables.add(i + 1);
+		}
+		for (int i = 0; i < variableNames.length; i++) {
+			Set<Integer> variables = new TreeSet<>();
+			variables.addAll(allVariables);
+			variables.remove(i + 1);
+			result.put(new WedgeProduct(variables, variableNames), asVector.get(i + 1));
+		}
+		return new WedgeProductSum<>(result, ring);
+	}
+
+	private WedgeProductSum<T> wedge(WedgeProduct t1, WedgeProduct t2) {
 		Set<Integer> intersection = new TreeSet<>();
 		intersection.addAll(t1.variables);
 		intersection.retainAll(t2.variables);
@@ -320,50 +422,26 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 			}
 		}
 		return new WedgeProductSum<>(
-				Collections.singletonMap(new WedgeProduct<>(common, polynomialRing.getVariableNames()),
-						polynomialRing.getInteger(signum)),
-				polynomialRing);
+				Collections.singletonMap(new WedgeProduct(common, variableNames), ring.getInteger(signum)), ring);
 	}
 
-	private WedgeProductSum<T> koszulDerivative(WedgeProduct<T> t, List<Polynomial<T>> generators) {
+	private WedgeProductSum<T> koszulDerivative(WedgeProduct t, List<T> generators) {
 		int sign = 1;
-		Map<WedgeProduct<T>, Polynomial<T>> result = new TreeMap<>();
+		Map<WedgeProduct, T> result = new TreeMap<>();
 		for (int variable : t.variables) {
 			Set<Integer> removed = new TreeSet<>();
 			removed.addAll(t.variables);
 			removed.remove(variable);
-			result.put(new WedgeProduct<>(removed, polynomialRing.getVariableNames()),
-					polynomialRing.multiply(sign, generators.get(variable - 1)));
+			result.put(new WedgeProduct(removed, variableNames), ring.multiply(sign, generators.get(variable - 1)));
 			sign *= -1;
 		}
-		return new WedgeProductSum<>(result, polynomialRing);
+		return new WedgeProductSum<>(result, ring);
 	}
 
-	public WedgeProductSum<T> koszulDerivative(WedgeProductSum<T> t, List<Polynomial<T>> generators) {
+	public WedgeProductSum<T> koszulDerivative(WedgeProductSum<T> t, List<T> generators) {
 		WedgeProductSum<T> result = zero();
-		for (WedgeProduct<T> primitive : t.coefficients.keySet()) {
+		for (WedgeProduct primitive : t.coefficients.keySet()) {
 			result = add(scalarMultiply(t.coefficient(primitive), koszulDerivative(primitive, generators)), result);
-		}
-		return result;
-	}
-
-	public WedgeProductSum<T> derivative(Polynomial<T> t) {
-		return derivative(getEmbedding(t));
-	}
-
-	public WedgeProductSum<T> derivative(WedgeProductSum<T> t) {
-		WedgeProductSum<T> result = zero();
-		for (WedgeProduct<T> primitive : t.coefficients.keySet()) {
-			Polynomial<T> coefficient = t.coefficient(primitive);
-			for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
-				if (primitive.variables.contains(i + 1)) {
-					continue;
-				}
-				result = add(scalarMultiply(polynomialRing.derivative(coefficient, i + 1),
-						wedge(new WedgeProduct<>(Collections.singleton(i + 1), polynomialRing.getVariableNames()),
-								primitive)),
-						result);
-			}
 		}
 		return result;
 	}
@@ -376,31 +454,29 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 	@Override
 	public List<WedgeProductSum<T>> getAlgebraGenerators() {
 		List<WedgeProductSum<T>> result = new ArrayList<>();
-		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
-			result.add(derivative(polynomialRing.getVar(i + 1)));
+		for (S generator : module.getModuleGenerators()) {
+			result.add(getModuleEmbedding(generator));
 		}
 		return result;
 	}
 
 	@Override
 	public WedgeProductSum<T> one() {
-		return getEmbedding(polynomialRing.one());
+		return getEmbedding(ring.one());
 	}
 
 	@Override
 	public BigInteger characteristic() {
-		return polynomialRing.characteristic();
+		return ring.characteristic();
 	}
 
 	@Override
 	public WedgeProductSum<T> multiply(WedgeProductSum<T> t1, WedgeProductSum<T> t2) {
 		WedgeProductSum<T> result = zero();
-		for (WedgeProduct<T> primitive1 : t1.coefficients.keySet()) {
-			for (WedgeProduct<T> primitive2 : t2.coefficients.keySet()) {
-				result = add(
-						scalarMultiply(polynomialRing.multiply(t1.coefficient(primitive1), t2.coefficient(primitive2)),
-								wedge(primitive1, primitive2)),
-						result);
+		for (WedgeProduct primitive1 : t1.coefficients.keySet()) {
+			for (WedgeProduct primitive2 : t2.coefficients.keySet()) {
+				result = add(scalarMultiply(ring.multiply(t1.coefficient(primitive1), t2.coefficient(primitive2)),
+						wedge(primitive1, primitive2)), result);
 			}
 		}
 		return result;
@@ -411,8 +487,7 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 		if (t.coefficients.size() != 1) {
 			return false;
 		}
-		return polynomialRing
-				.isUnit(t.coefficient(new WedgeProduct<>(Collections.emptySet(), polynomialRing.getVariableNames())));
+		return ring.isUnit(t.coefficient(new WedgeProduct(Collections.emptySet(), variableNames)));
 	}
 
 	@Override
@@ -420,8 +495,7 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 		if (!isUnit(t)) {
 			throw new ArithmeticException("Not a unit!");
 		}
-		return getEmbedding(polynomialRing
-				.inverse(t.coefficient(new WedgeProduct<>(Collections.emptySet(), polynomialRing.getVariableNames()))));
+		return getEmbedding(ring.inverse(t.coefficient(new WedgeProduct(Collections.emptySet(), variableNames))));
 	}
 
 	@Override
@@ -441,16 +515,16 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 
 	@Override
 	public boolean isIrreducible() {
-		return polynomialRing.isIrreducible();
+		return ring.isIrreducible();
 	}
 
 	@Override
 	public boolean isZeroDivisor(WedgeProductSum<T> t) {
-		for (WedgeProduct<T> primitive : t.coefficients.keySet()) {
+		for (WedgeProduct primitive : t.coefficients.keySet()) {
 			if (!primitive.variables.isEmpty()) {
 				return true;
 			}
-			if (polynomialRing.isZeroDivisor(t.coefficient(primitive))) {
+			if (ring.isZeroDivisor(t.coefficient(primitive))) {
 				return true;
 			}
 		}
@@ -503,9 +577,9 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 		if (t.equals(zero())) {
 			return one();
 		}
-		WedgeProduct<T> leading = t.coefficients.keySet().iterator().next();
-		Polynomial<T> leadingPolynomial = t.coefficient(leading);
-		return scalarMultiply(polynomialRing.inverse(polynomialRing.projectToUnit(leadingPolynomial)), t);
+		WedgeProduct leading = t.coefficients.keySet().iterator().next();
+		T leadingCoefficient = t.coefficient(leading);
+		return scalarMultiply(ring.inverse(ring.projectToUnit(leadingCoefficient)), t);
 	}
 
 	@Override
@@ -515,7 +589,7 @@ public class PolynomialExteriorProduct<T extends Element<T>>
 			@Override
 			public Iterator<WedgeProductSum<T>> iterator() {
 				return new Iterator<>() {
-					private Iterator<Polynomial<T>> it = polynomialRing.getUnits().iterator();
+					private Iterator<T> it = ring.getUnits().iterator();
 
 					@Override
 					public boolean hasNext() {

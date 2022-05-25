@@ -1,5 +1,6 @@
 package fields.helper;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Iterator;
 import java.util.SortedMap;
@@ -14,6 +15,7 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import util.PeekableReader;
 
 public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fraction<T>> implements Field<Fraction<T>> {
 	private Ring<T> ring;
@@ -27,6 +29,17 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 	@Override
 	public String toString() {
 		return "Q(" + ring + ")";
+	}
+
+	@Override
+	public Fraction<T> parse(PeekableReader reader) throws IOException {
+		T numerator = ring.parse(reader);
+		T denominator = ring.one();
+		if (reader.peek() == '/') {
+			reader.read();
+			denominator = ring.parse(reader);
+		}
+		return getFraction(numerator, denominator);
 	}
 
 	@Override
@@ -220,11 +233,11 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 			canonicalize();
 			return this.denominator;
 		}
-		
+
 		public T getNumeratorDirect() {
 			return this.numerator;
 		}
-		
+
 		public T getDenominatorDirect() {
 			return this.denominator;
 		}

@@ -98,7 +98,7 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 
 	@Override
 	public boolean isFree() {
-		return true;
+		return module.getRing().syzygyProblem(matrixModule, baseChange).isEmpty();
 	}
 
 	@Override
@@ -107,12 +107,17 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 	}
 
 	@Override
+	public List<Vector<T>> getSyzygies() {
+		return module.getRing().syzygyProblem(matrixModule, baseChange);
+	}
+
+	@Override
 	public boolean isLinearIndependent(List<S> s) {
 		return module.isLinearIndependent(s);
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<S> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<S> s) {
 		return module.nonTrivialCombinations(s);
 	}
 
@@ -136,12 +141,12 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 		List<S> generators = new ArrayList<>();
 		generators.addAll(this.generators);
 		generators.addAll(other.generators);
-		List<List<T>> coeffs = module.nonTrivialCombinations(generators);
+		List<Vector<T>> coeffs = module.nonTrivialCombinations(generators);
 		List<S> intersectionGenerators = new ArrayList<>();
-		for (List<T> coeff : coeffs) {
+		for (Vector<T> coeff : coeffs) {
 			S generator = zero();
 			for (int i = 0; i < this.generators.size(); i++) {
-				generator = add(generator, scalarMultiply(coeff.get(i), this.generators.get(i)));
+				generator = add(generator, scalarMultiply(coeff.get(i + 1), this.generators.get(i)));
 			}
 			intersectionGenerators.add(generator);
 		}
@@ -168,6 +173,10 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 			asVectors.add(asVector(v));
 		}
 		return asFreeModule.isGeneratingModule(asVectors);
+	}
+
+	public boolean isBasis(List<S> s) {
+		return isGeneratingModule(s) && isLinearIndependent(s);
 	}
 
 	@Override
@@ -227,14 +236,6 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 
 	public int rank() {
 		return this.generators.size();
-	}
-
-	public T conductor() {
-		if (generators.isEmpty()) {
-			return module.getRing().zero();
-		}
-		MatrixModule<T>.SmithNormalFormResult smith = matrixModule.smithNormalForm(baseChange);
-		return smith.getDiagonalMatrix().entry(rank(), rank());
 	}
 
 	@Override

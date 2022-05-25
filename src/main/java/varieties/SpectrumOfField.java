@@ -11,7 +11,6 @@ import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
-import fields.polynomials.CoordinateRing;
 import fields.polynomials.Monomial;
 import varieties.SpectrumOfField.SingletonPoint;
 import varieties.affine.AffineCover;
@@ -162,7 +161,12 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 	}
 
 	@Override
-	public List<Scheme<T, SingletonPoint>> irreducibleComponents() {
+	public List<SpectrumOfField<T>> irreducibleComponents() {
 		return Collections.singletonList(this);
+	}
+	
+	@Override
+	public SpectrumOfField<T> reduced() {
+		return this;
 	}
 }

@@ -114,7 +114,13 @@ public class Monomial implements Comparable<Monomial> {
 
 	public String toString(String[] variables) {
 		StringBuffer buf = new StringBuffer();
+		boolean first = true;
 		for (int i = 0; i < this.numvars; i++) {
+			if (first && exponents[i] != 0) {
+				first=false;
+			} else if (exponents[i] != 0) {
+				buf.append("*");
+			}
 			if (this.exponents[i] > 1)
 				buf.append(variables[i] + "^" + this.exponents[i]);
 			else if (this.exponents[i] == 1)
@@ -122,7 +128,7 @@ public class Monomial implements Comparable<Monomial> {
 		}
 		return buf.toString();
 	}
-
+	
 	public static class LexographicalOrder implements Comparator<Monomial> {
 
 		@Override

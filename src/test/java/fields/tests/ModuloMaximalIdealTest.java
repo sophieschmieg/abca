@@ -36,7 +36,7 @@ class ModuloMaximalIdealTest {
 		generators.add(polynomialRing.getInteger(13));
 		PolynomialIdeal<IntE> ideal = polynomialRing.getIdeal(generators);
 		@SuppressWarnings("unchecked")
-		ModuloMaximalIdealResult<Polynomial<IntE>, FFE> mod = (ModuloMaximalIdealResult<Polynomial<IntE>, FFE>) polynomialRing
+		ModuloMaximalIdealResult<Polynomial<IntE>, FFE, PolynomialRing<IntE>, PolynomialIdeal<IntE>, FiniteField> mod = (ModuloMaximalIdealResult<Polynomial<IntE>, FFE, PolynomialRing<IntE>, PolynomialIdeal<IntE>, FiniteField>) polynomialRing
 				.moduloMaximalIdeal(ideal);
 		FiniteField fq = (FiniteField) mod.getField();
 		assertEquals(BigInteger.valueOf(13), fq.characteristic());

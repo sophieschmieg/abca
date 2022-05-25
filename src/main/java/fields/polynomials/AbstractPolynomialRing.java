@@ -1,5 +1,6 @@
 package fields.polynomials;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,17 +43,35 @@ import fields.local.Value;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.vectors.FreeModule;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.ConCatMap;
+import util.PeekableReader;
+import util.Trie;
+import util.Trie.Node;
 import varieties.affine.AffinePoint;
 
 public abstract class AbstractPolynomialRing<T extends Element<T>> extends AbstractAlgebra<T, Polynomial<T>>
 		implements PolynomialRing<T> {
-//	private Cache<Pair<Polynomial<T>, Polynomial<T>>, QuotientAndRemainderResult<Polynomial<T>>> quotientAndRemainderCache;
+	private String[] variableNames;
+	private Trie variableTrie;
+	private Map<String, Integer> variableMap;
 
 	protected AbstractPolynomialRing(boolean generateUnivariatePolynomialRing) {
 		super(generateUnivariatePolynomialRing);
-//		quotientAndRemainderCache = new Cache<>(1000);
+	}
+
+	protected AbstractPolynomialRing(boolean generateUnivariatePolynomialRing, String[] variableNames) {
+		super(generateUnivariatePolynomialRing);
+		setVariableNames(variableNames);
+	}
+
+	public static <T extends Element<T>> PolynomialRing<T> getPolynomialRing(Ring<T> ring,
+			Comparator<Monomial> comparator, String[] variableNames) {
+		PolynomialRing<T> result = getPolynomialRing(ring, variableNames.length, comparator);
+		result.setVariableNames(variableNames);
+		return result;
 	}
 
 	public static <T extends Element<T>> PolynomialRing<T> getPolynomialRing(Ring<T> ring, int numvars,
@@ -61,6 +80,21 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			return ring.getUnivariatePolynomialRing();
 		}
 		return new MultivariatePolynomialRing<T>(ring, numvars, comparator);
+	}
+
+	@Override
+	public String[] getVariableNames() {
+		return variableNames;
+	}
+
+	@Override
+	public void setVariableNames(String[] variableNames) {
+		if (variableNames.length != numberOfVariables()) {
+			throw new ArithmeticException("mismatched variable names");
+		}
+		this.variableNames = variableNames;
+		variableMap = null;
+		variableTrie = null;
 	}
 
 	@Override
@@ -102,10 +136,15 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	public final boolean isFree() {
 		return true;
 	}
-	
+
 	@Override
 	public Ideal<T> annihilator() {
 		return getRing().getZeroIdeal();
+	}
+	
+	@Override
+	public List<Vector<T>> getSyzygies() {
+		return Collections.emptyList();
 	}
 
 	private <S extends Element<S>> FieldOfFractionsResult<Polynomial<T>, TExt<S>> fieldOfFractions(
@@ -524,7 +563,16 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			}
 			transforms.add(transformList);
 		}
-		return new IdealResult<>(transforms, generators, new PolynomialIdeal<>(this, basis));
+		List<Vector<Polynomial<T>>> syzygies = new ArrayList<>();
+		for (Vector<Polynomial<S>> syzygy : ideal.getSyzygies()) {
+			List<Polynomial<T>> syzygyList = new ArrayList<>();
+			for (Polynomial<S> t : syzygy.asList()) {
+				syzygyList.add((Polynomial<T>) combinedRing.unflattenPolynomial(t, (PolynomialRing<Polynomial<S>>) this,
+						ring));
+			}
+			syzygies.add(new Vector<>(syzygyList));
+		}
+		return new IdealResult<>(transforms, generators, new PolynomialIdeal<>(this, basis), syzygies);
 	}
 
 	@Override
@@ -533,7 +581,8 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			return getIdealWithTransformsOverPolynomialRing(generators, (PolynomialRing<?>) getRing());
 		}
 		GroebnerBasis<T> basis = buchberger(generators);
-		return new IdealResult<>(basis.getExpression(), generators, new PolynomialIdeal<T>(this, basis.getBasis()));
+		return new IdealResult<>(basis.getExpression(), generators, new PolynomialIdeal<T>(this, basis.getBasis()),
+				basis.getSyzygies());
 	}
 
 	@Override
@@ -832,16 +881,16 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		return new PrimaryDecompositionResult<>(result, radicals);
 	}
 
-	private <S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
-			PolynomialIdeal<T> t, Ideal<T> maximalIdeal, ModuloMaximalIdealResult<T, S> mod,
+	private <S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>, R extends Ring<T>, I extends Ideal<T>, F extends Field<S>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
+			PolynomialIdeal<T> t, Ideal<T> maximalIdeal, ModuloMaximalIdealResult<T, S, R, I, F> mod,
 			Extension<S, B, E, Ext> extension) {
 		return primaryDecompositionZeroDimensional(t, extension.extension(),
 				new ConCatMap<>(mod.getReduction(), extension.embeddingMap()),
 				new ConCatMap<>(extension.retractionMap(), mod.getLift()), maximalIdeal);
 	}
 
-	private <S extends Element<S>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
-			PolynomialIdeal<T> t, Ideal<T> maximalIdeal, ModuloMaximalIdealResult<T, S> mod) {
+	private <S extends Element<S>, R extends Ring<T>, I extends Ideal<T>, F extends Field<S>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensional(
+			PolynomialIdeal<T> t, Ideal<T> maximalIdeal, ModuloMaximalIdealResult<T, S, R, I, F> mod) {
 		return primaryDecompositionZeroDimensional(t, maximalIdeal, mod,
 				mod.getField().getExtension(mod.getField().getUnivariatePolynomialRing().getVar()));
 	}
@@ -912,10 +961,10 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 
 	private <S extends Element<S>, U extends Element<U>, R extends Element<R>> PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> primaryDecompositionZeroDimensionalLocalized(
 			PolynomialIdeal<T> t, T primeIdealGenerator, LocalizeResult<T, S, U, R> localized) {
-		//LocalRing<T, S> localized = new AbstractLocalizedRing<>(fieldOfFractions,
-		//		getRing().getIdeal(Collections.singletonList(primeIdealGenerator)));
-		PolynomialRing<S> localizedPolynomialRing = AbstractPolynomialRing.getPolynomialRing(localized.getLocalizedRing(),
-				numberOfVariables(), getComparator());
+		// LocalRing<T, S> localized = new AbstractLocalizedRing<>(fieldOfFractions,
+		// getRing().getIdeal(Collections.singletonList(primeIdealGenerator)));
+		PolynomialRing<S> localizedPolynomialRing = AbstractPolynomialRing
+				.getPolynomialRing(localized.getLocalizedRing(), numberOfVariables(), getComparator());
 		Ideal<Polynomial<S>> localizedIdeal = localizedPolynomialRing.getEmbedding(t, localized.getEmbedding());
 		PrimaryDecompositionResult<Polynomial<S>, PolynomialIdeal<S>> decomposition = localizedPolynomialRing
 				.primaryDecomposition(localizedIdeal);
@@ -936,7 +985,8 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			if (primeIdealGenerator.equals(getRing().zero())) {
 				return primaryDecompositionZeroDimensionalFieldOfFractions(t, getRing().fieldOfFractions());
 			}
-			return primaryDecompositionZeroDimensionalLocalized(t, primeIdealGenerator, getRing().localizeAtIdeal(getRing().getIdeal(Collections.singletonList(primeIdealGenerator))));
+			return primaryDecompositionZeroDimensionalLocalized(t, primeIdealGenerator,
+					getRing().localizeAtIdeal(getRing().getIdeal(Collections.singletonList(primeIdealGenerator))));
 		}
 		Set<Integer> boundVariables = t.divideOut().boundVariables();
 		int variable = 1;
@@ -1039,7 +1089,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			PrimaryDecompositionResult<Polynomial<T>, PolynomialIdeal<T>> localDecomposition = primaryDecompositionPrincipalIdealRing(
 					add(t, getIdeal(Collections.singletonList(getEmbedding(power)))), factor);
 			primaries.addAll(localDecomposition.getPrimaryIdeals());
-			primaries.addAll(localDecomposition.getRadicals());
+			radicals.addAll(localDecomposition.getRadicals());
 		}
 		return new PrimaryDecompositionResult<>(primaries, radicals);
 	}
@@ -1060,14 +1110,15 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<Polynomial<T>, ?> moduloMaximalIdeal(Ideal<Polynomial<T>> ideal) {
+	public ModuloMaximalIdealResult<Polynomial<T>, ?, PolynomialRing<T>, PolynomialIdeal<T>, ?> moduloMaximalIdeal(
+			Ideal<Polynomial<T>> ideal) {
 		PolynomialIdeal<T> t = (PolynomialIdeal<T>) ideal;
 		Ideal<T> intersectToRing = t.intersectToRing();
 		return moduloMaximalIdeal(t, getRing().moduloMaximalIdeal(intersectToRing));
 	}
 
-	private <S extends Element<S>> ModuloMaximalIdealResult<Polynomial<T>, ?> moduloMaximalIdeal(
-			PolynomialIdeal<T> ideal, ModuloMaximalIdealResult<T, S> ringByMaximal) {
+	private <S extends Element<S>, R extends Ring<T>, I extends Ideal<T>, F extends Field<S>> ModuloMaximalIdealResult<Polynomial<T>, ?, PolynomialRing<T>, PolynomialIdeal<T>, ?> moduloMaximalIdeal(
+			PolynomialIdeal<T> ideal, ModuloMaximalIdealResult<T, S, R, I, F> ringByMaximal) {
 		PolynomialRing<S> polynomialRing = AbstractPolynomialRing.getPolynomialRing(ringByMaximal.getField(),
 				numberOfVariables(), Monomial.LEX);
 		List<Polynomial<S>> reducedGenerators = new ArrayList<>();
@@ -1079,9 +1130,10 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 				ringByMaximal.getField().getExtension(ringByMaximal.getField().getUnivariatePolynomialRing().getVar()));
 	}
 
-	private <S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>> ModuloMaximalIdealResult<Polynomial<T>, E> moduloMaximalIdeal(
-			PolynomialIdeal<T> ideal, PolynomialIdeal<S> reducedIdeal, ModuloMaximalIdealResult<T, S> ringByMaximal,
-			PolynomialRing<S> ringByMaximalPolynomialRing, Extension<S, B, E, Ext> fieldAsExtension) {
+	private <S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, Ext extends FieldExtension<B, E, Ext>, R extends Ring<T>, I extends Ideal<T>, F extends Field<S>> ModuloMaximalIdealResult<Polynomial<T>, E, PolynomialRing<T>, PolynomialIdeal<T>, Ext> moduloMaximalIdeal(
+			PolynomialIdeal<T> ideal, PolynomialIdeal<S> reducedIdeal,
+			ModuloMaximalIdealResult<T, S, R, I, F> ringByMaximal, PolynomialRing<S> ringByMaximalPolynomialRing,
+			Extension<S, B, E, Ext> fieldAsExtension) {
 		PolynomialRing<E> polynomialRing = AbstractPolynomialRing.getPolynomialRing(fieldAsExtension.extension(),
 				numberOfVariables(), Monomial.LEX);
 		List<Polynomial<E>> reducedGenerators = new ArrayList<>();
@@ -1453,6 +1505,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	public GroebnerBasis<T> buchberger(List<Polynomial<T>> generators) {
 		List<Polynomial<T>> groebner = new ArrayList<>();
 		List<List<Polynomial<T>>> expressions = new ArrayList<>();
+		Set<Vector<Polynomial<T>>> syzygies = new TreeSet<>();
 		for (int i = 0; i < generators.size(); i++) {
 			List<Polynomial<T>> generatorExpression = new ArrayList<>();
 			for (List<Polynomial<T>> expression : expressions) {
@@ -1467,6 +1520,13 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			if (!reduced.getReduced().equals(this.zero())) {
 				groebner.add(reduced.getReduced());
 				expressions.add(reduced.getExpression());
+			} else {
+				List<Polynomial<T>> syzygy = new ArrayList<>();
+				syzygy.addAll(reduced.getExpression());
+				for (int j = i + 1; j < generators.size(); j++) {
+					syzygy.add(zero());
+				}
+				syzygies.add(new Vector<>(syzygy));
 			}
 		}
 		while (true) {
@@ -1504,6 +1564,9 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 					if (!newGenerator.equals(this.zero())) {
 						newGroebner.add(newGenerator);
 						newExpressions.add(newGeneratorExpression);
+					} else {
+						Vector<Polynomial<T>> syzygy = new Vector<>(newGeneratorExpression);
+						syzygies.add(syzygy);
 					}
 					if (!getRing().isEuclidean() || getRing().krullDimension() == 0) {
 						continue;
@@ -1531,30 +1594,40 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 					if (!newGenerator.equals(this.zero())) {
 						newGroebner.add(newGenerator);
 						newExpressions.add(newGeneratorExpression);
+					} else {
+						Vector<Polynomial<T>> syzygy = new Vector<>(newGeneratorExpression);
+						syzygies.add(syzygy);
 					}
 				}
 			}
 			newGroebner.addAll(groebner);
 			newExpressions.addAll(expressions);
-			GroebnerBasis<T> b = reduceBasis(new GroebnerBasis<>(newGroebner, newExpressions));
+			GroebnerBasis<T> b = reduceBasis(new GroebnerBasis<>(newGroebner, newExpressions, Collections.emptyList()));
 			newGroebner = b.getBasis();
 			newExpressions = b.getExpression();
+			syzygies.addAll(b.getSyzygies());
 			if (groebner.equals(newGroebner)) {
 				break;
 			}
 			groebner = newGroebner;
 			expressions = newExpressions;
 		}
-		return new GroebnerBasis<>(groebner, expressions);
-
+		List<Vector<Polynomial<T>>> syzygiesList = new ArrayList<>();
+		syzygiesList.addAll(syzygies);
+		return new GroebnerBasis<>(groebner, expressions, syzygiesList);
 	}
 
 	@Override
 	public GroebnerBasis<T> reduceBasis(GroebnerBasis<T> basis) {
+		if (basis.getBasis().isEmpty()) {
+			return basis;
+		}
 		List<Polynomial<T>> list = new ArrayList<>();
 		List<List<Polynomial<T>>> expressions = new ArrayList<>();
+		List<Vector<Polynomial<T>>> syzygies = new ArrayList<>();
 		list.addAll(basis.getBasis());
 		expressions.addAll(basis.getExpression());
+		syzygies.addAll(basis.getSyzygies());
 		SortedMap<Polynomial<T>, List<Polynomial<T>>> reduced = new TreeMap<>(Collections.reverseOrder());
 		for (int i = 0; i < basis.getBasis().size(); i++) {
 			list.remove(i);
@@ -1565,13 +1638,16 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			expressions.add(i, basis.getExpression().get(i));
 			if (!reduce.getReduced().equals(this.zero())) {
 				reduced.put(reduce.getReduced(), reduce.getExpression());
+			} else {
+				Vector<Polynomial<T>> syzygy = new Vector<>(reduce.getExpression());
+				syzygies.add(syzygy);
 			}
 		}
 		list.clear();
 		expressions.clear();
 		list.addAll(reduced.keySet());
 		expressions.addAll(reduced.values());
-		return new GroebnerBasis<>(list, expressions);
+		return new GroebnerBasis<>(list, expressions, syzygies);
 	}
 
 	@Override
@@ -1597,26 +1673,125 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public String toString() {
-		if (numberOfVariables() == 1) {
-			return getRing().toString() + "[X]";
-		} else if (numberOfVariables() == 2) {
-			return getRing().toString() + "[X,Y]";
-		} else if (numberOfVariables() == 3) {
-			return getRing().toString() + "[X,Y,Z]";
-		}
-		StringBuffer buf = new StringBuffer();
-		buf.append(getRing().toString() + "[");
-		boolean first = true;
-		for (int i = 0; i < numberOfVariables(); i++) {
-			if (first) {
-				first = false;
-			} else {
-				buf.append(",");
+		return getRing() + "[" + String.join(",", variableNames) + "]";
+	}
+
+	public Monomial parseMonomial(PeekableReader in) throws IOException {
+		if (variableTrie == null) {
+			variableTrie = new Trie(variableNames);
+			if (!variableTrie.isPrefixFree()) {
+				throw new IOException("Set of variables not prefix free!");
 			}
-			buf.append("X_" + i);
+			variableMap = new TreeMap<>();
+			for (int i = 0; i < variableNames.length; i++) {
+				variableMap.put(variableNames[i], i);
+			}
 		}
-		buf.append("]");
-		return buf.toString();
+		Integers z = Integers.z();
+		int variablesParsed = 0;
+		int[] exp = new int[numberOfVariables()];
+		Node variable = variableTrie.getRootNode();
+		int length = 0;
+		while (true) {
+			int result = in.peek(length);
+			length++;
+			if (result < 0) {
+				break;
+			}
+			Node nextVariable = variable.child((char) result);
+			if (nextVariable == null) {
+				break;
+			}
+			if (nextVariable.isValid()) {
+				String var = nextVariable.reconstruct();
+				in.skip(length);
+				length = 0;
+				variable = variableTrie.getRootNode();
+				int exponent = 1;
+				if (in.peek() == '^') {
+					in.skip(1);
+					exponent = z.parse(in).intValueExact();
+				}
+				exp[variableMap.get(var)] = exponent;
+				variablesParsed++;
+				if (in.peek() == '*') {
+					in.skip(1);
+					continue;
+				}
+				break;
+			}
+			variable = nextVariable;
+		}
+		if (variablesParsed == 0) {
+			throw new IOException("No monomial found!");
+		}
+		return getMonomial(exp);
+	}
+
+	@Override
+	public Polynomial<T> parse(PeekableReader reader) throws IOException {
+		int result = reader.peek();
+		boolean brackets = false;
+		if (result == '(') {
+			brackets = true;
+			reader.skip(1);
+		}
+		Ring<T> r = getRing();
+		boolean plusFound = true;
+		Map<Monomial, T> parsed = new TreeMap<>();
+		while (true) {
+			int ch = reader.peek();
+			if (ch < 0) {
+				if (plusFound) {
+					throw new IOException("Malformed polynomial!");
+				}
+				break;
+			}
+			if (ch == ' ') {
+				reader.skip(1);
+				continue;
+			}
+			if (!plusFound) {
+				if (ch == '+') {
+					plusFound = true;
+					reader.skip(1);
+					continue;
+				}
+				break;
+			}
+			T coeff;
+			Monomial m;
+			try {
+				coeff = r.parse(reader);
+				if (reader.peek() == '*') {
+					reader.skip(1);
+				} else {
+					parsed.put(getMonomial(new int[numberOfVariables()]), coeff);
+					plusFound = false;
+					continue;
+				}
+			} catch (IOException e) {
+				coeff = r.one();
+			}
+			try {
+				m = parseMonomial(reader);
+			} catch (IOException e) {
+				throw new IOException("malformed polynomial!", e);
+			}
+			parsed.put(m, coeff);
+			plusFound = false;
+		}
+		if (parsed.size() == 0) {
+			throw new IOException("malformed polynomial!");
+		}
+		if (brackets) {
+			int ch = reader.peek();
+			if (ch < 0 || ch != ')') {
+				throw new IOException("mismatched brackets!");
+			}
+			reader.skip(1);
+		}
+		return getPolynomial(parsed);
 	}
 
 	@Override
@@ -2507,22 +2682,32 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		if (!(getRing() instanceof Field<?>)) {
 			throw new UnsupportedOperationException();
 		}
-		Field<T> field = (Field<T>) getRing();
 		if (polynomials.isEmpty()) {
+			throw new InfinityException();
+		}
+		PolynomialIdeal<T> ideal = getIdeal(polynomials);
+		return solve(ideal);
+	}
+
+	@Override
+	public List<AffinePoint<T>> solve(PolynomialIdeal<T> ideal) {
+		Field<T> field = (Field<T>) getRing();
+		if (ideal.contains(one())) {
+			return Collections.emptyList();
+		}
+		if (ideal.dimension() != 0) {
 			throw new InfinityException();
 		}
 		if (numberOfVariables() == 1) {
 			Set<T> roots = new TreeSet<>();
-			roots.addAll(field.roots(polynomials.get(0)).keySet());
-			for (int i = 1; i < polynomials.size(); i++) {
-				roots.retainAll(field.roots(polynomials.get(i)).keySet());
-			}
+			roots.addAll(field.roots(ideal.generators().get(0)).keySet());
 			List<AffinePoint<T>> result = new ArrayList<>();
 			for (T root : roots) {
 				result.add(new AffinePoint<T>(field, Collections.singletonList(root)));
 			}
 			return result;
 		}
+
 		if (getComparator() != Monomial.REVLEX) {
 			PolynomialRing<T> revlexRing = getPolynomialRing(getRing(), numberOfVariables(), Monomial.REVLEX);
 			List<Polynomial<T>> embeded = new ArrayList<>();
@@ -2530,87 +2715,182 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			for (int i = 0; i < numberOfVariables(); i++) {
 				map[i] = i;
 			}
-			for (Polynomial<T> polynomial : polynomials) {
+			for (Polynomial<T> polynomial : ideal.generators()) {
 				embeded.add(revlexRing.getEmbedding(polynomial, map));
 			}
 			return revlexRing.solve(embeded);
 		}
-		Ideal<Polynomial<T>> eliminationIdeal = getIdeal(polynomials);
-		List<Polynomial<T>> generators = eliminationIdeal.generators();
-		int variable = 0;
-		int highest = 0;
-		List<AffinePoint<T>> prevPartialSolutions = new ArrayList<>();
-		List<AffinePoint<T>> partialSolutions = new ArrayList<>();
-		partialSolutions.add(new AffinePoint<>(field, Collections.emptyList()));
-		int[] map = new int[numberOfVariables()];
-		for (int i = 0; i < map.length; i++) {
-			map[i] = -1;
+		int[] mapShift = new int[numberOfVariables()];
+		int[] mapFirst = new int[numberOfVariables()];
+		mapShift[0] = -1;
+		mapFirst[0] = 0;
+		for (int i = 0; i < numberOfVariables() - 1; i++) {
+			mapShift[i + 1] = i;
+			mapFirst[i + 1] = -1;
 		}
-		for (int i = generators.size() - 1; i >= 0; i--) {
-			Polynomial<T> p = generators.get(i);
-			highest = highestVariable(p);
-			if (variable > 0) {
-				map[variable - 1] = -1;
+		int numberOfPolynomials = ideal.generators().size();
+		UnivariatePolynomialRing<T> univariate = field.getUnivariatePolynomialRing();
+		PolynomialRing<T> shifted = AbstractPolynomialRing.getPolynomialRing(field, numberOfVariables() - 1,
+				Monomial.REVLEX);
+		UnivariatePolynomial<T> last = univariate.getEmbedding(ideal.generators().get(numberOfPolynomials - 1),
+				mapFirst);
+		List<AffinePoint<T>> result = new ArrayList<>();
+		for (T root : field.roots(last).keySet()) {
+			List<T> eval = new ArrayList<>();
+			eval.add(root);
+			for (int i = 1; i < numberOfVariables(); i++) {
+				eval.add(null);
 			}
-			map[highest - 1] = 0;
-			variable = highest;
-			prevPartialSolutions.clear();
-			prevPartialSolutions.addAll(partialSolutions);
-			partialSolutions.clear();
-			for (AffinePoint<T> prevSolution : prevPartialSolutions) {
-				List<T> values = new ArrayList<>();
-				values.addAll(prevSolution.getCoords());
-				for (int j = values.size(); j < numberOfVariables(); j++) {
-					values.add(null);
-				}
-				Polynomial<T> evaluated = partiallyEvaluate(p, values);
-				if (highest <= prevSolution.getCoords().size() && prevSolution.getCoords().get(highest - 1) != null) {
-					if (evaluated.equals(zero())) {
-						partialSolutions.add(prevSolution);
-					}
-					continue;
-				}
-				Set<T> roots;
-				if (evaluated.equals(zero())) {
-					roots = Collections.singleton(null);
-				} else {
-					Polynomial<T> univar = field.getUnivariatePolynomialRing()
-							.normalize(field.getUnivariatePolynomialRing().getEmbedding(evaluated, map));
-					roots = field.roots(univar).keySet();
-				}
-				for (T root : roots) {
-					List<T> coords = new ArrayList<>();
-					coords.addAll(prevSolution.getCoords());
-					if (highest <= coords.size()) {
-						if (coords.get(highest - 1) != null) {
-							throw new ArithmeticException("Something went wrong");
-						}
-						coords.set(highest - 1, root);
-					} else {
-						coords.add(root);
-					}
-					partialSolutions.add(new AffinePoint<>(field, coords));
-				}
+			List<Polynomial<T>> evaluated = new ArrayList<>();
+			for (Polynomial<T> generator : ideal.generators()) {
+				evaluated.add(shifted.getEmbedding(partiallyEvaluate(generator, eval), mapShift));
+			}
+			for (AffinePoint<T> partial : shifted.solve(evaluated)) {
+				List<T> point = new ArrayList<>();
+				point.add(root);
+				point.addAll(partial.getCoords());
+				result.add(new AffinePoint<>(field, point));
 			}
 		}
-		if (highest != numberOfVariables()) {
-			throw new ArithmeticException("Too many degrees of freedom to solve!");
-		}
-		return partialSolutions;
+		return result;
 	}
 
-	private int highestVariable(Polynomial<T> t) {
-		int highest = 0;
-		for (Monomial m : t.monomials()) {
-			if (t.coefficient(m).equals(getRing().zero())) {
-				continue;
+	private Polynomial<T> rowMultiply(Vector<Polynomial<T>> row, Vector<Polynomial<T>> column) {
+		if (row.dimension() != column.dimension()) {
+			throw new ArithmeticException("Mismatched dimensions");
+		}
+		Polynomial<T> result = zero();
+		for (int i = 0; i < row.dimension(); i++) {
+			result = add(multiply(row.get(i + 1), column.get(i + 1)), result);
+		}
+		return result;
+	}
+
+	private List<Polynomial<T>> rowMultiplyMatrix(Vector<Polynomial<T>> row, Matrix<Polynomial<T>> columns) {
+		List<Polynomial<T>> result = new ArrayList<>();
+		for (int i = 0; i < columns.columns(); i++) {
+			result.add(rowMultiply(row, columns.column(i + 1)));
+		}
+		return result;
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<Polynomial<T>> module, Matrix<Polynomial<T>> m,
+			Vector<Polynomial<T>> b) {
+		Vector<Polynomial<T>> asSubModuleMember = module.domain().zero();
+		Matrix<Polynomial<T>> syzygiesMatrix = module.domainAlgebra().one();
+		for (int i = 0; i < m.rows(); i++) {
+			Vector<Polynomial<T>> row = m.row(i + 1);
+			IdealResult<Polynomial<T>, PolynomialIdeal<T>> ideal = getIdealWithTransforms(
+					rowMultiplyMatrix(row, syzygiesMatrix));
+			Polynomial<T> adjusted = subtract(b.get(i + 1), rowMultiply(row, asSubModuleMember));
+			if (!ideal.getIdeal().contains(adjusted)) {
+				return false;
 			}
-			for (int i = numberOfVariables(); i >= 1; i--) {
-				if (m.exponents()[i - 1] != 0) {
-					highest = Math.max(highest, i);
+			List<Polynomial<T>> idealResult = ideal.getIdeal().generate(adjusted);
+			for (int j = 0; j < ideal.getIdeal().generators().size(); j++) {
+				asSubModuleMember = module
+						.domain().add(
+								module.domain().scalarMultiply(idealResult.get(j),
+										module.multiply(syzygiesMatrix,
+												new Vector<>(ideal.getGeneratorExpressions().get(j)))),
+								asSubModuleMember);
+			}
+			if (ideal.getSyzygies().size() > 0) {
+				Matrix<Polynomial<T>> rowSyzygiesMatrix = Matrix.fromColumns(ideal.getSyzygies());
+				syzygiesMatrix = module.multiply(syzygiesMatrix, rowSyzygiesMatrix);
+			} else {
+				syzygiesMatrix = module.domainAlgebra().zero();
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public Vector<Polynomial<T>> asSubModuleMember(MatrixModule<Polynomial<T>> module, Matrix<Polynomial<T>> m,
+			Vector<Polynomial<T>> b) {
+		Vector<Polynomial<T>> asSubModuleMember = module.domain().zero();
+		Matrix<Polynomial<T>> syzygiesMatrix = module.domainAlgebra().one();
+		for (int i = 0; i < m.rows(); i++) {
+			Vector<Polynomial<T>> row = m.row(i + 1);
+			IdealResult<Polynomial<T>, PolynomialIdeal<T>> ideal = getIdealWithTransforms(
+					rowMultiplyMatrix(row, syzygiesMatrix));
+			Polynomial<T> adjusted = subtract(b.get(i + 1), rowMultiply(row, asSubModuleMember));
+			List<Polynomial<T>> idealResult = ideal.getIdeal().generate(adjusted);
+			for (int j = 0; j < ideal.getIdeal().generators().size(); j++) {
+				asSubModuleMember = module
+						.domain().add(
+								module.domain().scalarMultiply(idealResult.get(j),
+										module.multiply(syzygiesMatrix,
+												new Vector<>(ideal.getGeneratorExpressions().get(j)))),
+								asSubModuleMember);
+			}
+			if (ideal.getSyzygies().size() > 0) {
+				Matrix<Polynomial<T>> rowSyzygiesMatrix = Matrix.fromColumns(ideal.getSyzygies());
+				syzygiesMatrix = module.multiply(syzygiesMatrix, rowSyzygiesMatrix);
+			} else {
+				syzygiesMatrix = module.domainAlgebra().zero();
+			}
+		}
+		return asSubModuleMember;
+	}
+
+	@Override
+	public List<Vector<Polynomial<T>>> syzygyProblem(MatrixModule<Polynomial<T>> module, Matrix<Polynomial<T>> m) {
+		Matrix<Polynomial<T>> syzygiesMatrix = module.domainAlgebra().one();
+		for (int i = 0; i < m.rows(); i++) {
+			List<Vector<Polynomial<T>>> rowSyzygies = getIdealWithTransforms(
+					rowMultiplyMatrix(m.row(i + 1), syzygiesMatrix)).getSyzygies();
+			if (rowSyzygies.size() > 0) {
+				Matrix<Polynomial<T>> rowSyzygiesMatrix = Matrix.fromColumns(rowSyzygies);
+				syzygiesMatrix = module.multiply(syzygiesMatrix, rowSyzygiesMatrix);
+			} else {
+				return Collections.emptyList();
+			}
+		}
+		return simplifySubModuleGenerators(syzygiesMatrix.getModule(this), syzygiesMatrix);
+	}
+
+	@Override
+	public List<Vector<Polynomial<T>>> simplifySubModuleGenerators(MatrixModule<Polynomial<T>> module,
+			Matrix<Polynomial<T>> m) {
+		List<Vector<Polynomial<T>>> columns = new ArrayList<>();
+		for (int i = 0; i < m.columns(); i++) {
+			columns.add(m.column(i + 1));
+		}
+		Collections.sort(columns, new Comparator<Vector<Polynomial<T>>>() {
+			@Override
+			public int compare(Vector<Polynomial<T>> o1, Vector<Polynomial<T>> o2) {
+				int maxDegree1 = -1;
+				int maxDegree2 = -1;
+				for (Polynomial<T> t : o1.asList()) {
+					if (maxDegree1 < t.degree()) {
+						maxDegree1 = t.degree();
+					}
+				}
+				for (Polynomial<T> t : o2.asList()) {
+					if (maxDegree2 < t.degree()) {
+						maxDegree2 = t.degree();
+					}
+				}
+				if (maxDegree1 != maxDegree2) {
+					return maxDegree1 - maxDegree2;
+				}
+				return o1.compareTo(o2);
+			}
+		});
+		List<Vector<Polynomial<T>>> result = new ArrayList<>();
+		MatrixModule<Polynomial<T>> matrixModule = null;
+		for (int i = 0; i < m.columns(); i++) {
+			Vector<Polynomial<T>> column = columns.get(i);
+			if (!column.equals(module.codomain().zero())) {
+				if (result.isEmpty() || !isSubModuleMember(matrixModule, Matrix.fromColumns(result), column)) {
+					result.add(column);
+					matrixModule = new MatrixModule<>(this, m.rows(), result.size());
 				}
 			}
 		}
-		return highest;
+		return result;
 	}
+
 }

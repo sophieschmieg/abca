@@ -14,9 +14,13 @@ public class Vector<T extends Element<T>> extends AbstractElement<Vector<T>> {
 
 	@SuppressWarnings("unchecked")
 	public Vector(List<T> coeffs) {
-		this.coeffs = (T[]) Array.newInstance(coeffs.get(0).getClass(), coeffs.size());
-		for (int i = 0; i < coeffs.size(); i++) {
-			this.coeffs[i] = coeffs.get(i);
+		if (coeffs.isEmpty()) {
+			this.coeffs = new Vector<T>().coeffs;
+		} else {
+			this.coeffs = (T[]) Array.newInstance(coeffs.get(0).getClass(), coeffs.size());
+			for (int i = 0; i < coeffs.size(); i++) {
+				this.coeffs[i] = coeffs.get(i);
+			}
 		}
 	}
 

@@ -19,8 +19,6 @@ import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
-import fields.interfaces.InnerProductSpace;
-import fields.interfaces.InnerProductSpace.OrthogonalSimilarResult;
 import fields.interfaces.MathSet;
 import fields.interfaces.RealInnerProductSpace;
 import fields.interfaces.RealInnerProductSpace.LinearProgramResult;
@@ -309,57 +307,24 @@ public class Polytope<T extends Element<T>, S extends Element<S>> implements Mat
 		knownVertex();
 		return deficient;
 	}
+	
+	public Polytope<T, S> addConstraints(List<Dual<T, S>> additionalConstraints, List<T> additionalValues) {
+		List<Dual<T, S>> addedConstraints = new ArrayList<>();
+		addedConstraints.addAll(constraints);
+		addedConstraints.addAll(additionalConstraints);
+		List<T> values = new ArrayList<>();
+		values.addAll(rhs);
+		values.addAll(additionalValues);
+		Polytope<T, S> result = new Polytope<>(space, addedConstraints, values);
+		knownVertex();
+		Set<Integer> independentIndeces = new TreeSet<>();
+		independentIndeces.addAll(knownVertex.vertexIndeces.values());
+		result.setKnownVertex(independentIndeces);
+		return result;
+	}
 
-	public S knownVertex() {
+	private void setKnownVertex(Set<Integer> independentIndeces) {
 		if (knownVertex == null && !empty && !deficient) {
-			ValueField<T> field = space.getValueField();
-			List<Vector<T>> rows = new ArrayList<>();
-			Set<Integer> independentIndeces = new TreeSet<>();
-			for (Dual<T, S> constraint : constraints) {
-				rows.add(space.asVector(constraint.dual()));
-			}
-			int dimension = space.dimension();
-			Matrix<T> matrix = Matrix.fromRows(rows);
-			Matrix<T> square = space.matrixAlgebra().multiply(space.conjugateTranspose(matrix), matrix);
-			InnerProductSpace<T, S> asFiniteVectorSpace = space.withDimension(dimension);
-			int rank = 0;
-			Real epsilon = field.getReals().getPowerOfTwo(-field.getReals().precision() + 1);
-			if (field.exactness().equals(Exactness.EXACT)) {
-				rank = space.matrixAlgebra().rank(square);
-			} else {
-				OrthogonalSimilarResult<T> schurr = space.schurrForm(square);
-				for (int i = 0; i < dimension; i++) {
-					if (field.value(schurr.getOrthogonallySimilarMatrix().entry(i + 1, i + 1)).compareTo(epsilon) < 0) {
-						break;
-					}
-					rank++;
-				}
-			}
-			if (rank < dimension) {
-				deficient = true;
-				return null;
-			}
-			List<S> independentElements = new ArrayList<>();
-			for (int i = 0; i < rows.size(); i++) {
-				Vector<T> row = rows.get(i);
-				S fromRow = asFiniteVectorSpace.fromVector(row);
-				S reduced = fromRow;
-				for (S basisElement : independentElements) {
-					reduced = asFiniteVectorSpace.subtract(reduced,
-							asFiniteVectorSpace.scalarMultiply(
-									field.divide(asFiniteVectorSpace.innerProduct(basisElement, reduced),
-											asFiniteVectorSpace.innerProduct(basisElement, basisElement)),
-									basisElement));
-				}
-				if (asFiniteVectorSpace.valueNorm(reduced).compareTo(epsilon) < 0) {
-					continue;
-				}
-				independentIndeces.add(i);
-				independentElements.add(reduced);
-				if (independentIndeces.size() == rank) {
-					break;
-				}
-			}
 			Tableau tableau = new Tableau(independentIndeces);
 			SimplexPivot pivot;
 			int counter = 0;
@@ -377,13 +342,80 @@ public class Polytope<T extends Element<T>, S extends Element<S>> implements Mat
 			}
 			if (pivot.status.equals(SimplexAlgorithmStatus.UNBOUNDED_SOLUTION)) {
 				empty = true;
-				return null;
+				return;
 			} else if (!pivot.status.equals(SimplexAlgorithmStatus.OPTIMAL)) {
 				throw new ArithmeticException("Did not find a vertex in a non-empty polytope!");
 			}
 			Set<Integer> indeces = new TreeSet<>();
 			indeces.addAll(tableau.vertexIndeces.values());
 			knownVertex = new Tableau(indeces);
+		}
+	}
+
+	public S knownVertex() {
+		if (knownVertex == null && !empty && !deficient) {
+			List<S> rows = new ArrayList<>();
+			Set<Integer> independentIndeces = new TreeSet<>();
+			for (Dual<T, S> constraint : constraints) {
+				rows.add(constraint.dual());
+			}
+
+			int dimension = space.dimension();
+			List<S> independentRows = space.linearIndependentSubSet(rows);
+			if (independentRows.size() < dimension) {
+				deficient = true;
+				return null;
+			}
+			for (int j = 0; j < independentRows.size(); j++) {
+				for (int i = 0; i < rows.size(); i++) {
+					if (independentRows.get(j).equals(rows.get(i))) {
+						independentIndeces.add(i);
+						break;
+					}
+				}
+			}
+//			System.err.println(independentRows);
+			setKnownVertex(independentIndeces);
+//		InnerProductSpace<T, S> asFiniteVectorSpace = space.withDimension(dimension);
+//			Matrix<T> matrix = Matrix.fromRows(rows);
+//			Matrix<T> square = space.matrixAlgebra().multiply(space.conjugateTranspose(matrix), matrix);
+//			int rank = 0;
+//			Real epsilon = field.getReals().getPowerOfTwo(-field.getReals().precision() + 1);
+//			if (field.exactness().equals(Exactness.EXACT)) {
+//				rank = space.matrixAlgebra().rank(square);
+//			} else {
+//				OrthogonalSimilarResult<T> schurr = space.schurrForm(square);
+//				for (int i = 0; i < dimension; i++) {
+//					if (field.value(schurr.getOrthogonallySimilarMatrix().entry(i + 1, i + 1)).compareTo(epsilon) < 0) {
+//						break;
+//					}
+//					rank++;
+//				}
+//			}
+//			List<S> independentElements = new ArrayList<>();
+//			for (int i = 0; i < rows.size(); i++) {
+//				Vector<T> row = rows.get(i);
+//				S fromRow = asFiniteVectorSpace.fromVector(row);
+//				S reduced = fromRow;
+//				for (S basisElement : independentElements) {
+//					reduced = asFiniteVectorSpace.subtract(reduced,
+//							asFiniteVectorSpace.scalarMultiply(
+//									field.divide(asFiniteVectorSpace.innerProduct(basisElement, reduced),
+//											asFiniteVectorSpace.innerProduct(basisElement, basisElement)),
+//									basisElement));
+//				}
+//				if (asFiniteVectorSpace.valueNorm(reduced).compareTo(epsilon) < 0) {
+//					continue;
+//				}
+//				independentIndeces.add(i);
+//				independentElements.add(reduced);
+//				if (independentIndeces.size() == rank) {
+//					break;
+//				}
+//			}
+		}
+		if (empty || deficient) {
+			return null;
 		}
 		return space.fromVector(knownVertex.vertexVector);
 	}
@@ -545,6 +577,9 @@ public class Polytope<T extends Element<T>, S extends Element<S>> implements Mat
 					vertexRows.add(space.asVector(constraint.dual()));
 				}
 			}
+		//	System.err.println(Polytope.this);
+//			System.err.println(knownVertex);
+//			System.err.println(vertexRows);
 			Matrix<T> vertexMatrix = Matrix.fromRows(vertexRows);
 			Vector<T> optimization = new Vector<>(optimize);
 			Vector<T> inBase = space.matrixAlgebra().multiply(space.conjugateTranspose(vertexMatrix), optimization);

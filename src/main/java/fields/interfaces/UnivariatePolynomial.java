@@ -31,6 +31,8 @@ public interface UnivariatePolynomial<T extends Element<T>>  extends Polynomial<
 
 	String toString();
 
+	String toString(boolean ascending);
+
 	String toString(String variable, boolean ascending);
 
 	String toString(String[] variables, boolean ascending);

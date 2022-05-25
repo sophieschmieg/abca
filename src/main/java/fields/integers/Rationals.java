@@ -1,5 +1,6 @@
 package fields.integers;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +33,7 @@ import fields.polynomials.Monomial;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
 import util.MiscAlgorithms;
+import util.PeekableReader;
 
 public class Rationals extends AbstractField<Fraction> {
 	private static Integers z = Integers.z();
@@ -137,7 +139,7 @@ public class Rationals extends AbstractField<Fraction> {
 	@Override
 	public Extension<Fraction, Fraction, NFE, NumberField> getExtension(
 			UnivariatePolynomial<Fraction> minimalPolynomial) {
-		NumberField extension = new NumberField(minimalPolynomial);
+		NumberField extension = NumberField.getNumberField(minimalPolynomial);
 		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
 	}
 
@@ -209,6 +211,20 @@ public class Rationals extends AbstractField<Fraction> {
 		return new Fraction(q.inverse(t.fraction()));
 	}
 
+	public Fraction minimum(Fraction t1, Fraction t2) {
+		if (t1.compareTo(t2) < 0) {
+			return t1;
+		}
+		return t2;
+	}
+
+	public Fraction maximum(Fraction t1, Fraction t2) {
+		if (t1.compareTo(t2) < 0) {
+			return t2;
+		}
+		return t1;
+	}
+
 	public LocalizedFractions withValuation(BigInteger prime) {
 		if (!localized.containsKey(prime)) {
 			localized.put(prime, new LocalizedFractions(prime));
@@ -269,6 +285,26 @@ public class Rationals extends AbstractField<Fraction> {
 		};
 	}
 
+	public MathMap<Fraction, IntE> getAsIntegerMap() {
+		return new MathMap<>() {
+
+			@Override
+			public IntE evaluate(Fraction t) {
+				return t.asInteger();
+			}
+		};
+	}
+
+	public MathMap<Fraction, IntE> getRoundMap() {
+		return new MathMap<>() {
+
+			@Override
+			public IntE evaluate(Fraction t) {
+				return t.round();
+			}
+		};
+	}
+
 	public Fraction getFraction(IntE numerator, IntE denominator) {
 		return new Fraction(q.getFraction(numerator, denominator));
 	}
@@ -298,6 +334,11 @@ public class Rationals extends AbstractField<Fraction> {
 		return "Q";
 	}
 
+	@Override
+	public Fraction parse(PeekableReader reader) throws IOException {
+		return new Fraction(q.parse(reader));
+	}
+
 	public Iterator<IntE> continuedFraction(Fraction t) {
 		return MiscAlgorithms.continuedFraction(this, t, new MathMap<>() {
 
@@ -318,7 +359,8 @@ public class Rationals extends AbstractField<Fraction> {
 		});
 	}
 
-	public Optional<Fraction> rationalReconstruction(IntE t, IntE m, BigInteger numeratorBound, BigInteger denominatorBound) {
+	public Optional<Fraction> rationalReconstruction(IntE t, IntE m, BigInteger numeratorBound,
+			BigInteger denominatorBound) {
 		Integers z = Integers.z();
 		FreeModule<IntE> vectors = new FreeModule<>(z, 2);
 		Vector<IntE> v = new Vector<>(m, z.zero());
@@ -345,8 +387,9 @@ public class Rationals extends AbstractField<Fraction> {
 		BigInteger sqrt = m.getValue().shiftRight(1).sqrt();
 		return rationalReconstruction(t, m, sqrt.add(BigInteger.ONE), sqrt);
 	}
-	
-	public Optional<Polynomial<Fraction>> reconstructPolynomial(PolynomialRing<Fraction> polynomialRing, List<Polynomial<PFE>> perPrime, List<PrimeField> fields) {
+
+	public Optional<Polynomial<Fraction>> reconstructPolynomial(PolynomialRing<Fraction> polynomialRing,
+			List<Polynomial<PFE>> perPrime, List<PrimeField> fields) {
 		List<Ideal<IntE>> asIdealList = new ArrayList<>();
 		for (PrimeField fp : fields) {
 			asIdealList.add(z.getIdeal(Collections.singletonList(new IntE(fp.getNumberOfElements()))));

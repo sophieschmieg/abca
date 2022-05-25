@@ -1,5 +1,6 @@
 package fields.integers;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,6 +21,9 @@ import fields.finitefields.ModuloIntegerRing;
 import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
+import fields.floatingpoint.FiniteRealVectorSpace;
+import fields.floatingpoint.Reals;
+import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
@@ -40,13 +44,16 @@ import fields.local.Value;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
-import fields.vectors.Matrix;
-import fields.vectors.MatrixModule;
-import fields.vectors.Vector;
 import fields.polynomials.GenericUnivariatePolynomial;
 import fields.polynomials.Monomial;
+import fields.vectors.FreeModule;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.RealLattice;
+import fields.vectors.Vector;
 import util.Identity;
 import util.MiscAlgorithms;
+import util.PeekableReader;
 import util.SingletonSortedMap;
 
 public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, Fraction, PFE> {
@@ -153,6 +160,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return new IntE((int) Math.round(new Random().nextGaussian() * 10.0));
 	}
 
+	@Override
 	public IntE getRandomElement(IntE max) {
 		return new IntE(MiscAlgorithms.randomBigInteger(new Random(), max.value));
 	}
@@ -237,6 +245,9 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	@Override
 	public IntE remainder(IntE t1, IntE t2) {
+		if (t2.equals(zero())) {
+			return t1;
+		}
 		return new IntE(t1.value.mod(t2.value));
 	}
 
@@ -310,6 +321,12 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	@Override
 	public boolean isDivisible(IntE dividend, IntE divisor) {
+		if (dividend.equals(zero())) {
+			return true;
+		}
+		if (divisor.equals(zero())) {
+			return false;
+		}
 		return dividend.value.mod(divisor.value.abs()).equals(BigInteger.ZERO);
 	}
 
@@ -598,6 +615,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	private SortedMap<IntE, Integer> uniqueFactorization(IntE n, boolean skipNaive) {
+		IntE t = n;
 		if (n.value.compareTo(BigInteger.ZERO) < 0) {
 			n = negative(n);
 		}
@@ -613,11 +631,11 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			n = naive.cofactor;
 			decomposition.putAll(naive.factors);
 		}
-		PartialFactorizationResult pollardRho = pollardRhoFactorization(n, 100, 1000);
+		PartialFactorizationResult pollardRho = pollardRhoFactorization(n, 100, 100000);
 		decomposition.putAll(pollardRho.factors);
 		n = pollardRho.cofactor;
 		if (!n.equals(one())) {
-			throw new ArithmeticException("Could not factor number");
+			throw new ArithmeticException("Could not factor " + t + ", left with " + n);
 		}
 		return decomposition;
 	}
@@ -628,6 +646,15 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		}
 		if (n.value.isProbablePrime(100)) {
 			return new PartialFactorizationResult(Collections.singletonMap(n, 1), one());
+		}
+		BigInteger[] sqrt = n.value.sqrtAndRemainder();
+		if (sqrt[1].equals(BigInteger.ZERO)) {
+			Map<IntE, Integer> sqrtFactors = uniqueFactorization(getInteger(sqrt[0]), true);
+			Map<IntE, Integer> result = new TreeMap<>();
+			for (IntE factor : sqrtFactors.keySet()) {
+				result.put(factor, 2 * sqrtFactors.get(factor));
+			}
+			return new PartialFactorizationResult(result, one());
 		}
 		for (int i = 0; i < numberOfTries; i++) {
 			IntE a = getRandomElement(n);
@@ -697,6 +724,132 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			return one();
 		}
 		return getInteger(signum);
+	}
+
+	public static class SmallestIntegerSolutionPreparation {
+		private Matrix<IntE> generatorMatrix;
+		private MatrixModule<IntE> matrixModule;
+		private FiniteRealVectorSpace space;
+		private RealLattice kernelLattice;
+		private FreeModule<IntE> solutionSpace;
+		private MathMap<IntE, Real> embeddingMap;
+		private MathMap<Real, IntE> asIntegerMap;
+		private MathMap<IntE, IntE> modMap;
+		private double delta;
+
+		private SmallestIntegerSolutionPreparation(List<Vector<IntE>> generators, IntE modulus, double delta) {
+			Integers z = Integers.z();
+			int accuracy = 128;
+			if (modulus.equals(z.zero())) {
+				for (Vector<IntE> generator : generators) {
+					for (IntE c : generator.asList()) {
+						accuracy = Math.max(4 * c.getValue().bitLength() + 10, accuracy);
+					}
+				}
+			} else {
+				accuracy = Math.max(4 * modulus.getValue().bitLength() + 10, accuracy);
+			}
+			this.solutionSpace = new FreeModule<>(z, generators.size());
+			FreeModule<IntE> generatorSpace = new FreeModule<>(z, generators.get(0).dimension());
+			List<Vector<IntE>> actualGenerators = new ArrayList<>();
+			this.modMap = new MathMap<>() {
+				@Override
+				public IntE evaluate(IntE t) {
+					return z.remainder(t, modulus);
+				}
+			};
+			for (Vector<IntE> generator : generators) {
+				actualGenerators.add(Vector.mapVector(modMap, generator));
+			}
+			for (Vector<IntE> unitVector : generatorSpace.getBasis()) {
+				actualGenerators.add(generatorSpace.scalarMultiply(modulus, unitVector));
+			}
+			this.generatorMatrix = Matrix.fromColumns(actualGenerators);
+			this.matrixModule = generatorMatrix.getModule(Integers.z());
+			List<Vector<IntE>> kernelBasis = new ArrayList<>();
+			kernelBasis.addAll(matrixModule.kernelBasis(generatorMatrix));
+			FreeModule<IntE> kernelSpace = matrixModule.domain();
+			for (Vector<IntE> unitVector : kernelSpace.getBasis()) {
+				kernelBasis.add(kernelSpace.scalarMultiply(modulus, unitVector));
+			}
+			Matrix<IntE> kernelMatrix = Matrix.fromColumns(kernelBasis);
+			kernelBasis = kernelMatrix.getModule(z).imageBasis(kernelMatrix);
+			for (Vector<IntE> kernelVector : kernelBasis) {
+				for (IntE c : kernelVector.asList()) {
+					accuracy = Math.max(4 * c.getValue().bitLength() + 10, accuracy);
+				}
+			}
+			Reals r = Reals.r(accuracy);
+			this.embeddingMap = new MathMap<>() {
+				@Override
+				public Real evaluate(IntE t) {
+					return r.getInteger(t);
+				}
+			};
+			this.asIntegerMap = new MathMap<>() {
+				@Override
+				public IntE evaluate(Real t) {
+					return t.round();
+				}
+			};
+			this.space = new FiniteRealVectorSpace(r, generatorSpace.dimension() + generators.size());
+			List<Vector<Real>> realKernelBasis = new ArrayList<>();
+			for (Vector<IntE> kernelVector : kernelBasis) {
+				realKernelBasis.add(Vector.mapVector(embeddingMap, kernelVector));
+			}
+			this.kernelLattice = new RealLattice(space, realKernelBasis, delta, true);
+			this.delta = delta;
+		}
+	}
+
+	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators) {
+		return prepareSmallestIntegerSolution(generators, 0.75);
+	}
+
+	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
+			double delta) {
+		return prepareSmallestIntegerSolution(generators, zero(), delta);
+	}
+
+	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
+			IntE modulus) {
+		return prepareSmallestIntegerSolution(generators, modulus, 0.75);
+	}
+
+	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
+			IntE modulus, double delta) {
+		return new SmallestIntegerSolutionPreparation(generators, modulus, delta);
+	}
+
+	public Vector<IntE> smallestIntegerSolution(Vector<IntE> target, SmallestIntegerSolutionPreparation preparation) {
+		target = Vector.mapVector(preparation.modMap, target);
+		Vector<IntE> solution = preparation.matrixModule.solve(preparation.generatorMatrix, target);
+		if (preparation.kernelLattice == null) {
+			return solution;
+		}
+		Vector<Real> closestKernelVector = preparation.space.closestLatticePoint(
+				Vector.mapVector(preparation.embeddingMap, solution), preparation.kernelLattice, preparation.delta);
+		Vector<IntE> closestIntegerKernelVector = new Vector<>(
+				Vector.mapVector(preparation.asIntegerMap, closestKernelVector).asList().subList(0,
+						preparation.solutionSpace.dimension()));
+		return preparation.solutionSpace.subtract(solution, closestIntegerKernelVector);
+	}
+
+	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators));
+	}
+
+	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target, double delta) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, delta));
+	}
+
+	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target, IntE modulus) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target, IntE modulus,
+			double delta) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus, delta));
 	}
 
 	@Override
@@ -919,7 +1072,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			UnivariatePolynomialRing<PFE> reducedRing = zp.reduction().getUnivariatePolynomialRing();
 			UnivariatePolynomial<PFE> reduced = zp.reduceUnivariatePolynomial(fp);
 			List<Polynomial<PAdicNumber>> liftedFactors = new ArrayList<>();
-			//System.err.println("Preparation successful");
+			// System.err.println("Preparation successful");
 			Method method = Method.OKUTSU;
 			switch (method) {
 			case LINEAR:
@@ -942,7 +1095,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				break;
 			case QUADRATIC:
 				FactorizationResult<Polynomial<PFE>, PFE> factors = zp.reduction().factorization(reduced);
-				//System.err.println("Finite Field factorization successful");
+				// System.err.println("Finite Field factorization successful");
 				for (Polynomial<PFE> factor : factors.primeFactors()) {
 					if (factor.degree() > 0) {
 						liftedFactors.add(zp.henselLiftFactor(zpr.normalize(fp), reducedRing.normalize(factor)));
@@ -950,7 +1103,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				}
 				break;
 			}
-			//System.err.println("Lifts computed successful");
+			// System.err.println("Lifts computed successful");
 
 			Map<Integer, Polynomial<PAdicNumber>> padicFactors = new TreeMap<>();
 			for (int i = 0; i < liftedFactors.size(); i++) {
@@ -1062,6 +1215,28 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return "Z";
 	}
 
+	@Override
+	public IntE parse(PeekableReader reader) throws IOException {
+		StringBuilder build = new StringBuilder();
+		boolean first = true;
+		while (true) {
+			int character = reader.peek();
+			if (character < 0) {
+				break;
+			}
+			if (!Character.isDigit((char)character) && !(first && (char)character == '-')) {
+				break;
+			}
+			first = false;
+			build.append((char) character);
+			reader.skip(1);
+		}
+		if (build.length() == 0) {
+			throw new IOException("No digits found!");
+		}
+		return getInteger(new BigInteger(build.toString()));
+	}
+
 	public IntE binomialCoefficient(int n, int k) {
 		if (!binomialCoefficients.containsKey(n)) {
 			binomialCoefficients.put(n, new TreeMap<>());
@@ -1083,11 +1258,12 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	public IdealResult<IntE, IntegerIdeal> getIdealWithTransforms(List<IntE> generators) {
 		if (generators.size() == 0) {
 			return new IdealResult<>(Collections.singletonList(Collections.emptyList()), generators,
-					new IntegerIdeal(0));
+					new IntegerIdeal(0), Collections.emptyList());
 		}
+		Matrix<IntE> rowMatrix = Matrix.fromRows(Collections.singletonList(new Vector<>(generators)));
 		ExtendedEuclideanListResult<IntE> extendedEuclidean = extendedEuclidean(generators);
 		return new IdealResult<>(Collections.singletonList(extendedEuclidean.getCoeffs()), generators,
-				new IntegerIdeal(extendedEuclidean.getGcd()));
+				new IntegerIdeal(extendedEuclidean.getGcd()), rowMatrix.getModule(this).kernelBasis(rowMatrix));
 	}
 
 	@Override
@@ -1165,9 +1341,10 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<IntE, PFE> moduloMaximalIdeal(Ideal<IntE> ideal) {
+	public ModuloMaximalIdealResult<IntE, PFE, Integers, IntegerIdeal, PrimeField> moduloMaximalIdeal(
+			Ideal<IntE> ideal) {
 		PrimeField fp = PrimeField.getPrimeField(ideal.generators().get(0).getValue());
-		return new ModuloMaximalIdealResult<>(this, ideal, fp, new MathMap<>() {
+		return new ModuloMaximalIdealResult<>(this, (IntegerIdeal) ideal, fp, new MathMap<>() {
 			@Override
 			public PFE evaluate(IntE t) {
 				return reduce(t, ideal);
@@ -1186,7 +1363,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			return new ModuloIdealResult<>(this, ideal, this, new Identity<>(), new Identity<>());
 		}
 		if (ideal.isPrime()) {
-			ModuloMaximalIdealResult<IntE, PFE> mod = moduloMaximalIdeal(ideal);
+			ModuloMaximalIdealResult<IntE, PFE, Integers, IntegerIdeal, PrimeField> mod = moduloMaximalIdeal(ideal);
 			return new ModuloIdealResult<>(this, ideal, mod.getField(), mod.getReduction(), mod.getLift());
 		}
 		ModuloIntegerRing result = new ModuloIntegerRing(ideal.generators().get(0).getValue());
@@ -1224,6 +1401,10 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			return alternative;
 		}
 		return lift;
+	}
+
+	public IntE centeredLift(PFE t, IntE prime) {
+		return centeredLift(t, prime.value);
 	}
 
 	public IntE centeredLift(PFE t, Ideal<IntE> maximalIdeal) {
@@ -1312,6 +1493,10 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return PrimeField.getPrimeField(prime).reduce(t);
 	}
 
+	public PFE reduce(IntE t, IntE prime) {
+		return PrimeField.getPrimeField(prime).reduce(t);
+	}
+
 	public PFE reduce(IntE t, Ideal<IntE> prime) {
 		return reduce(t, prime.generators().get(0).value);
 	}
@@ -1393,24 +1578,24 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		public BigInteger getNumberOfElements() throws InfinityException {
 			throw new InfinityException();
 		}
-		
-		@Override
-		public List<List<IntE>> nonTrivialCombinations(List<IntE> s) {
-			Matrix<IntE> m = new Matrix<>(Collections.singletonList(s));
-			MatrixModule<IntE> mm = new MatrixModule<>(z(), 1, s.size());
-			List<Vector<IntE>> kernelBasis = mm.kernelBasis(m);
-			List<List<IntE>> result = new ArrayList<>();
-			for (Vector<IntE> basisVector : kernelBasis) {
-				result.add(basisVector.asList());
-			}
-			return result;
-		}
+
+//		@Override
+//		public List<List<IntE>> nonTrivialCombinations(List<IntE> s) {
+//			Matrix<IntE> m = new Matrix<>(Collections.singletonList(s));
+//			MatrixModule<IntE> mm = new MatrixModule<>(z(), 1, s.size());
+//			List<Vector<IntE>> kernelBasis = mm.kernelBasis(m);
+//			List<List<IntE>> result = new ArrayList<>();
+//			for (Vector<IntE> basisVector : kernelBasis) {
+//				result.add(basisVector.asList());
+//			}
+//			return result;
+//		}
 
 		@Override
 		public List<IntE> generators() {
 			return Collections.singletonList(m);
 		}
-		
+
 		@Override
 		public List<IntE> generate(IntE t) {
 			if (m.equals(zero())) {

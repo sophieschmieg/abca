@@ -317,8 +317,8 @@ public class SimpleFunctionField<T extends Element<T>>
 				}
 			}
 		}
-		return new SimpleFunctionFieldFromCoordinateRing<>(new SimpleFunctionField<>(minimalPolynomial, transcendental),
-				new MathMap<>() {
+		return new SimpleFunctionFieldFromCoordinateRing<>(new SimpleFunctionField<>(minimalPolynomial, transcendental,
+				coordinateRing.getPolynomialRing().getVariableNames()[0]), new MathMap<>() {
 
 					@Override
 					public SimpleRationalFunction<T> evaluate(RationalFunction<T> t) {
@@ -335,12 +335,11 @@ public class SimpleFunctionField<T extends Element<T>>
 				});
 	}
 
-	public SimpleFunctionField<T> getSimpleFunctionField(Field<T> field, PolynomialRing<T> polynomialRing,
+	public static <T extends Element<T>> SimpleFunctionField<T> getSimpleFunctionField(Field<T> field, PolynomialRing<T> polynomialRing,
 			Polynomial<T> polynomial, int variable) {
 		if (polynomial.degree(variable) == 0) {
 			throw new ArithmeticException("Polynomial is trivial in variable " + variable);
 		}
-		this.polynomialRing = polynomialRing;
 		TranscendentalFieldExtension<T> transcendental = new TranscendentalFieldExtension<>(field,
 				polynomialRing.eliminateVariable());
 		UnivariatePolynomial<Polynomial<T>> asUnivariate = polynomialRing.asUnivariatePolynomial(polynomial, variable);
@@ -351,11 +350,13 @@ public class SimpleFunctionField<T extends Element<T>>
 						return transcendental.getEmbedding(t);
 					}
 				});
-		return new SimpleFunctionField<>(minimalPolynomial, transcendental);
+		return new SimpleFunctionField<>(minimalPolynomial, transcendental,
+				polynomialRing.getVariableNames()[variable - 1]);
 	}
 
-	public SimpleFunctionField(UnivariatePolynomial<TExt<T>> minimalPolynomial, TranscendentalFieldExtension<T> base) {
-		super(minimalPolynomial, base);
+	public SimpleFunctionField(UnivariatePolynomial<TExt<T>> minimalPolynomial, TranscendentalFieldExtension<T> base,
+			String variableName) {
+		super(minimalPolynomial, base, variableName);
 		this.transcendentalExtension = base;
 	}
 
@@ -366,7 +367,7 @@ public class SimpleFunctionField<T extends Element<T>>
 
 	@Override
 	public SimpleFunctionField<T> makeExtension(UnivariatePolynomial<TExt<T>> minimalPolynomial) {
-		return new SimpleFunctionField<>(minimalPolynomial, transcendentalExtension);
+		return new SimpleFunctionField<>(minimalPolynomial, transcendentalExtension, getVariableName());
 	}
 
 	@Override

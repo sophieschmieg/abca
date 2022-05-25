@@ -52,8 +52,8 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	private FiniteVectorSpace<T> asVectorSpace;
 	private Polynomial<T> genericNorm;
 
-	public AbstractFieldExtension(UnivariatePolynomial<T> minimalPolynomial, Field<T> baseField) {
-		super(minimalPolynomial, baseField);
+	public AbstractFieldExtension(UnivariatePolynomial<T> minimalPolynomial, Field<T> baseField, String variableName) {
+		super(minimalPolynomial, baseField, variableName);
 		this.baseField = baseField;
 		this.polynomials = baseField.getUnivariatePolynomialRing();
 		this.minimalPolynomial = minimalPolynomial;
@@ -62,7 +62,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	public AbstractFieldExtension(Field<T> baseField) {
-		this(baseField.getUnivariatePolynomialRing().getVar(), baseField);
+		this(baseField.getUnivariatePolynomialRing().getVar(), baseField, "x");
 	}
 
 	public Polynomial<T> genericNorm() {
@@ -441,6 +441,132 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
+	public boolean isSubModuleMember(MatrixModule<S> module, Matrix<S> m, Vector<S> b) {
+		MatrixModule<S>.LDUPResult ldup = module.ldup(m);
+		// LD^-1Ux=P^-1b
+		Vector<S> rhs = module.permuteVector(ldup.getInversePermutation(), b);
+		// D^-1Ux=L^-1P^-1b
+		List<S> solution = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			S adjustedRhs = rhs.get(i + 1);
+			for (int k = 0; k < i; k++) {
+				adjustedRhs = subtract(adjustedRhs,
+						multiply(ldup.getLowerTriangle().entry(i + 1, k + 1), solution.get(k)));
+			}
+			solution.add(divide(adjustedRhs, ldup.getLowerTriangle().entry(i + 1, i + 1)));
+		}
+		for (int i = ldup.getRank(); i < b.dimension(); i++) {
+			if (!solution.get(i).equals(zero())) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public Vector<S> asSubModuleMember(MatrixModule<S> module, Matrix<S> m, Vector<S> b) {
+		MatrixModule<S>.LDUPResult ldup = module.ldup(m);
+		// PLD^-1Ux=Ax=b
+		// LD^-1Ux=P^-1b
+		Vector<S> rhs = module.permuteVector(ldup.getInversePermutation(), b);
+		// D^-1Ux=L^-1P^-1b
+		List<S> solution = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			S adjustedRhs = rhs.get(i + 1);
+			for (int k = 0; k < i; k++) {
+				adjustedRhs = subtract(adjustedRhs,
+						multiply(ldup.getLowerTriangle().entry(i + 1, k + 1), solution.get(k)));
+			}
+			solution.add(divide(adjustedRhs, ldup.getLowerTriangle().entry(i + 1, i + 1)));
+		}
+		// Ux = DL^-1P^-1b
+		List<S> adjustedSolution = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			adjustedSolution.add(multiply(ldup.getInverseDiagonal().entry(i + 1, i + 1), solution.get(i)));
+		}
+		// x = U^-1DL^-1P^-1b
+		List<S> reverseSolution = new ArrayList<>();
+		int j = m.columns();
+		for (int i = m.rows(); i > 0; i--) {
+			if (!ldup.getSteps().containsKey(i)) {
+				continue;
+			}
+			while (ldup.getSlips().contains(j)) {
+				reverseSolution.add(zero());
+				j--;
+			}
+			S adjustedRhs = adjustedSolution.get(i - 1);
+			for (int k = 0; k < reverseSolution.size(); k++) {
+				adjustedRhs = subtract(adjustedRhs,
+						multiply(reverseSolution.get(k), ldup.getUpperTriangle().entry(i, m.columns() - k)));
+			}
+			reverseSolution.add(divide(adjustedRhs, ldup.getUpperTriangle().entry(i, j)));
+			j--;
+		}
+		while (ldup.getSlips().contains(j)) {
+			reverseSolution.add(zero());
+			j--;
+		}
+		Collections.reverse(reverseSolution);
+		return new Vector<>(reverseSolution);
+	}
+
+	@Override
+	public List<Vector<S>> syzygyProblem(MatrixModule<S> module, Matrix<S> m) {
+		MatrixModule<S>.LDUPResult ldup = module.ldup(m);
+		List<Vector<S>> result = new ArrayList<>();
+		for (int slip : ldup.getSlips()) {
+			List<S> reverseSolution = new ArrayList<>();
+			for (int i = 0; i < m.columns() - slip; i++) {
+				reverseSolution.add(zero());
+			}
+			reverseSolution.add(one());
+			int index = slip - 1;
+			int firstStepRow = -1;
+			for (int i = ldup.getRank(); i > 0; i--) {
+				int step = ldup.getSteps().get(i);
+				if (step > slip) {
+					continue;
+				}
+				if (firstStepRow < 0) {
+					firstStepRow = i;
+				}
+				S slipValue = ldup.getUpperTriangle().entry(i, slip);
+				for (; index > step; index--) {
+					reverseSolution.add(zero());
+				}
+				for (int j = firstStepRow; j > i; j--) {
+					int jStep = ldup.getSteps().get(j);
+					slipValue = add(
+							multiply(ldup.getUpperTriangle().entry(i, jStep), reverseSolution.get(m.columns() - jStep)),
+							slipValue);
+				}
+				index--;
+				reverseSolution.add(divide(negative(slipValue), ldup.getUpperTriangle().entry(i, step)));
+			}
+			for (; index > 0; index--) {
+				reverseSolution.add(zero());
+			}
+			Collections.reverse(reverseSolution);
+			result.add(new Vector<>(reverseSolution));
+		}
+		return result;
+	}
+
+	@Override
+	public List<Vector<S>> simplifySubModuleGenerators(MatrixModule<S> module, Matrix<S> m) {
+		List<Vector<S>> asVectors = new ArrayList<>();
+		MatrixModule<S>.LDUPResult gauss = module.ldup(m);
+		for (int j = 0; j < m.columns(); j++) {
+			if (gauss.getSlips().contains(j + 1)) {
+				continue;
+			}
+			asVectors.add(m.column(j + 1));
+		}
+		return asVectors;
+	}
+
+	@Override
 	public int krullDimension() {
 		return 0;
 	}
@@ -518,7 +644,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<S, S> moduloMaximalIdeal(Ideal<S> ideal) {
+	public ModuloMaximalIdealResult<S, S, Field<S>, Ideal<S>, Field<S>> moduloMaximalIdeal(Ideal<S> ideal) {
 		if (!ideal.equals(getZeroIdeal())) {
 			throw new ArithmeticException("Not a maximal ideal!");
 		}

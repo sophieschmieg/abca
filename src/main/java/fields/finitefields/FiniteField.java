@@ -2,12 +2,14 @@ package fields.finitefields;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField.PFE;
@@ -20,17 +22,21 @@ import fields.helper.GenericAlgebraicRingExtension;
 import fields.helper.GenericAlgebraicRingExtension.GenericAlgebraicExtensionElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
-import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
 import fields.interfaces.FieldExtension;
+import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
-import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.polynomials.AbstractPolynomialRing;
-import fields.polynomials.Monomial;
+import fields.numberfields.NumberField;
+import fields.numberfields.NumberField.NFE;
+import fields.numberfields.NumberFieldIntegers;
+import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import util.Pair;
 
 public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
@@ -61,7 +67,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 
 		@Override
 		public String toString() {
-			return this.e.toString("α", true);
+			return this.e.toString(/*"α",*/ true);
 		}
 
 	}
@@ -154,7 +160,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	}
 
 	private FiniteField(UnivariatePolynomial<PFE> minimalpolynomial, PrimeField base) {
-		super(minimalpolynomial, base);
+		super(minimalpolynomial, base, "x");
 		init();
 	}
 
@@ -168,7 +174,11 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	public FiniteField makeExtension(UnivariatePolynomial<PFE> minimalPolynomial) {
 		return getFiniteField(minimalPolynomial, PrimeField.getPrimeField(characteristic()));
 	}
-	
+
+	public FieldEmbedding<PFE, FFE, FiniteField> getEmbeddedExtension(int degree) {
+		return getEmbeddedExtension(findIrreduciblePolynomial(this, degree));
+	}
+
 	@Override
 	public PrimeField getBaseField() {
 		return PrimeField.getPrimeField(characteristic());
@@ -215,7 +225,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	public boolean isIrreducible(UnivariatePolynomial<FFE> t) {
 		BigInteger q = getNumberOfElements();
 		UnivariatePolynomialRing<FFE> ring = getUnivariatePolynomialRing();
-		GenericAlgebraicRingExtension<FFE> cr = new GenericAlgebraicRingExtension<>(t,this);
+		GenericAlgebraicRingExtension<FFE> cr = new GenericAlgebraicRingExtension<>(t, this);
 		GenericAlgebraicExtensionElement<FFE> x = cr.fromPolynomial(ring.getVar());
 		GenericAlgebraicExtensionElement<FFE> xqi = x;
 		int degree = t.degree();
@@ -404,6 +414,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		t = ring.normalize(t);
 		FactorizationResult<Polynomial<FFE>, FFE> squareFreeFactors = ring.squareFreeFactorization(t);
 		for (Polynomial<FFE> sff : squareFreeFactors.primeFactors()) {
+			sff = ring.normalize(sff);
 			List<Pair<Polynomial<FFE>, Integer>> distinctDegreeFactors = this.distinctDegreeFactorization(sff, 1);
 			for (Pair<Polynomial<FFE>, Integer> ddf : distinctDegreeFactors) {
 				if (ddf.getSecond() != 1) {
@@ -446,122 +457,194 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		return primitiveRoot;
 	}
 
-	public BigInteger discreteLogarithm(FFE base, FFE power) {
+	public IntE discreteLogarithm(FFE base, FFE power) {
+		Integers z = Integers.z();
+		IntE numberOfUnits = z.getInteger(getNumberOfUnits());
 		FFE primitiveRoot = primitiveRoot();
 		if (!base.equals(primitiveRoot)) {
-			BigInteger qm1 = characteristic().subtract(BigInteger.ONE);
-			BigInteger powerLog = discreteLogarithm(primitiveRoot, power);
-			BigInteger baseLog = discreteLogarithm(primitiveRoot, base);
-			BigInteger gcd = powerLog.gcd(baseLog);
-			powerLog = powerLog.divide(gcd);
-			baseLog = baseLog.divide(gcd);
-			return powerLog.multiply(baseLog.modInverse(qm1)).mod(qm1);
+			ModuloIntegerRing mod = new ModuloIntegerRing(numberOfUnits.getValue());
+			IntE powerLog = discreteLogarithm(primitiveRoot, power);
+			IntE baseLog = discreteLogarithm(primitiveRoot, base);
+			IntE gcd = z.gcd(powerLog, baseLog);
+			powerLog = z.divideChecked(powerLog, gcd);
+			baseLog = z.divideChecked(baseLog, gcd);
+			return z.multiply(powerLog, mod.lift(mod.inverse(mod.reduce(baseLog))));
 		}
-		Pair<UnivariatePolynomial<IntE>, UnivariatePolynomial<IntE>> polynomialChoice = choosePolynomial(degree() + 2);
-		return null;
+		NumberFieldIntegers nf = NumberField.getNumberFieldFromIntegerPolynomial(
+				z.centeredLiftUnivariatePolynomial(minimalPolynomial(), characteristic())).maximalOrder();
+		IntE smoothnessBound = z.getInteger(getNumberOfElements().bitLength() + 1);
+		List<NumberFieldIdeal> primeIdeals = new ArrayList<>();
+		Set<IntE> smoothnessBase = new TreeSet<>();
+		for (IntE prime : z.setOfPrimes()) {
+			if (prime.compareTo(smoothnessBound) > 0) {
+				break;
+			}
+			if (z.isDivisible(nf.discriminant(), prime)) {
+				continue;
+			}
+			smoothnessBase.add(prime);
+			primeIdeals.addAll(nf.idealsOver(prime));
+		}
+		NumberFieldIdeal ideal = nf.idealsOver(characteristic()).get(0);
+		List<List<IntE>> relations = new ArrayList<>();
+		List<IntE> exponents = new ArrayList<>();
+		Matrix<IntE> relationsMatrix;
+		MatrixModule<IntE> relationsMatrixModule;
+		while (true) {
+			IntE exponent = z.getRandomElement(numberOfUnits);
+			FFE testPower = power(primitiveRoot, exponent);
+			NFE lifted = nf.centeredLift(testPower, ideal);
+			Optional<NumberFieldIdeal> principal = nf.getIdealIfSmoothOver(Collections.singletonList(lifted),
+					smoothnessBase);
+			if (principal.isEmpty()) {
+				continue;
+			}
+			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = nf.idealFactorization(principal.get());
+			exponents.add(exponent);
+			List<IntE> relation = new ArrayList<>();
+			relation.addAll(nf.asUnitGeneratorVector(nf.projectToUnit(lifted)).asList());
+			for (NumberFieldIdeal primeIdeal : primeIdeals) {
+				relation.add(z.getInteger(factorization.multiplicity(primeIdeal)));
+			}
+			relations.add(relation);
+			relationsMatrix = new Matrix<>(relations);
+			relationsMatrixModule = relationsMatrix.getModule(z);
+			if (relationsMatrixModule.rank(relationsMatrix) == relationsMatrix.columns()) {
+				break;
+			}
+		}
+		Vector<IntE> logarithms = relationsMatrixModule.solve(relationsMatrix, new Vector<>(exponents));
+		while (true) {
+			IntE exponent = z.getRandomElement(z.getInteger(getNumberOfUnits()));
+			FFE testPower = multiply(power, power(primitiveRoot, z.negative(exponent)));
+			NFE lifted = nf.centeredLift(testPower, ideal);
+			Optional<NumberFieldIdeal> principal = nf.getIdealIfSmoothOver(Collections.singletonList(lifted),
+					smoothnessBase);
+			if (principal.isEmpty()) {
+				continue;
+			}
+			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = nf.idealFactorization(principal.get());
+			IntE result = exponent;
+			Vector<IntE> asUnitVector = nf.asUnitGeneratorVector(nf.projectToUnit(lifted));
+			for (int i = 0; i < asUnitVector.dimension(); i++) {
+				result = z.add(z.multiply(logarithms.get(i + 1), asUnitVector.get(i + 1)), result);
+				result = z.remainder(result, numberOfUnits);
+			}
+			for (int i = 0; i < primeIdeals.size(); i++) {
+				NumberFieldIdeal primeIdeal = primeIdeals.get(i);
+				IntE multiplicity = z.getInteger(factorization.multiplicity(primeIdeal));
+				result = z.add(z.multiply(logarithms.get(asUnitVector.dimension() + i + 1), multiplicity), result);
+				result = z.remainder(result, numberOfUnits);
+			}
+			return result;
+		}
+//		System.out.println(logarithms);
+//
+//		Pair<UnivariatePolynomial<IntE>, UnivariatePolynomial<IntE>> polynomialChoice = choosePolynomial(degree() + 2);
+//		return null;
 	}
 
-	private Pair<UnivariatePolynomial<IntE>, UnivariatePolynomial<IntE>> choosePolynomial(int d) {
-		Integers z = Integers.z();
-		PrimeField base = PrimeField.getPrimeField(characteristic());
-		UnivariatePolynomialRing<IntE> integerPolynomials = z.getUnivariatePolynomialRing();
-		UnivariatePolynomialRing<PFE> polynomials = base.getUnivariatePolynomialRing();
-		UnivariatePolynomial<PFE> psi = minimalPolynomial();
-		UnivariatePolynomial<IntE> quadratic = null;
-		PFE root = null;
-		Optional<Fraction> reconstruction = Optional.empty();
-		for (UnivariatePolynomial<IntE> q : integerPolynomials.monicPolynomialSet(2)) {
-			Map<PFE, Integer> roots = base.roots(z.reduceUnivariatePolynomial(q, characteristic()));
-			if (roots.size() != 2) {
-				continue;
-			}
-			Iterator<PFE> it = roots.keySet().iterator();
-			root = it.next();
-			if (root.equals(base.zero())) {
-				root = it.next();
-			}
-			reconstruction = base.rationalReconstruction(root);
-			if (reconstruction.isEmpty()) {
-				continue;
-			}
-			if (!z.factorization(q).isIrreducible()) {
-				continue;
-			}
-			quadratic = q;
-			break;
-		}
-		UnivariatePolynomial<IntE> f = null;
-		UnivariatePolynomial<IntE> g = null;
-		UnivariatePolynomial<IntE> g0 = null;
-		UnivariatePolynomial<IntE> g1 = null;
-		PolynomialRing<IntE> int2 = AbstractPolynomialRing.getPolynomialRing(z, 2, Monomial.GREVLEX);
-		for (UnivariatePolynomial<IntE> g1c : integerPolynomials.polynomialSet(degree() - 1)) {
-			g1 = g1c;
-			if (g1.degree() < 1) {
-				continue;
-			}
-			g0 = z.centeredLiftUnivariatePolynomial(
-					polynomials.subtract(psi,
-							polynomials.multiply(root, z.reduceUnivariatePolynomial(g1, characteristic()))),
-					characteristic());
-			g = integerPolynomials.add(integerPolynomials.scalarMultiply(reconstruction.get().getDenominator(), g0),
-					integerPolynomials.scalarMultiply(reconstruction.get().getNumerator(), g1));
-			if (!z.factorization(g).isIrreducible()) {
-				continue;
-			}
-			f = integerPolynomials.toUnivariate(int2.resultant(int2.getEmbedding(quadratic, new int[] { 1 }),
-					int2.add(int2.getEmbedding(g0, new int[] { 0 }),
-							int2.multiply(int2.getEmbedding(g1, new int[] { 0 }), int2.getVar(2))),
-					2));
-			if (!z.factorization(f).isIrreducible()) {
-				continue;
-			}
-			break;
-		}
+//	private Pair<UnivariatePolynomial<IntE>, UnivariatePolynomial<IntE>> choosePolynomial(int d) {
+//		Integers z = Integers.z();
+//		PrimeField base = PrimeField.getPrimeField(characteristic());
+//		UnivariatePolynomialRing<IntE> integerPolynomials = z.getUnivariatePolynomialRing();
+//		UnivariatePolynomialRing<PFE> polynomials = base.getUnivariatePolynomialRing();
+//		UnivariatePolynomial<PFE> psi = minimalPolynomial();
+//		UnivariatePolynomial<IntE> quadratic = null;
+//		PFE root = null;
+//		Optional<Fraction> reconstruction = Optional.empty();
+//		for (UnivariatePolynomial<IntE> q : integerPolynomials.monicPolynomialSet(2)) {
+//			Map<PFE, Integer> roots = base.roots(z.reduceUnivariatePolynomial(q, characteristic()));
+//			if (roots.size() != 2) {
+//				continue;
+//			}
+//			Iterator<PFE> it = roots.keySet().iterator();
+//			root = it.next();
+//			if (root.equals(base.zero())) {
+//				root = it.next();
+//			}
+//			reconstruction = base.rationalReconstruction(root);
+//			if (reconstruction.isEmpty()) {
+//				continue;
+//			}
+//			if (!z.factorization(q).isIrreducible()) {
+//				continue;
+//			}
+//			quadratic = q;
+//			break;
+//		}
 //		UnivariatePolynomial<IntE> f = null;
-//		for (UnivariatePolynomial<IntE> q : integerPolynomials.monicPolynomialSet(d + 1 - degree())) {
-//			f = z.centeredLiftUnivariatePolynomial(
-//					polynomials.multiply(z.reduceUnivariatePolynomial(q, characteristic()), psi),
-//					base.characteristic());
-//			if (z.factorization(f).isIrreducible()) {
-//				break;
+//		UnivariatePolynomial<IntE> g = null;
+//		UnivariatePolynomial<IntE> g0 = null;
+//		UnivariatePolynomial<IntE> g1 = null;
+//		PolynomialRing<IntE> int2 = AbstractPolynomialRing.getPolynomialRing(z, 2, Monomial.GREVLEX);
+//		for (UnivariatePolynomial<IntE> g1c : integerPolynomials.polynomialSet(degree() - 1)) {
+//			g1 = g1c;
+//			if (g1.degree() < 1) {
+//				continue;
 //			}
-//		}
-//		List<Vector<IntE>> basis = new ArrayList<>();
-//		for (int i = 0; i < degree(); i++) {
-//			List<IntE> c = new ArrayList<>();
-//			for (int j = 0; j < d + 1; j++) {
-//				c.add(z.zero());
+//			g0 = z.centeredLiftUnivariatePolynomial(
+//					polynomials.subtract(psi,
+//							polynomials.multiply(root, z.reduceUnivariatePolynomial(g1, characteristic()))),
+//					characteristic());
+//			g = integerPolynomials.add(integerPolynomials.scalarMultiply(reconstruction.get().getDenominator(), g0),
+//					integerPolynomials.scalarMultiply(reconstruction.get().getNumerator(), g1));
+//			if (!z.factorization(g).isIrreducible()) {
+//				continue;
 //			}
-//			c.set(i, z.getInteger(characteristic()));
-//			basis.add(new Vector<>(c));
-//		}
-//		for (int i = degree(); i < d + 1; i++) {
-//			List<IntE> c = new ArrayList<>();
-//			for (int j = 0; j < d + 1; j++) {
-//				int index = degree() - i + j;
-//				if (index >= 0 && index <= degree()) {
-//					c.add(z.centeredLift(psi.univariateCoefficient(index), characteristic()));
-//				} else {
-//					c.add(z.zero());
-//				}
+//			f = integerPolynomials.toUnivariate(int2.resultant(int2.getEmbedding(quadratic, new int[] { 1 }),
+//					int2.add(int2.getEmbedding(g0, new int[] { 0 }),
+//							int2.multiply(int2.getEmbedding(g1, new int[] { 0 }), int2.getVar(2))),
+//					2));
+//			if (!z.factorization(f).isIrreducible()) {
+//				continue;
 //			}
-//			basis.add(new Vector<>(c));
+//			break;
 //		}
-//		basis = new FiniteRationalVectorSpace(d + 1).integerLatticeReduction(basis);
-//		List<IntE> c = new ArrayList<>();
-//		for (Vector<IntE> b : basis) {
-//			c.add(b.get(1));
+////		UnivariatePolynomial<IntE> f = null;
+////		for (UnivariatePolynomial<IntE> q : integerPolynomials.monicPolynomialSet(d + 1 - degree())) {
+////			f = z.centeredLiftUnivariatePolynomial(
+////					polynomials.multiply(z.reduceUnivariatePolynomial(q, characteristic()), psi),
+////					base.characteristic());
+////			if (z.factorization(f).isIrreducible()) {
+////				break;
+////			}
+////		}
+////		List<Vector<IntE>> basis = new ArrayList<>();
+////		for (int i = 0; i < degree(); i++) {
+////			List<IntE> c = new ArrayList<>();
+////			for (int j = 0; j < d + 1; j++) {
+////				c.add(z.zero());
+////			}
+////			c.set(i, z.getInteger(characteristic()));
+////			basis.add(new Vector<>(c));
+////		}
+////		for (int i = degree(); i < d + 1; i++) {
+////			List<IntE> c = new ArrayList<>();
+////			for (int j = 0; j < d + 1; j++) {
+////				int index = degree() - i + j;
+////				if (index >= 0 && index <= degree()) {
+////					c.add(z.centeredLift(psi.univariateCoefficient(index), characteristic()));
+////				} else {
+////					c.add(z.zero());
+////				}
+////			}
+////			basis.add(new Vector<>(c));
+////		}
+////		basis = new FiniteRationalVectorSpace(d + 1).integerLatticeReduction(basis);
+////		List<IntE> c = new ArrayList<>();
+////		for (Vector<IntE> b : basis) {
+////			c.add(b.get(1));
+////		}
+////		UnivariatePolynomial<IntE> g = integerPolynomials.getPolynomial(c);
+//		if (!f.leadingCoefficient().equals(z.one()) || !z.factorization(f).isIrreducible()
+//				|| !z.factorization(g).isIrreducible()
+//				|| !polynomials.gcd(z.reduceUnivariatePolynomial(f, characteristic()),
+//						z.reduceUnivariatePolynomial(g, characteristic())).equals(psi)) {
+//			throw new ArithmeticException("Polynomial choice wrong");
 //		}
-//		UnivariatePolynomial<IntE> g = integerPolynomials.getPolynomial(c);
-		if (!f.leadingCoefficient().equals(z.one()) || !z.factorization(f).isIrreducible()
-				|| !z.factorization(g).isIrreducible()
-				|| !polynomials.gcd(z.reduceUnivariatePolynomial(f, characteristic()),
-						z.reduceUnivariatePolynomial(g, characteristic())).equals(psi)) {
-			throw new ArithmeticException("Polynomial choice wrong");
-		}
-		return new Pair<>(f, g);
-	}
+//		return new Pair<>(f, g);
+//	}
 
 	@Override
 	public GaloisGroup<PFE, FFE, FiniteField> galoisGroup() {
@@ -595,7 +678,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		}
 		return new FieldAutomorphism<>(this, images);
 	}
-	
+
 	public int smallestSubfieldContaining(FFE t) {
 		FFE power = t;
 		int result = 0;

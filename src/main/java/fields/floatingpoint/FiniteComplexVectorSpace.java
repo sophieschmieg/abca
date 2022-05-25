@@ -148,7 +148,7 @@ public class FiniteComplexVectorSpace extends AbstractInnerProductSpace<ComplexN
 	}
 
 	@Override
-	public List<List<ComplexNumber>> nonTrivialCombinations(List<Vector<ComplexNumber>> s) {
+	public List<Vector<ComplexNumber>> nonTrivialCombinations(List<Vector<ComplexNumber>> s) {
 		return vectorSpace.nonTrivialCombinations(s);
 	}
 

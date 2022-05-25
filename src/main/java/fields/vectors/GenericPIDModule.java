@@ -54,6 +54,59 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 		for (S basisVector : syzygies.getBasis()) {
 			vectorSyzygies.add(freeModule.asVector(basisVector));
 		}
+//		if (!vectorSyzygies.isEmpty() && freeModule.getRing() instanceof Integers) {
+//			List<Vector<IntE>> integerSyzygies = new ArrayList<>();
+//			MathMap<T, IntE> castMap = new MathMap<>() {
+//				@Override
+//				public IntE evaluate(T t) {
+//					return (IntE) t;
+//				}
+//			};
+//			for (S syzygyVector : syzygies.getBasis()) {
+//				integerSyzygies.add(Vector.mapVector(castMap, freeModule.asVector(syzygyVector)));
+//			}
+//			RealLattice asRealLattice = RealLattice.fromIntegerLattice(Reals.r(128), embeddingDimension,
+//					integerSyzygies, 1.0);
+//			vectorSyzygies.clear();
+//			integerSyzygies.clear();
+//			List<S> syzygiesList = new ArrayList<>();
+//			MathMap<IntE, T> castBackMap = new MathMap<>() {
+//				@SuppressWarnings("unchecked")
+//				@Override
+//				public T evaluate(IntE t) {
+//					return (T) t;
+//				}
+//			};
+//			MathMap<Real, IntE> roundMap = new MathMap<>() {
+//				@Override
+//				public IntE evaluate(Real t) {
+//					return t.round();
+//				}
+//			};
+//			for (Vector<Real> reduced : asRealLattice.getModuleGenerators()) {
+//				Vector<IntE> integerVector = Vector.mapVector(roundMap, reduced);
+//				Vector<T> vectorSyzygy = Vector.mapVector(castBackMap, integerVector);
+//				S syzygy = freeModule.fromVector(vectorSyzygy);
+//				integerSyzygies.add(integerVector);
+//				vectorSyzygies.add(vectorSyzygy);
+//				syzygiesList.add(syzygy);
+//			}
+//			this.syzygies = new FreeSubModule<>(freeModule, syzygiesList);
+//			this.rationalLattice = RationalLattice.fromIntegerLattice(embeddingDimension, integerSyzygies);
+//			this.asFractionMap = new MathMap<>() {
+//				@Override
+//				public Fraction evaluate(T t) {
+//					return Rationals.q().getEmbedding((IntE) t);
+//				}
+//			};
+//			this.fromFractionMap = new MathMap<>() {
+//				@SuppressWarnings("unchecked")
+//				@Override
+//				public T evaluate(Fraction t) {
+//					return (T) t.asInteger();
+//				}
+//			};
+//		}
 		if (vectorSyzygies.isEmpty()) {
 			vectorSyzygies.add(freeModule.asVector(freeModule.zero()));
 		}
@@ -90,9 +143,22 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 		return Exactness.EXACT;
 	}
 
+	public Module<T, S> getFreeModule() {
+		return freeModule;
+	}
+
 	@Override
 	public Mod<S> getRandomElement() {
-		return reduce(freeModule.getRandomElement());
+		List<T> asVector = new ArrayList<>();
+		for (int i = 0; i < embeddingDimension; i++) {
+			T order = diagonalIdeals().get(i).generators().get(0);
+			if (order.equals(base.zero())) {
+				asVector.add(base.getRandomElement());
+			} else {
+				asVector.add(base.getRandomElement(order));
+			}
+		}
+		return fromDiagonalVector(new Vector<>(asVector));
 	}
 
 	@Override
@@ -232,7 +298,15 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 
 	@Override
 	public Ideal<T> annihilator() {
-		return diagonalIdeals().get(embeddingDimension-1);
+		return diagonalIdeals().get(embeddingDimension - 1);
+	}
+
+	public T index() {
+		T index = base.one();
+		for (Ideal<T> diagonalIdeal : diagonalIdeals()) {
+			index = base.multiply(diagonalIdeal.generators().get(0), index);
+		}
+		return index;
 	}
 
 	@Override
@@ -265,9 +339,9 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 	}
 
 	@Override
-	public List<List<T>> nonTrivialCombinations(List<Mod<S>> s) {
+	public List<Vector<T>> nonTrivialCombinations(List<Mod<S>> s) {
 		List<S> lifts = new ArrayList<>();
-		List<List<T>> result = new ArrayList<>();
+		List<Vector<T>> result = new ArrayList<>();
 		List<Ideal<T>> diagonalIdeals = diagonalIdeals();
 		for (int k = 0; k < s.size(); k++) {
 			Mod<S> v = s.get(k);
@@ -290,7 +364,7 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 					additionalRelation.add(base.zero());
 				}
 			}
-			result.add(additionalRelation);
+			result.add(new Vector<>(additionalRelation));
 		}
 		result.addAll(freeModule.nonTrivialCombinations(lifts));
 
@@ -303,10 +377,10 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 	}
 
 	@Override
-	public List<List<T>> getModuleGeneratorRelations() {
-		List<List<T>> result = new ArrayList<>();
+	public List<Vector<T>> getSyzygies() {
+		List<Vector<T>> result = new ArrayList<>();
 		for (S syzygy : syzygies.getBasis()) {
-			result.add(freeModule.asVector(syzygy).asList());
+			result.add(freeModule.asVector(syzygy));
 		}
 		return result;
 	}
@@ -358,6 +432,18 @@ public class GenericPIDModule<T extends Element<T>, S extends Element<S>> extend
 		return new Mod<>(freeModule
 				.fromVector(matrixModule.codomainAlgebra().multiply(smith.getRowOperations(), new Vector<>(reduced))));
 	}
+
+//	private Mod<S> fromUnique(S s) {
+//		if (rationalLattice != null) {
+//			FiniteRationalVectorSpace space = rationalLattice.getVectorSpace();
+//			Vector<T> asVector = freeModule.asVector(s);
+//			Vector<Fraction> asRationalVector = Vector.mapVector(asFractionMap, asVector);
+//			Vector<Fraction> closestSyzygy = space.closestLatticePoint(asRationalVector, rationalLattice);
+//			Vector<Fraction> reduced = space.subtract(asRationalVector, closestSyzygy);
+//			s = freeModule.fromVector(Vector.mapVector(fromFractionMap, reduced));
+//		}
+//		return new Mod<>(s);
+//	}
 
 	public List<Mod<S>> diagonalBasis() {
 		FreeModule<T> freeModule = new FreeModule<>(base, embeddingDimension);

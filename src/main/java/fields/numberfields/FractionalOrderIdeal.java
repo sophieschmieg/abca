@@ -5,10 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
 import fields.floatingpoint.FiniteRealVectorSpace;
@@ -20,67 +16,105 @@ import fields.integers.Rationals.Fraction;
 import fields.interfaces.Element;
 import fields.interfaces.Ideal;
 import fields.interfaces.Lattice;
-import fields.interfaces.Ring.FactorizationResult;
 import fields.numberfields.NumberField.NFE;
-import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
+import fields.numberfields.NumberFieldOrder.NumberFieldOrderIdeal;
 import fields.vectors.FreeModule;
 import fields.vectors.FreeSubModule;
 import fields.vectors.Matrix;
 import fields.vectors.Vector;
-import util.Pair;
 
 public class FractionalOrderIdeal extends AbstractModule<IntE, NFE>
 		implements Element<FractionalOrderIdeal>, Lattice<NFE, Real, Vector<Real>> {
 	private NumberField field;
-	private NumberFieldIntegers order;
-	private NumberFieldIdeal numerator;
-	private NumberFieldIdeal denominator;
-	private NumberFieldIdeal numeratorClearedDenominator;
-	private IntE clearedDenominator;
+	private NumberFieldOrder order;
+	private NumberFieldOrderIdeal numerator;
+	private IntE denominator;
 	private List<NFE> basis;
 	private Matrix<Fraction> toBasisBaseChange;
 	private Matrix<Fraction> fromBasisBaseChange;
 	private Matrix<Real> generatorsAsMatrix;
 
-	public FractionalOrderIdeal(NumberFieldIntegers order, NumberFieldIdeal numerator) {
-		this(order, numerator, order.getUnitIdeal());
+	public FractionalOrderIdeal(NumberFieldOrder order, NumberFieldOrderIdeal numerator) {
+		this(order, numerator.generators());
 	}
 
-	public FractionalOrderIdeal(NumberFieldIntegers order, NumberFieldIdeal numerator, IntE denominator) {
+	public FractionalOrderIdeal(NumberFieldOrder order, NumberFieldOrderIdeal numerator, IntE denominator) {
 		this(order, numerator, order.getIdeal(Collections.singletonList(order.getInteger(denominator))));
 	}
 
-	public FractionalOrderIdeal(NumberFieldIntegers order, NumberFieldIdeal numerator, NumberFieldIdeal denominator) {
-		this.order = order;
-		this.field = order.numberField();
-		if (numerator.equals(order.getZeroIdeal())) {
-			this.numerator = order.getZeroIdeal();
-			this.denominator = order.getUnitIdeal();
-			return;
-		}
-		FactorizationResult<Ideal<NFE>, Ideal<NFE>> numeratorFactors = order.idealFactorization(numerator);
-		FactorizationResult<Ideal<NFE>, Ideal<NFE>> denominatorFactors = order.idealFactorization(denominator);
-		Set<Ideal<NFE>> primeIdeals = new TreeSet<>();
-		primeIdeals.addAll(numeratorFactors.primeFactors());
-		primeIdeals.addAll(denominatorFactors.primeFactors());
-		Map<NumberFieldIdeal, Integer> numeratorReduced = new TreeMap<>();
-		Map<NumberFieldIdeal, Integer> denominatorReduced = new TreeMap<>();
-		for (Ideal<NFE> prime : primeIdeals) {
-			int multiplicity = numeratorFactors.multiplicity(prime) - denominatorFactors.multiplicity(prime);
-			if (multiplicity > 0) {
-				numeratorReduced.put((NumberFieldIdeal) prime, multiplicity);
-			}
-			if (multiplicity < 0) {
-				denominatorReduced.put((NumberFieldIdeal) prime, -multiplicity);
+	private static List<NFE> generators(NumberFieldOrder order, NumberFieldOrderIdeal numerator,
+			NumberFieldOrderIdeal denominator) {
+		Integers z = Integers.z();
+		List<NFE> inverted = new ArrayList<>();
+		IntE integerDenominator = z.one();
+		for (NFE denominatorGenerator : denominator.generators()) {
+			NFE invertedDenominator = order.numberField().inverse(denominatorGenerator);
+			inverted.add(invertedDenominator);
+			Vector<Fraction> asFractions = order.asRationalVector(invertedDenominator);
+			for (Fraction c : asFractions.asList()) {
+				integerDenominator = z.lcm(c.getDenominator(), integerDenominator);
 			}
 		}
-		this.numerator = order.fromFactorization(numeratorReduced);
-		this.denominator = order.fromFactorization(denominatorReduced);
+		NumberFieldOrderIdeal clearedInverseDenominator = order.getUnitIdeal();
+		for (NFE invertedGenerator : inverted) {
+			clearedInverseDenominator = order.intersect(
+					order.getIdeal(order.numberField().multiply(integerDenominator, invertedGenerator)),
+					clearedInverseDenominator);
+		}
+		List<NFE> generators = new ArrayList<>();
+		for (NFE generator : order.multiply(numerator, clearedInverseDenominator).generators()) {
+			generators.add(order.numberField().divide(generator, order.numberField().getInteger(integerDenominator)));
+		}
+		return generators;
 	}
 
-	public static FractionalOrderIdeal principalIdeal(NumberFieldIntegers order, NFE generator) {
-		return new FractionalOrderIdeal(order, order.getIdeal(Collections.singletonList(order.getNumerator(generator))),
-				order.getIdeal(Collections.singletonList(order.getDenominator(generator))));
+	public FractionalOrderIdeal(NumberFieldOrder order, NumberFieldOrderIdeal numerator,
+			NumberFieldOrderIdeal denominator) {
+		this(order, generators(order, numerator, denominator));
+	}
+
+	public FractionalOrderIdeal(NumberFieldOrder order, List<NFE> generators) {
+		Integers z = Integers.z();
+		this.order = order;
+		this.field = order.numberField();
+		denominator = z.one();
+		List<NFE> multipliedGenerators = new ArrayList<>();
+		for (NFE orderBasis : order.getModuleGenerators()) {
+			for (NFE generator : generators) {
+				NFE multiplied = order.multiply(orderBasis, generator);
+				multipliedGenerators.add(multiplied);
+				Vector<Fraction> asFractions = order.asRationalVector(multiplied);
+				for (Fraction c : asFractions.asList()) {
+					denominator = z.lcm(c.getDenominator(), denominator);
+				}
+			}
+		}
+		List<NFE> clearedGenerators = new ArrayList<>();
+		for (NFE generator : multipliedGenerators) {
+			clearedGenerators.add(field.multiply(denominator, generator));
+		}
+		clearedGenerators = new FreeSubModule<>(order, clearedGenerators).getBasis();
+		if (clearedGenerators.isEmpty()) {
+			this.numerator = order.getZeroIdeal();
+			this.denominator = z.one();
+			this.basis = Collections.emptyList();
+			return;
+		}
+		clearedGenerators = field.minkowskiEmbeddingSpace().latticeReduction(clearedGenerators, this, 1.0);
+		this.numerator = order.getIdeal(clearedGenerators);
+		this.basis = new ArrayList<>();
+		List<Vector<Fraction>> basisAsVectors = new ArrayList<>();
+		for (NFE basisVector : clearedGenerators) {
+			NFE divided = field.divide(basisVector, field.getInteger(denominator));
+			basis.add(divided);
+			basisAsVectors.add(field.asVector(divided));
+		}
+		this.fromBasisBaseChange = Matrix.fromColumns(basisAsVectors);
+		this.toBasisBaseChange = field.matrixAlgebra().inverse(fromBasisBaseChange);
+	}
+
+	public static FractionalOrderIdeal principalIdeal(NumberFieldOrder order, NFE generator) {
+		return new FractionalOrderIdeal(order, Collections.singletonList(generator));
 	}
 
 	@Override
@@ -88,11 +122,15 @@ public class FractionalOrderIdeal extends AbstractModule<IntE, NFE>
 		return getNumerator() + "/" + getDenominator();
 	}
 
-	public NumberFieldIdeal getNumerator() {
+	public NumberFieldOrder getOrder() {
+		return order;
+	}
+
+	public NumberFieldOrderIdeal getNumerator() {
 		return numerator;
 	}
 
-	public NumberFieldIdeal getDenominator() {
+	public IntE getDenominator() {
 		return denominator;
 	}
 
@@ -112,40 +150,12 @@ public class FractionalOrderIdeal extends AbstractModule<IntE, NFE>
 		return numerator.compareTo(o.numerator);
 	}
 
-	public Pair<NumberFieldIdeal, IntE> clearDenominator() {
-		if (clearedDenominator == null) {
-			Integers z = Integers.z();
-			FactorizationResult<Ideal<NFE>, Ideal<NFE>> denominatorFactors = order.idealFactorization(denominator);
-			Map<IntE, Integer> primes = new TreeMap<>();
-			for (Ideal<NFE> primeFactor : denominatorFactors.primeFactors()) {
-				NumberFieldIdeal ideal = (NumberFieldIdeal) primeFactor;
-				if (!primes.containsKey(ideal.intGenerator())) {
-					primes.put(ideal.intGenerator(), 0);
-				}
-				primes.put(ideal.intGenerator(),
-						Math.max(primes.get(ideal.intGenerator()), denominatorFactors.multiplicity(primeFactor)));
-			}
-			IntE num = z.one();
-			for (IntE prime : primes.keySet()) {
-				num = z.multiply(num, z.power(prime, primes.get(prime)));
-			}
-			FractionalOrderIdeal cleared = new FractionalOrderIdeal(order,
-					order.getIdeal(Collections.singletonList(order.getEmbedding(num))), denominator);
-			if (!cleared.isInteger()) {
-				throw new ArithmeticException("Could not clear the denominator");
-			}
-			numeratorClearedDenominator = order.multiply(this.numerator, cleared.numerator);
-			clearedDenominator = num;
-		}
-		return new Pair<>(numeratorClearedDenominator, clearedDenominator);
-	}
-
 	public boolean isPrincipal() {
-		return clearDenominator().getFirst().isPrincipal();
+		return numerator.isPrincipal();
 	}
 
 	public boolean isInteger() {
-		return denominator.equals(order.getUnitIdeal());
+		return denominator.equals(Integers.z().one());
 	}
 
 	@Override
@@ -182,6 +192,11 @@ public class FractionalOrderIdeal extends AbstractModule<IntE, NFE>
 	public Ideal<IntE> annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
+	
+	@Override
+	public List<Vector<IntE>> getSyzygies() {
+		return Collections.emptyList();
+	}
 
 	private List<Vector<IntE>> asVectors(List<NFE> s) {
 		List<Vector<IntE>> result = new ArrayList<>();
@@ -202,33 +217,12 @@ public class FractionalOrderIdeal extends AbstractModule<IntE, NFE>
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<NFE> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<NFE> s) {
 		return new FreeModule<>(Integers.z(), field.degree()).nonTrivialCombinations(asVectors(s));
 	}
 
 	@Override
 	public List<NFE> getModuleGenerators() {
-		if (basis == null) {
-			Pair<NumberFieldIdeal, IntE> cleared = clearDenominator();
-			List<NFE> clearedGenerators = new ArrayList<>();
-			for (NFE orderGenerator : order.getModuleGenerators()) {
-				for (NFE numeratorGenerator : cleared.getFirst().generators()) {
-					clearedGenerators.add(field.multiply(orderGenerator, numeratorGenerator));
-				}
-			}
-			FreeSubModule<IntE, NFE> freeSubModule = new FreeSubModule<>(order, clearedGenerators);
-			List<NFE> unreducedBasis = new ArrayList<>();
-			for (NFE numeratorGenerator : freeSubModule.getModuleGenerators()) {
-				unreducedBasis.add(field.divide(numeratorGenerator, field.getEmbedding(cleared.getSecond())));
-			}
-			this.basis = field.minkowskiEmbeddingSpace().latticeReduction(unreducedBasis, this, 1.0);
-			List<Vector<Fraction>> basisAsVectors = new ArrayList<>();
-			for (NFE basisVector : basis) {
-				basisAsVectors.add(field.asVector(basisVector));
-			}
-			this.fromBasisBaseChange = Matrix.fromColumns(basisAsVectors);
-			this.toBasisBaseChange = field.matrixAlgebra().inverse(fromBasisBaseChange);
-		}
 		return basis;
 	}
 

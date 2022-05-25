@@ -11,10 +11,10 @@ import fields.interfaces.PolynomialRing;
 import fields.local.Value;
 import fields.local.ValueGroup;
 import fields.polynomials.CoordinateRing;
-import fields.polynomials.LocalizedCoordinateRing;
-import fields.polynomials.PolynomialIdeal;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
+import fields.polynomials.LocalizedCoordinateRing;
 import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
+import fields.polynomials.PolynomialIdeal;
 import varieties.Morphism;
 import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
@@ -56,7 +56,7 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 			throw new ArithmeticException("range dimensions mismatched!");
 		}
 	}
-	
+
 	public List<Polynomial<T>> asPolynomials() {
 		return asPolynomials;
 	}
@@ -83,7 +83,7 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 		result.minimumValue = Value.INFINITY;
 		for (Polynomial<T> polynomial : asPolynomials) {
 			Polynomial<T> affinePolynomial = affineRing
-					.getEmbedding(domain.homogenousPolynomialRing().dehomogenize(polynomial, coverIndex), map);
+					.getEmbedding(domain.homogenousPolynomialRing().dehomogenize(polynomial, coverIndex + 1), map);
 			LocalizedElement<T> inLocalization = localizedRing.getEmbedding(affinePolynomial);
 			Value value = localizedRing.valuation(inLocalization);
 			if (result.minimumValue.compareTo(value) > 0) {

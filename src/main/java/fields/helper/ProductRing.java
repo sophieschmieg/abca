@@ -14,6 +14,7 @@ import fields.helper.ProductRing.ProductElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.interfaces.Element;
+import fields.interfaces.Field;
 import fields.interfaces.Group;
 import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
@@ -21,6 +22,7 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.vectors.Vector;
 
 public class ProductRing<T extends Element<T>, R extends Ring<T>> extends AbstractRing<ProductElement<T>>
 		implements Ring<ProductElement<T>> {
@@ -624,6 +626,7 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 			List<ProductElement<T>> generators) {
 		List<Ideal<T>> idealList = new ArrayList<>();
 		List<List<List<T>>> transforms = new ArrayList<>();
+		List<Vector<ProductElement<T>>> syzygies = new ArrayList<>();
 		List<List<T>> generatorList = getColumns(generators);
 		int maximumGeneratorSize = 0;
 		for (int i = 0; i < numberOfFactors(); i++) {
@@ -632,6 +635,13 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 			transforms.add(ideal.getGeneratorExpressions());
 			if (maximumGeneratorSize < ideal.getGeneratorExpressions().size()) {
 				maximumGeneratorSize = ideal.getGeneratorExpressions().size();
+			}
+			for (Vector<T> syzygy : ideal.getSyzygies()) {
+				List<ProductElement<T>> productSyzygy = new ArrayList<>();
+				for (int j = 0; j < generators.size(); j++) {
+					productSyzygy.add(inject(syzygy.get(j + 1), i));
+				}
+				syzygies.add(new Vector<>(productSyzygy));
 			}
 		}
 		List<List<ProductElement<T>>> productTransforms = new ArrayList<>();
@@ -646,7 +656,7 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 			}
 			productTransforms.add(generatorTransform);
 		}
-		return new IdealResult<>(productTransforms, generators, getProductIdeal(idealList));
+		return new IdealResult<>(productTransforms, generators, getProductIdeal(idealList), syzygies);
 	}
 
 	@Override
@@ -684,7 +694,8 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public ModuloMaximalIdealResult<ProductElement<T>, ?> moduloMaximalIdeal(Ideal<ProductElement<T>> ideal) {
+	public ModuloMaximalIdealResult<ProductElement<T>, ?, ProductRing<T, R>, ProductIdeal<T, R>, ?> moduloMaximalIdeal(
+			Ideal<ProductElement<T>> ideal) {
 		ProductIdeal<T, R> maximalIdeal = (ProductIdeal<T, R>) ideal;
 		Optional<Integer> nonUnitIndex = maximalIdeal.uniqueNonUnitIdealIndex();
 		if (nonUnitIndex.isEmpty()) {
@@ -694,8 +705,8 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 				rings.get(nonUnitIndex.get()).moduloMaximalIdeal(maximalIdeal.projection(nonUnitIndex.get())));
 	}
 
-	private <S extends Element<S>> ModuloMaximalIdealResult<ProductElement<T>, S> moduloMaximalIdeal(
-			ProductIdeal<T, R> ideal, int index, ModuloMaximalIdealResult<T, S> moduloRing) {
+	private <S extends Element<S>, Ri extends Ring<T>, I extends Ideal<T>, F extends Field<S>> ModuloMaximalIdealResult<ProductElement<T>, S, ProductRing<T, R>, ProductIdeal<T, R>, F> moduloMaximalIdeal(
+			ProductIdeal<T, R> ideal, int index, ModuloMaximalIdealResult<T, S, Ri, I, F> moduloRing) {
 		return new ModuloMaximalIdealResult<>(this, ideal, moduloRing.getField(), new MathMap<>() {
 			@Override
 			public S evaluate(ProductElement<T> t) {
@@ -808,17 +819,17 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 			return result;
 		}
 
-		@Override
-		public List<List<ProductElement<T>>> nonTrivialCombinations(List<ProductElement<T>> s) {
-			List<List<ProductElement<T>>> result = new ArrayList<>();
-			for (int i = 0; i < productRing.numberOfFactors(); i++) {
-				List<List<T>> factorResult = ideals.get(i).nonTrivialCombinations(projectList(s, i));
-				for (List<T> row : factorResult) {
-					result.add(injectList(row, i));
-				}
-			}
-			return result;
-		}
+//		@Override
+//		public List<Vector<ProductElement<T>>> nonTrivialCombinations(List<ProductElement<T>> s) {
+//			List<Vector<ProductElement<T>>> result = new ArrayList<>();
+//			for (int i = 0; i < productRing.numberOfFactors(); i++) {
+//				List<Vector<T>> factorResult = ideals.get(i).nonTrivialCombinations(projectList(s, i));
+//				for (Vector<T> row : factorResult) {
+//					result.add(new Vector<>(injectList(row.asList(), i)));
+//				}
+//			}
+//			return result;
+//		}
 
 		@Override
 		public List<ProductElement<T>> generators() {

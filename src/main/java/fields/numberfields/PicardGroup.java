@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
+import fields.floatingpoint.Reals;
+import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractModule;
 import fields.integers.Integers;
@@ -15,42 +17,40 @@ import fields.integers.Integers.IntE;
 import fields.interfaces.Group;
 import fields.interfaces.Ideal;
 import fields.interfaces.Module;
-import fields.numberfields.PicardGroup.IdealClass;
 import fields.numberfields.NumberField.NFE;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
+import fields.numberfields.NumberFieldOrder.NumberFieldOrderIdeal;
+import fields.numberfields.PicardGroup.OrderIdealClass;
 import fields.vectors.FreeModule;
 import fields.vectors.GenericPIDModule;
 import fields.vectors.GenericPIDModule.Mod;
 import fields.vectors.Vector;
 
-public class PicardGroup extends AbstractModule<IntE, IdealClass>
-		implements Group<IdealClass>, Module<IntE, IdealClass> {
-	private NumberFieldIntegers order;
-	private IdealGroup idealGroup;
-	private Map<NumberFieldIdeal, IdealClass> reducedMapping;
-	private int nextIndex;
-	private List<IdealClass> generators;
+public class PicardGroup extends AbstractModule<IntE, OrderIdealClass>
+		implements Group<OrderIdealClass>, Module<IntE, OrderIdealClass> {
+	private NumberFieldOrder order;
+	private OrderIdealGroup idealGroup;
+	private Map<FractionalOrderIdeal, OrderIdealClass> reducedMapping;
+	private List<OrderIdealClass> elements;
+	private List<OrderIdealClass> generators;
 	private List<Integer> orders;
-	private IdealClass neutral;
-	private Map<Integer, Map<Integer, IdealClass>> operationMap;
-	private Map<Integer, IdealClass> inverseMap;
+	private OrderIdealClass neutral;
+	private Map<Integer, Map<Integer, OrderIdealClass>> operationMap;
+	private Map<Integer, OrderIdealClass> inverseMap;
 	private GenericPIDModule<IntE, Vector<IntE>> asGenericModule;
 
-	public static class IdealClass extends AbstractElement<IdealClass> {
-		private NumberFieldIdeal representative;
-		private List<NumberFieldIdeal> alternativeRepresentatives;
+	public static class OrderIdealClass extends AbstractElement<OrderIdealClass> {
+		private FractionalOrderIdeal representative;
 		private int index;
 		private Vector<IntE> asVector;
 
-		private IdealClass(int index, NumberFieldIdeal representative,
-				List<NumberFieldIdeal> alternativeRepresentatives) {
+		private OrderIdealClass(int index, FractionalOrderIdeal representative) {
 			this.index = index;
 			this.representative = representative;
-			this.alternativeRepresentatives = alternativeRepresentatives;
 		}
 
 		@Override
-		public int compareTo(IdealClass o) {
+		public int compareTo(OrderIdealClass o) {
 			return index - o.index;
 		}
 
@@ -59,12 +59,8 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 			return "[" + representative + "]";
 		}
 
-		public NumberFieldIdeal representative() {
+		public FractionalOrderIdeal representative() {
 			return representative;
-		}
-
-		List<NumberFieldIdeal> alternativeRepresentatives() {
-			return alternativeRepresentatives;
 		}
 
 		public boolean isPrincipal() {
@@ -72,29 +68,36 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 		}
 	}
 
-	PicardGroup(NumberFieldIntegers order) {
+	PicardGroup(NumberFieldOrder order) {
 		this.order = order;
-		this.idealGroup = order.numberField().idealGroup();
+		this.idealGroup = order.idealGroup();
+		this.elements = new ArrayList<>();
 		this.reducedMapping = new TreeMap<>();
-		this.nextIndex = 0;
 		this.neutral = getEmbedding(idealGroup.neutral());
 		this.operationMap = new TreeMap<>();
 		this.inverseMap = new TreeMap<>();
 	}
 
-	public IdealClass getEmbedding(FractionalIdeal ideal) {
-		return getEmbedding(ideal.clearDenominator().getFirst());
+	public OrderIdealClass getEmbedding(Ideal<NFE> ideal) {
+		return getEmbedding(idealGroup.getEmbedding(ideal));
 	}
 
-	public IdealClass getEmbedding(Ideal<NFE> ideal) {
-		NumberFieldIdeal representative = order.reducedRepresentative(ideal).clearDenominator().getFirst();
+	public OrderIdealClass getEmbedding(FractionalOrderIdeal ideal) {
+		NFE minimal = ideal.getVectorSpace().latticeReduction(ideal, 1.0).get(0);
+		FractionalOrderIdeal representative = idealGroup.operate(ideal,
+				idealGroup.getPrincipalIdeal(order.numberField().inverse(minimal)));
 		if (!reducedMapping.containsKey(representative)) {
-			List<NumberFieldIdeal> representatives = order.idealEquivalenceClass(ideal);
-			IdealClass idealClass = new IdealClass(nextIndex, representative, representatives);
-			nextIndex++;
-			for (NumberFieldIdeal alternate : representatives) {
-				reducedMapping.put(alternate, idealClass);
+			FractionalOrderIdeal inverse = idealGroup.inverse(representative);
+			for (OrderIdealClass element : elements) {
+				FractionalOrderIdeal divided = idealGroup.operate(element.representative(), inverse);
+				if (divided.isPrincipal()) {
+					reducedMapping.put(representative, element);
+					return element;
+				}
 			}
+			OrderIdealClass idealClass = new OrderIdealClass(elements.size(), representative);
+			elements.add(idealClass);
+			reducedMapping.put(representative, idealClass);
 		}
 		return reducedMapping.get(representative);
 
@@ -106,26 +109,23 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 		}
 		Integers z = Integers.z();
 		List<List<IntE>> syzygies = new ArrayList<>();
-		List<IdealClass> unoptimizedGenerators = unoptimizedGenerators();
+		List<OrderIdealClass> unoptimizedGenerators = unoptimizedGenerators();
 		FreeModule<IntE> free = new FreeModule<IntE>(z, unoptimizedGenerators.size());
 		neutral().asVector = free.zero();
-		List<IdealClass> generatedElements = new ArrayList<>();
-		generatedElements.add(neutral());
 		for (int i = 0; i < unoptimizedGenerators.size(); i++) {
-			IdealClass generator = unoptimizedGenerators.get(i);
-			IdealClass generatorPower = generator;
+			OrderIdealClass generator = unoptimizedGenerators.get(i);
+			OrderIdealClass generatorPower = generator;
 			int power = 1;
 			while (!generatorPower.equals(neutral())) {
 				Vector<IntE> powerVector = free.scalarMultiply(power, free.getUnitVector(i + 1));
 				if (generatorPower.asVector == null) {
-					List<IdealClass> elementsCopy = new ArrayList<>();
-					elementsCopy.addAll(generatedElements);
-					for (IdealClass element : elementsCopy) {
-						IdealClass cl = operate(element, generatorPower);
+					List<OrderIdealClass> elementsCopy = new ArrayList<>();
+					elementsCopy.addAll(elements);
+					for (OrderIdealClass element : elementsCopy) {
+						OrderIdealClass cl = operate(element, generatorPower);
 						if (cl.asVector != null) {
 							continue;
 						}
-						generatedElements.add(cl);
 						cl.asVector = free.add(element.asVector, powerVector);
 					}
 				} else {
@@ -150,9 +150,10 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 				free = new FreeModule<>(z, asGenericModule.diagonalBasis().size() - i);
 			}
 			Vector<IntE> basisVector = asGenericModule.lift(asGenericModule.diagonalBasis().get(i));
-			IdealClass generator = neutral();
+			OrderIdealClass generator = neutral();
 			for (int j = 0; j < unoptimizedGenerators.size(); j++) {
-				generator = operate(power(basisVector.get(j+1).intValueExact(), unoptimizedGenerators.get(j)), generator);
+				generator = operate(power(basisVector.get(j + 1).intValueExact(), unoptimizedGenerators.get(j)),
+						generator);
 			}
 			generators.add(generator);
 			orders.add(Math.abs(asGenericModule.diagonalRanks().get(i).intValueExact()));
@@ -164,7 +165,13 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 		if (free == null) {
 			return;
 		}
-		asGenericModule = GenericPIDModule.fromSyzygies(free, syzygies);
+		GenericPIDModule<IntE, Vector<IntE>> asReducedGenericModule = GenericPIDModule.fromSyzygies(free, syzygies);
+		for (OrderIdealClass ic : elements) {
+			ic.asVector = new Vector<>(asGenericModule.asDiagonalVector(ic.asVector).asList()
+					.subList(unoptimizedGenerators.size() - free.dimension(), unoptimizedGenerators.size()));
+			ic.asVector = asReducedGenericModule.lift(asReducedGenericModule.reduce(ic.asVector));
+		}
+		asGenericModule = asReducedGenericModule;
 	}
 
 	@Override
@@ -188,7 +195,7 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 	}
 
 	@Override
-	public IdealClass getRandomElement() {
+	public OrderIdealClass getRandomElement() {
 		return fromVector(asIntModule().lift(asIntModule().getRandomElement()));
 	}
 
@@ -203,7 +210,7 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 	}
 
 	@Override
-	public Iterator<IdealClass> iterator() {
+	public Iterator<OrderIdealClass> iterator() {
 		return new Iterator<>() {
 			private Iterator<Mod<Vector<IntE>>> it = asIntModule().iterator();
 
@@ -213,38 +220,38 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 			}
 
 			@Override
-			public IdealClass next() {
+			public OrderIdealClass next() {
 				return fromVector(asIntModule().lift(it.next()));
 			}
 		};
 	}
 
 	@Override
-	public IdealClass neutral() {
+	public OrderIdealClass neutral() {
 		return neutral;
 	}
 
 	@Override
-	public IdealClass zero() {
+	public OrderIdealClass zero() {
 		return neutral();
 	}
 
 	@Override
-	public IdealClass inverse(IdealClass t) {
+	public OrderIdealClass inverse(OrderIdealClass t) {
 		if (!inverseMap.containsKey(t.index)) {
-			IdealClass cl = getEmbedding(idealGroup.inverse(idealGroup.getEmbedding(t.representative)));
+			OrderIdealClass cl = getEmbedding(idealGroup.inverse(t.representative));
 			inverseMap.put(t.index, cl);
 		}
 		return inverseMap.get(t.index);
 	}
 
 	@Override
-	public IdealClass negative(IdealClass s) {
+	public OrderIdealClass negative(OrderIdealClass s) {
 		return inverse(s);
 	}
 
 	@Override
-	public IdealClass operate(IdealClass t1, IdealClass t2) {
+	public OrderIdealClass operate(OrderIdealClass t1, OrderIdealClass t2) {
 		if (!this.operationMap.containsKey(t1.index)) {
 			this.operationMap.put(t1.index, new TreeMap<>());
 		}
@@ -252,7 +259,7 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 			this.operationMap.put(t2.index, new TreeMap<>());
 		}
 		if (!this.operationMap.get(t1.index).containsKey(t2.index)) {
-			IdealClass cl = getEmbedding(order.multiply(t1.representative, t2.representative));
+			OrderIdealClass cl = getEmbedding(idealGroup.operate(t1.representative, t2.representative));
 			this.operationMap.get(t1.index).put(t2.index, cl);
 			this.operationMap.get(t2.index).put(t1.index, cl);
 		}
@@ -260,12 +267,12 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 	}
 
 	@Override
-	public IdealClass add(IdealClass s1, IdealClass s2) {
+	public OrderIdealClass add(OrderIdealClass s1, OrderIdealClass s2) {
 		return operate(s1, s2);
 	}
 
 	@Override
-	public IdealClass scalarMultiply(IntE t, IdealClass s) {
+	public OrderIdealClass scalarMultiply(IntE t, OrderIdealClass s) {
 		return power(t.getValue(), s);
 	}
 
@@ -280,42 +287,51 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 	}
 
 	@Override
-	public boolean isLinearIndependent(List<IdealClass> s) {
+	public boolean isLinearIndependent(List<OrderIdealClass> s) {
 		return s.isEmpty();
 	}
 
-	private Mod<Vector<IntE>> asIntModuleElement(IdealClass s) {
+	private Mod<Vector<IntE>> asIntModuleElement(OrderIdealClass s) {
 		return asIntModule().reduce(asVector(s));
 	}
 
-	private List<Mod<Vector<IntE>>> asIntModuleElementList(List<IdealClass> s) {
+	private List<Mod<Vector<IntE>>> asIntModuleElementList(List<OrderIdealClass> s) {
 		List<Mod<Vector<IntE>>> result = new ArrayList<>();
-		for (IdealClass c : s) {
+		for (OrderIdealClass c : s) {
 			result.add(asIntModuleElement(c));
 		}
 		return result;
 	}
 
 	@Override
-	public boolean isGeneratingModule(List<IdealClass> s) {
+	public boolean isGeneratingModule(List<OrderIdealClass> s) {
 		return asGenericModule.isGeneratingModule(asIntModuleElementList(s));
 	}
 
 	@Override
-	public List<List<IntE>> nonTrivialCombinations(List<IdealClass> s) {
+	public List<Vector<IntE>> nonTrivialCombinations(List<OrderIdealClass> s) {
 		return asIntModule().nonTrivialCombinations(asIntModuleElementList(s));
 	}
 
-	private List<IdealClass> unoptimizedGenerators() {
+	private List<OrderIdealClass> unoptimizedGenerators() {
 		Integers z = Integers.z();
-		List<IdealClass> generators = new ArrayList<>();
-		IntE minkowskiLimit = order.numberField().minkowskiBound().roundDown();
+		List<OrderIdealClass> generators = new ArrayList<>();
+		Reals r = order.getVectorSpace().getValueField().getReals();
+		Real sqrtDiscriminantRatio = r.positiveSqrt(
+				r.abs(r.divide(r.getInteger(order.discriminant()), r.getInteger(order.numberField().discriminant()))));
+		IntE minkowskiLimit = r.multiply(sqrtDiscriminantRatio, order.numberField().minkowskiBound()).roundDown();
+		IntE conductor = order.integerConductor();
+		NumberFieldIntegers maximalOrder = order.numberField().maximalOrder();
 		for (IntE prime : z.setOfPrimes()) {
 			if (prime.compareTo(minkowskiLimit) > 0) {
 				break;
 			}
-			for (NumberFieldIdeal ideal : order.idealsOver(prime)) {
-				IdealClass generator = getEmbedding(ideal);
+			if (z.isDivisible(conductor, prime)) {
+				continue;
+			}
+			for (NumberFieldIdeal ideal : maximalOrder.idealsOver(prime)) {
+				NumberFieldOrderIdeal restricted = order.restrictFromMaximalOrder(ideal);
+				OrderIdealClass generator = getEmbedding(restricted);
 				if (generator.equals(neutral())) {
 					continue;
 				}
@@ -329,7 +345,7 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 	}
 
 	@Override
-	public List<IdealClass> getModuleGenerators() {
+	public List<OrderIdealClass> getModuleGenerators() {
 		if (generators == null) {
 			computeAllElements();
 		}
@@ -337,17 +353,17 @@ public class PicardGroup extends AbstractModule<IntE, IdealClass>
 	}
 
 	public List<Integer> getOrders() {
-		 asIntModule();
-		 return orders;
+		asIntModule();
+		return orders;
 	}
 
 	@Override
-	public List<List<IntE>> getModuleGeneratorRelations() {
-		return asIntModule().getModuleGeneratorRelations();
+	public List<Vector<IntE>> getSyzygies() {
+		return asIntModule().getSyzygies();
 	}
 
 	@Override
-	public Vector<IntE> asVector(IdealClass s) {
+	public Vector<IntE> asVector(OrderIdealClass s) {
 		computeAllElements();
 		return s.asVector;
 	}

@@ -1,5 +1,7 @@
 package fields.interfaces;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.math.BigInteger;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -8,8 +10,10 @@ import java.util.Map;
 import java.util.SortedSet;
 
 import fields.exceptions.InfinityException;
+import fields.integers.Rationals.Fraction;
 import fields.polynomials.Monomial;
 import fields.vectors.Vector;
+import util.PeekableReader;
 
 public interface UnivariatePolynomialRing<T extends Element<T>> extends PolynomialRing<T> {
 
@@ -19,7 +23,26 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	int numberOfVariables();
 
+	@Override
+	UnivariatePolynomial<T> parse(PeekableReader reader) throws IOException;
+
+	@Override
+	default UnivariatePolynomial<T> parse(String text) throws IOException {
+		PeekableReader reader = new PeekableReader(new StringReader(text));
+		UnivariatePolynomial<T> result = parse(reader);
+		if (reader.peek() >= 0) {
+			throw new IOException("Parser did not consume full element!");
+		}
+		return result;
+	}
+
 	Comparator<Monomial> getComparator();
+
+	UnivariatePolynomialRing<T> withVariableName(String variableName);
+
+	String getVariableName();
+
+	void setVariableName(String variableName);
 
 	BigInteger characteristic();
 
@@ -120,7 +143,7 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	boolean isLinearIndependent(List<Polynomial<T>> s);
 
-	List<List<T>> nonTrivialCombinations(List<Polynomial<T>> s);
+	List<Vector<T>> nonTrivialCombinations(List<Polynomial<T>> s);
 
 	Iterator<Polynomial<T>> iterator();
 
@@ -131,6 +154,12 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 	Iterator<UnivariatePolynomial<T>> monicPolynomials(int degree);
 
 	Iterable<UnivariatePolynomial<T>> monicPolynomialSet(int degree);
+
+	ChineseRemainderPreparation<Polynomial<T>> prepareInterpolation(List<T> interpolationPoints);
+
+	UnivariatePolynomial<T> interpolate(ChineseRemainderPreparation<Polynomial<T>> preparation, List<T> interpolationValues);
+
+	UnivariatePolynomial<T> interpolate(List<T> interpolationPoints, List<T> interpolationValues);
 
 	T evaluate(Polynomial<T> t, List<T> ts);
 
@@ -145,6 +174,8 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 	T content(Polynomial<T> t);
 
 	UnivariatePolynomial<T> contentFree(Polynomial<T> t);
+
+	UnivariatePolynomial<T> depress(Polynomial<T> t);
 
 	UnivariatePolynomial<T> derivative(Polynomial<T> t, int variable);
 
@@ -172,11 +203,12 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 		private final T resultant;
 		private final UnivariatePolynomial<T> resultantCoeff1;
 		private final UnivariatePolynomial<T> resultantCoeff2;
-private final UnivariatePolynomial<T> gcd;
+		private final UnivariatePolynomial<T> gcd;
 		private final UnivariatePolynomial<T> coeff1;
 		private final UnivariatePolynomial<T> coeff2;
 
-		public ExtendedResultantResult(T resultant, UnivariatePolynomial<T> resultantCoeff1, UnivariatePolynomial<T> resultantCoeff2, UnivariatePolynomial<T> gcd, UnivariatePolynomial<T> coeff1,
+		public ExtendedResultantResult(T resultant, UnivariatePolynomial<T> resultantCoeff1,
+				UnivariatePolynomial<T> resultantCoeff2, UnivariatePolynomial<T> gcd, UnivariatePolynomial<T> coeff1,
 				UnivariatePolynomial<T> coeff2) {
 			this.resultant = resultant;
 			this.resultantCoeff1 = resultantCoeff1;
@@ -186,7 +218,6 @@ private final UnivariatePolynomial<T> gcd;
 			this.coeff2 = coeff2;
 		}
 
-		
 		public T getResultant() {
 			return resultant;
 		}
@@ -195,11 +226,9 @@ private final UnivariatePolynomial<T> gcd;
 			return resultantCoeff1;
 		}
 
-
 		public UnivariatePolynomial<T> getResultantCoeff2() {
 			return resultantCoeff2;
 		}
-
 
 		public UnivariatePolynomial<T> getGcd() {
 			return gcd;
@@ -216,6 +245,7 @@ private final UnivariatePolynomial<T> gcd;
 	}
 
 	ExtendedResultantResult<T> extendedResultant(Polynomial<T> t1, Polynomial<T> t2);
-	
+
 	UnivariatePolynomial<T> round(Polynomial<T> t, int degree);
+
 }

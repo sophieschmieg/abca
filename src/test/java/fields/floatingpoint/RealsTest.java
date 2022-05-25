@@ -12,13 +12,13 @@ class RealsTest {
 	private boolean closeEnough(Reals r, Real t1, Real t2) {
 		return r.abs(r.subtract(t1, t2)).compareTo(r.getDouble(1e-100)) < 0;
 	}
-	
+
 	@Test
 	void testRound() {
 		Reals r = Reals.r(1024);
 		assertEquals(r.getDouble(0.0625), r.roundToFixedPoint(r.getDouble(0.09375), 4));
 	}
-	
+
 	@Test
 	void testToString() {
 		Reals r = Reals.r(1024);
@@ -86,9 +86,9 @@ class RealsTest {
 				+ "99206955170276183860626133138458300075204493382656029760673711320070932870912"
 				+ "74437470472306969772093101416928368190255151086574637721112523897844250569536"
 				+ "9677078544996996794686445490598793163688923009879312");
-		assertTrue(r.close(e, r.e()));
+		assertTrue(closeEnough(r, e, r.e()));
 	}
-	
+
 	@Test
 	void testExpLog() {
 		Reals r = Reals.r(1024);
@@ -97,8 +97,8 @@ class RealsTest {
 			assertTrue(closeEnough(r, test, r.log(r.exp(test))));
 		}
 	}
-	
-	@Test
+
+	//@Test
 	void testExpLogBinarySearch() {
 		Reals r = Reals.r(1024);
 		for (int tc = 0; tc < 10; tc++) {
@@ -106,19 +106,36 @@ class RealsTest {
 			assertTrue(closeEnough(r, test, r.invertMonotonic(r.exp(), r.exp(test))));
 		}
 	}
-	
-	
+
 	@Test
 	void testArctan() {
 		Reals r = Reals.r(1024);
 		assertTrue(r.close(r.zero(), r.arctan(r.getInteger(0))));
-		assertTrue(closeEnough(r, r.divide(r.pi(), r.getInteger(12)), r.arctan(r.subtract(r.getInteger(2), r.positiveSqrt(r.getInteger(3))))));
-		assertTrue(closeEnough(r, r.divide(r.pi(), r.getInteger(8)), r.arctan(r.subtract(r.positiveSqrt(r.getInteger(2)), r.one()))));
+		assertTrue(closeEnough(r, r.divide(r.pi(), r.getInteger(12)),
+				r.arctan(r.subtract(r.getInteger(2), r.positiveSqrt(r.getInteger(3))))));
+		assertTrue(closeEnough(r, r.divide(r.pi(), r.getInteger(8)),
+				r.arctan(r.subtract(r.positiveSqrt(r.getInteger(2)), r.one()))));
 		assertTrue(closeEnough(r, r.divide(r.pi(), r.getInteger(4)), r.arctan(r.one())));
 		assertTrue(closeEnough(r, r.divide(r.pi(), r.getInteger(3)), r.arctan(r.positiveSqrt(r.getInteger(3)))));
-		assertTrue(closeEnough(r, r.divide(r.multiply(3, r.pi()), r.getInteger(8)), r.arctan(r.add(r.positiveSqrt(r.getInteger(2)), r.one()))));
-		assertTrue(closeEnough(r, r.divide(r.multiply(-3, r.pi()), r.getInteger(8)), r.arctan(r.negative(r.add(r.positiveSqrt(r.getInteger(2)), r.one())))));
-		assertTrue(closeEnough(r, r.divide(r.multiply(-1, r.pi()), r.getInteger(3)), r.arctan(r.negative(r.positiveSqrt(r.getInteger(3))))));
-		assertTrue(closeEnough(r, r.divide(r.multiply(-1, r.pi()), r.getInteger(8)), r.arctan(r.subtract(r.one(), r.positiveSqrt(r.getInteger(2))))));
+		assertTrue(closeEnough(r, r.divide(r.multiply(3, r.pi()), r.getInteger(8)),
+				r.arctan(r.add(r.positiveSqrt(r.getInteger(2)), r.one()))));
+		assertTrue(closeEnough(r, r.divide(r.multiply(-3, r.pi()), r.getInteger(8)),
+				r.arctan(r.negative(r.add(r.positiveSqrt(r.getInteger(2)), r.one())))));
+		assertTrue(closeEnough(r, r.divide(r.multiply(-1, r.pi()), r.getInteger(3)),
+				r.arctan(r.negative(r.positiveSqrt(r.getInteger(3))))));
+		assertTrue(closeEnough(r, r.divide(r.multiply(-1, r.pi()), r.getInteger(8)),
+				r.arctan(r.subtract(r.one(), r.positiveSqrt(r.getInteger(2))))));
+	}
+	
+	@Test
+	void testInvSqrt() {
+		Reals r = Reals.r(128);
+		Real eps = r.getPowerOfTwo(-127);
+		for (int tc = 0; tc < 100; tc++) {
+			Real rand = r.abs(r.getRandomElement());
+			Real invSqrt = r.inverseSqrt(rand);
+			System.out.println(r.abs(r.subtract(r.one(), r.multiply(rand, invSqrt, invSqrt))));
+			assertTrue(r.abs(r.subtract(r.one(), r.multiply(rand, invSqrt, invSqrt))).compareTo(eps) <= 0);
 		}
+	}
 }

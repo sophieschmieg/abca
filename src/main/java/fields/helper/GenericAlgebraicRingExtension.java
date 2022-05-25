@@ -34,7 +34,7 @@ public class GenericAlgebraicRingExtension<T extends Element<T>>
 
 	}
 	public GenericAlgebraicRingExtension(UnivariatePolynomial<T> minimalPolynomial, Ring<T> baseRing) {
-		super(minimalPolynomial, baseRing);
+		super(minimalPolynomial, baseRing, "x");
 	}
 
 	public GenericAlgebraicRingExtension(Ring<T> baseRing) {

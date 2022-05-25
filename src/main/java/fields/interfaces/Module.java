@@ -26,12 +26,9 @@ public interface Module<T extends Element<T>, S extends Element<S>> extends Math
 	public S scalarMultiply(BigInteger n, T t1, T t2, S s);
 	public boolean isLinearIndependent(List<S> s);
 	public boolean isGeneratingModule(List<S> s);
-	public List<T> nonTrivialCombination(List<S> s);
-	public List<List<T>> nonTrivialCombinations(List<S> s);
+	public List<Vector<T>> nonTrivialCombinations(List<S> s);
 	public List<S> getModuleGenerators();
-	public default List<List<T>> getModuleGeneratorRelations() {
-		return nonTrivialCombinations(getModuleGenerators());
-	}
+	public List<Vector<T>> getSyzygies();
 	public Vector<T> asVector(S s);
 	public S fromVector(Vector<T> vector);
 }

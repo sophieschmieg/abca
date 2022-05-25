@@ -6,6 +6,8 @@ import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals.Real;
 import fields.vectors.DualVectorSpace;
 import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 
 public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> extends NormedVectorSpace<T, S> {
 	public ComplexNumber asComplexNumber(T t);
@@ -92,7 +94,7 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 			this.diagonalMatrix = diagonalMatrix;
 			this.rightUnitaryMatrix = rightUnitaryMatrix;
 		}
-		
+
 		public int getRank() {
 			return rank;
 		}
@@ -111,6 +113,14 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 	}
 
 	public SingularValueDecompositionResult<T> singularValueDecomposition(Matrix<T> t);
-	
+
 	public Matrix<T> pseudoInverse(Matrix<T> t);
+
+	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
+
+	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
+
+	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m);
+
+	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m);
 }

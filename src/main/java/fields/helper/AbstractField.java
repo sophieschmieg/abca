@@ -30,6 +30,7 @@ import fields.local.TrivialDiscreteValuationField;
 import fields.local.Value;
 import fields.polynomials.GenericUnivariatePolynomialRing;
 import fields.polynomials.Monomial;
+import fields.vectors.FiniteVectorSpace;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
@@ -40,7 +41,8 @@ import util.Identity;
 import util.Pair;
 import util.SingletonSortedMap;
 
-public abstract class AbstractField<T extends Element<T>> implements Field<T>, Ring<T>, DedekindRing<T, T, T>, LocalRing<T, T, T> {
+public abstract class AbstractField<T extends Element<T>>
+		implements Field<T>, Ring<T>, DedekindRing<T, T, T>, LocalRing<T, T, T> {
 	private GenericUnivariatePolynomialRing<T> ring = new GenericUnivariatePolynomialRing<T>(this);
 
 	@Override
@@ -446,22 +448,22 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		return new LocalizeResult<>(this, primeIdeal, this, new Identity<>(), new Identity<>(),
 				new ConstantMap<>(one()), new Identity<>());
 	}
-	
+
 	@Override
 	public FieldIdeal<T> maximalIdeal() {
 		return getZeroIdeal();
 	}
-	
+
 	@Override
 	public Field<T> reduction() {
 		return this;
 	}
-	
+
 	@Override
 	public T reduce(T t) {
 		return t;
 	}
-	
+
 	@Override
 	public T lift(T t) {
 		return t;
@@ -649,7 +651,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		}
 		return new ChineseRemainderPreparation<>(ideals, getZeroIdeal(), Collections.emptyList());
 	}
-	
+
 	@Override
 	public ChineseRemainderPreparation<T> prepareChineseRemainderTheoremModuli(List<T> moduli) {
 		List<Ideal<T>> asIdeals = new ArrayList<>();
@@ -722,6 +724,132 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	@Override
 	public T characteristicRoot(T t, int power) {
 		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		MatrixModule<T>.LDUPResult ldup = module.ldup(m);
+		// LD^-1Ux=P^-1b
+		Vector<T> rhs = module.permuteVector(ldup.getInversePermutation(), b);
+		// D^-1Ux=L^-1P^-1b
+		List<T> solution = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			T adjustedRhs = rhs.get(i + 1);
+			for (int k = 0; k < i; k++) {
+				adjustedRhs = subtract(adjustedRhs,
+						multiply(ldup.getLowerTriangle().entry(i + 1, k + 1), solution.get(k)));
+			}
+			solution.add(divide(adjustedRhs, ldup.getLowerTriangle().entry(i + 1, i + 1)));
+		}
+		for (int i = ldup.getRank(); i < b.dimension(); i++) {
+			if (!solution.get(i).equals(zero())) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		MatrixModule<T>.LDUPResult ldup = module.ldup(m);
+		// PLD^-1Ux=Ax=b
+		// LD^-1Ux=P^-1b
+		Vector<T> rhs = module.permuteVector(ldup.getInversePermutation(), b);
+		// D^-1Ux=L^-1P^-1b
+		List<T> solution = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			T adjustedRhs = rhs.get(i + 1);
+			for (int k = 0; k < i; k++) {
+				adjustedRhs = subtract(adjustedRhs,
+						multiply(ldup.getLowerTriangle().entry(i + 1, k + 1), solution.get(k)));
+			}
+			solution.add(divide(adjustedRhs, ldup.getLowerTriangle().entry(i + 1, i + 1)));
+		}
+		// Ux = DL^-1P^-1b
+		List<T> adjustedSolution = new ArrayList<>();
+		for (int i = 0; i < m.rows(); i++) {
+			adjustedSolution.add(multiply(ldup.getInverseDiagonal().entry(i + 1, i + 1), solution.get(i)));
+		}
+		// x = U^-1DL^-1P^-1b
+		List<T> reverseSolution = new ArrayList<>();
+		int j = m.columns();
+		for (int i = m.rows(); i > 0; i--) {
+			if (!ldup.getSteps().containsKey(i)) {
+				continue;
+			}
+			while (ldup.getSlips().contains(j)) {
+				reverseSolution.add(zero());
+				j--;
+			}
+			T adjustedRhs = adjustedSolution.get(i - 1);
+			for (int k = 0; k < reverseSolution.size(); k++) {
+				adjustedRhs = subtract(adjustedRhs,
+						multiply(reverseSolution.get(k), ldup.getUpperTriangle().entry(i, m.columns() - k)));
+			}
+			reverseSolution.add(divide(adjustedRhs, ldup.getUpperTriangle().entry(i, j)));
+			j--;
+		}
+		while (ldup.getSlips().contains(j)) {
+			reverseSolution.add(zero());
+			j--;
+		}
+		Collections.reverse(reverseSolution);
+		return new Vector<>(reverseSolution);
+	}
+
+	@Override
+	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m) {
+		MatrixModule<T>.LDUPResult ldup = module.ldup(m);
+		List<Vector<T>> result = new ArrayList<>();
+		for (int slip : ldup.getSlips()) {
+			List<T> reverseSolution = new ArrayList<>();
+			for (int i = 0; i < m.columns() - slip; i++) {
+				reverseSolution.add(zero());
+			}
+			reverseSolution.add(one());
+			int index = slip - 1;
+			int firstStepRow = -1;
+			for (int i = ldup.getRank(); i > 0; i--) {
+				int step = ldup.getSteps().get(i);
+				if (step > slip) {
+					continue;
+				}
+				if (firstStepRow < 0) {
+					firstStepRow = i;
+				}
+				T slipValue = ldup.getUpperTriangle().entry(i, slip);
+				for (; index > step; index--) {
+					reverseSolution.add(zero());
+				}
+				for (int j = firstStepRow; j > i; j--) {
+					int jStep = ldup.getSteps().get(j);
+					slipValue = add(
+							multiply(ldup.getUpperTriangle().entry(i, jStep), reverseSolution.get(m.columns() - jStep)),
+							slipValue);
+				}
+				index--;
+				reverseSolution.add(divide(negative(slipValue), ldup.getUpperTriangle().entry(i, step)));
+			}
+			for (; index > 0; index--) {
+				reverseSolution.add(zero());
+			}
+			Collections.reverse(reverseSolution);
+			result.add(new Vector<>(reverseSolution));
+		}
+		return result;
+	}
+
+	@Override
+	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m) {
+		List<Vector<T>> asVectors = new ArrayList<>();
+		MatrixModule<T>.LDUPResult gauss = module.ldup(m);
+		for (int j = 0; j < m.columns(); j++) {
+			if (gauss.getSlips().contains(j + 1)) {
+				continue;
+			}
+			asVectors.add(m.column(j + 1));
+		}
+		return asVectors;
 	}
 
 	@Override
@@ -811,15 +939,32 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		FieldIdeal<T> ideal = new FieldIdeal<>(generators, this);
 		List<T> expression = new ArrayList<>();
 		boolean found = false;
-		for (T g : generators) {
+		int nonZeroIndex = -1;
+		for (int i = 0; i < generators.size(); i++) {
+			T g = generators.get(i);
 			if (!found && !g.equals(zero())) {
 				found = true;
+				nonZeroIndex = i;
 				expression.add(inverse(g));
 			} else {
 				expression.add(zero());
 			}
 		}
-		return new IdealResult<>(Collections.singletonList(expression), generators, ideal);
+		List<Vector<T>> syzygies = new ArrayList<>();
+		FiniteVectorSpace<T> vectorSpace = new FiniteVectorSpace<>(this, generators.size());
+		if (!found) {
+			syzygies.addAll(vectorSpace.getBasis());
+		} else {
+			for (int i = 0; i < generators.size(); i++) {
+				if (i == nonZeroIndex) {
+					continue;
+				}
+				syzygies.add(vectorSpace.subtract(
+						vectorSpace.scalarMultiply(generators.get(i), vectorSpace.getUnitVector(nonZeroIndex + 1)),
+						vectorSpace.scalarMultiply(generators.get(nonZeroIndex), vectorSpace.getUnitVector(i + 1))));
+			}
+		}
+		return new IdealResult<>(Collections.singletonList(expression), generators, ideal, syzygies);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -882,7 +1027,7 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 	}
 
 	@Override
-	public ModuloMaximalIdealResult<T, T> moduloMaximalIdeal(Ideal<T> ideal) {
+	public ModuloMaximalIdealResult<T, T, Field<T>, Ideal<T>, Field<T>> moduloMaximalIdeal(Ideal<T> ideal) {
 		if (!ideal.equals(getZeroIdeal())) {
 			throw new ArithmeticException("Not a maximal ideal!");
 		}
@@ -971,19 +1116,19 @@ public abstract class AbstractField<T extends Element<T>> implements Field<T>, R
 		public boolean contains(T t) {
 			return !isZero || t.equals(zero());
 		}
-		
-		@Override
-		public List<List<T>> nonTrivialCombinations(List<T> s) {
-			Matrix<T> m = new Matrix<>(Collections.singletonList(s));
-			MatrixModule<T> mm = new MatrixModule<>(field, 1, s.size());
-			List<Vector<T>> kernelBasis = mm.kernelBasis(m);
-			List<List<T>> result = new ArrayList<>();
-			for (Vector<T> basisVector : kernelBasis) {
-				result.add(basisVector.asList());
-			}
-			return result;
-		}
-		
+
+//		@Override
+//		public List<Vector<T>> nonTrivialCombinations(List<T> s) {
+//			Matrix<T> m = new Matrix<>(Collections.singletonList(s));
+//			MatrixModule<T> mm = new MatrixModule<>(field, 1, s.size());
+//			List<Vector<T>> kernelBasis = mm.kernelBasis(m);
+//			List<Vector<T>> result = new ArrayList<>();
+//			for (Vector<T> basisVector : kernelBasis) {
+//				result.add(basisVector);
+//			}
+//			return result;
+//		}
+
 		@Override
 		public Value maximumPowerContains(T t) {
 			if (!isZero || t.equals(zero())) {
