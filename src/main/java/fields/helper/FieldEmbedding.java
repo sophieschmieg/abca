@@ -137,6 +137,10 @@ public class FieldEmbedding<T extends Element<T>, S extends AlgebraicExtensionEl
 	public S getGenerator() {
 		return generator;
 	}
+	
+	public  Extension<S, T, S, Ext> asExtension() {
+		return new Extension<>(getField(), getEmbeddedField(), getEmbeddingMap(), asVectorMap());	
+	}
 
 	public int relativeDegree() {
 		return field.degree() / embeddedField.degree();

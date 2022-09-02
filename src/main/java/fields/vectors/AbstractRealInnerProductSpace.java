@@ -120,7 +120,8 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 					r.subtract(delta,
 							asReal(f.multiply(coefficients.get(k).get(k - 1), coefficients.get(k).get(k - 1)))),
 					asReal(values.get(k - 1)));
-			if (r.abs(r.subtract(kValue, adjustedValue)).compareTo(eps) > 0 && kValue.compareTo(adjustedValue) < 0) {
+			int maxExponent = Math.max(kValue.exponent() - r.precision(), adjustedValue.exponent() - r.precision()) + 2;
+			if (r.abs(r.subtract(kValue, adjustedValue)).compareTo(r.getPowerOfTwo(maxExponent)) > 0 && kValue.compareTo(adjustedValue) < 0) {
 				swapLLLBasis(k, coefficients, basis, orthogonal, values, kmax);
 				k = Math.max(1, k - 1);
 			} else {

@@ -408,10 +408,6 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	DedekindRing<T, ?, ?> asDedekindRing();
 
-	public T numerator(T t);
-
-	public T denominator(T t);
-
 	public T gcd(T t1, T t2);
 
 	public T lcm(T t1, T t2);
@@ -543,11 +539,11 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public int krullDimension();
 
-	public List<Ideal<T>> maximalPrimeIdealChain();
+	public List<? extends Ideal<T>> maximalPrimeIdealChain();
 
-	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start);
+	public List<? extends Ideal<T>> maximalPrimeIdealChain(Ideal<T> start);
 
-	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end);
+	public List<? extends Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end);
 
 	public class IdealResult<T extends Element<T>, I extends Ideal<T>> {
 		private List<List<T>> generatorExpressions;

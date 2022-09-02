@@ -32,6 +32,7 @@ import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.Identity;
+import util.MiscAlgorithms;
 import util.SingletonSortedMap;
 
 public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex>
@@ -306,76 +307,30 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	public ComplexNumber findRoot(Polynomial<ComplexNumber> t) {
-		UnivariatePolynomialRing<ComplexNumber> ring = getUnivariatePolynomialRing();
-//		UnivariatePolynomial<ComplexNumber> p = ring.toUnivariate(t);
+		UnivariatePolynomial<ComplexNumber> p = getUnivariatePolynomialRing().toUnivariate(t);
+		int scale = 0;
+		int lcScale = value(t.leadingCoefficient()).exponent() - 1;
+		for (int i = 0; i < t.degree(); i++) {
+			int coeffScale = value(p.univariateCoefficient(i)).exponent() - lcScale;
+			coeffScale = MiscAlgorithms.DivRoundUp(coeffScale, t.degree() - i);
+			scale = Math.max(coeffScale, scale);
+		}
+		Complex highPrecision = withPrecision(precision() + scale + 2);
+		UnivariatePolynomialRing<ComplexNumber> ring = highPrecision.getUnivariatePolynomialRing();
 		UnivariatePolynomial<ComplexNumber> derivative = ring.derivative(t);
-//		Real scale = r.zero();
-//		Real lcScale = value(t.leadingCoefficient());
-//		for (int i = 0; i < t.degree(); i++) {
-//			scale += Math.pow(value(p.univariateCoefficient(i)) / lcScale, 1.0 / (t.degree() - i));
-//		}
 		int maxNumIterations = 1000;
 		while (true) {
-			ComplexNumber x = getRandomElement();// multiply(getEmbedding(r.getDouble(scale)), getRandomElement());
-			ComplexNumber prevX = zero();
+			ComplexNumber x = highPrecision.getRandomElement();
+			ComplexNumber prevX = highPrecision.zero();
 			for (int i = 0; i < maxNumIterations; i++) {
 				prevX = x;
-				x = subtract(x, divide(ring.evaluate(t, x), ring.evaluate(derivative, x)));
-				if (ring.evaluate(t, x).equals(zero()) || close(x, prevX)) {
-					return x;
+				x = highPrecision.subtract(x, highPrecision.divide(ring.evaluate(t, x), ring.evaluate(derivative, x)));
+				if (ring.evaluate(t, x).equals(highPrecision.zero()) || highPrecision.close(x, prevX)) {
+					return getEmbedding(x);
 				}
 			}
 		}
 	}
-
-//	public UnivariatePolynomial<IntE> findAlgebraicInteger(ComplexNumber t, int maxDegree, IntE bound) {
-//		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, maxDegree + 3);
-//		Integers z = Integers.z();
-////		Rationals q = Rationals.q();
-//		IntE sqrtBound = z.one();// z.getInteger(bound.getValue().sqrt());
-//		List<Vector<Real>> basis = new ArrayList<>();
-//		for (int i = 0; i <= maxDegree; i++) {
-//			List<Real> vector = new ArrayList<>();
-//			for (int j = 0; j <= maxDegree; j++) {
-//				if (i == j) {
-//					IntE divisor = i == maxDegree ? sqrtBound : z.one();
-//					vector.add(r.getInteger(divisor));
-//				} else {
-//					vector.add(r.zero());
-//				}
-//			}
-//			ComplexNumber power = multiply(getInteger(bound), power(t, i));
-//			vector.add(r.getInteger(power.realPart().round()));
-//			vector.add(r.getInteger(power.complexPart().round()));
-//			basis.add(new Vector<>(vector));
-//		}
-//		Vector<Real> lll = space.latticeReduction(basis).get(0);
-//		List<IntE> coefficients = new ArrayList<>();
-//		for (int i = 0; i <= maxDegree; i++) {
-//			IntE divisor = i == maxDegree ? sqrtBound : z.one();
-//			coefficients.add(z.divide(lll.get(i + 1).round(), z.getInteger(divisor)));
-//		}
-//		UnivariatePolynomialRing<IntE> integerPolynomials = z.getUnivariatePolynomialRing();
-//		UnivariatePolynomial<IntE> polynomial = integerPolynomials.getPolynomial(coefficients);
-//		FactorizationResult<Polynomial<IntE>, IntE> factors = z.factorization(polynomial);
-//		UnivariatePolynomialRing<ComplexNumber> polynomials = getUnivariatePolynomialRing();
-//		UnivariatePolynomial<IntE> result = null;
-//		Real minValue = null;
-//		for (Polynomial<IntE> factor : factors.primeFactors()) {
-//			UnivariatePolynomial<ComplexNumber> embedded = polynomials.getEmbedding(factor, new MathMap<>() {
-//				@Override
-//				public ComplexNumber evaluate(IntE t) {
-//					return getInteger(t);
-//				}
-//			});
-//			Real value = value(polynomials.evaluate(embedded, t));
-//			if (minValue == null || value.compareTo(minValue) < 0) {
-//				minValue = value;
-//				result = integerPolynomials.toUnivariate(factor);
-//			}
-//		}
-//		return result;
-//	}
 
 	@Override
 	public boolean isIrreducible(UnivariatePolynomial<ComplexNumber> t) {
@@ -436,11 +391,17 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		if (t.degree() <= 0) {
 			return Collections.singletonList(t);
 		}
-		PolynomialRing<ComplexNumber> ring = getUnivariatePolynomialRing();
+		PolynomialRing<ComplexNumber> ring = highPrecision().getUnivariatePolynomialRing();
+		UnivariatePolynomialRing<ComplexNumber> r = getUnivariatePolynomialRing();
 		while (f.degree() > 0) {
-			ComplexNumber root = findRoot(f);
+			ComplexNumber root = highPrecision().findRoot(f);
 			Polynomial<ComplexNumber> factor = ring.subtract(ring.getVar(1), ring.getEmbedding(root));
-			factors.add(factor);
+			factors.add(r.getEmbedding(factor, new MathMap<>() {
+				@Override
+				public ComplexNumber evaluate(ComplexNumber t) {
+					return getEmbedding(t);
+				}
+			}));
 			f = ring.divide(f, factor);
 		}
 		return factors;

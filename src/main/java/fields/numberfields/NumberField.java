@@ -12,6 +12,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
@@ -33,6 +34,7 @@ import fields.integers.ValueFractions;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.DiscreteValuationField.OtherVersion;
 import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.GlobalFieldExtension;
 import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
@@ -47,11 +49,14 @@ import fields.polynomials.Monomial;
 import fields.vectors.Matrix;
 import fields.vectors.RealLattice;
 import fields.vectors.Vector;
+import util.FunctionMathMap;
 import util.MiscAlgorithms;
 import util.Pair;
+import util.SingletonSortedMap;
 import varieties.curves.elliptic.EllipticCurve;
 
-public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberField> {
+public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberField> implements
+		GlobalFieldExtension<Fraction, IntE, PFE, NFE, NFE, PFE, FFE, FiniteField, LocalizedNumberField, NumberField> {
 	private static final int PRECISION_FOR_EMBEDDINGS = 128;
 
 	private Rationals q;
@@ -68,6 +73,9 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 	private IdealClassGroup idealClassGroup;
 	private Map<Polynomial<NFE>, List<Polynomial<NFE>>> polynomialFactorizationCache;
 	private NumberFieldIdeal idealForFactorization;
+	private boolean hasIntegerMinimalPolynomial;
+	private NumberField withIntegerMinimalPolynomial;
+	private IntE multiplier;
 	private static Map<Polynomial<Fraction>, NumberField> numberFields = new TreeMap<>();
 
 	public static class NFE extends AbstractElement<NFE> implements AlgebraicExtensionElement<Fraction, NFE> {
@@ -84,7 +92,7 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 
 		@Override
 		public String toString() {
-			return this.e.toString(/*"α", */true);
+			return this.e.toString(/* "α", */true);
 		}
 
 		@Override
@@ -114,17 +122,40 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		return getNumberField(q.getUnivariatePolynomialRing().getEmbedding(minimalPolynomial, q.getEmbeddingMap()));
 	}
 
+	public static NumberField getRootsOfUnityField(int order) {
+		Integers z = Integers.z();
+		FactorizationResult<IntE, IntE> factors = z.uniqueFactorization(z.getInteger(order));
+		NumberField result = getNumberField();
+		for (IntE prime : factors.primeFactors()) {
+			UnivariatePolynomialRing<NFE> polynomialRing = result.getUnivariatePolynomialRing();
+			UnivariatePolynomial<NFE> primeUnityPolynomial = polynomialRing.toUnivariate(polynomialRing.divideChecked(
+					polynomialRing.subtract(polynomialRing.getVarPower(prime.intValueExact()), polynomialRing.one()),
+					polynomialRing.subtract(polynomialRing.getVar(), polynomialRing.one())));
+			FieldEmbedding<Fraction, NFE, NumberField> primeUnity = result.getEmbeddedExtension(primeUnityPolynomial);
+			result = primeUnity.getField();
+			polynomialRing = result.getUnivariatePolynomialRing();
+			int remainingPower = z.power(prime, factors.multiplicity(prime) - 1).intValueExact();
+			UnivariatePolynomial<NFE> primePowerUnity = polynomialRing
+					.toUnivariate(polynomialRing.subtract(polynomialRing.getVarPower(remainingPower),
+							polynomialRing.getEmbedding(primeUnity.getGenerator())));
+			result = result.getEmbeddedExtension(primePowerUnity).getField();
+		}
+		return result;
+	}
+
 	private NumberField() {
 		super(Rationals.q());
 		init();
 	}
-	
+
 	private static String variableName(UnivariatePolynomial<Fraction> minimalPolynomial) {
 		if (minimalPolynomial.degree() != 2) {
 			return "x";
 		}
 		Rationals q = Rationals.q();
-		if (minimalPolynomial.univariateCoefficient(0).equals(q.one()) && minimalPolynomial.univariateCoefficient(1).equals(q.zero()) && minimalPolynomial.univariateCoefficient(2).equals(q.one())) {
+		if (minimalPolynomial.univariateCoefficient(0).equals(q.one())
+				&& minimalPolynomial.univariateCoefficient(1).equals(q.zero())
+				&& minimalPolynomial.univariateCoefficient(2).equals(q.one())) {
 			return "i";
 		}
 		return "x";
@@ -143,13 +174,80 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		this.complexEmbeddings = new ArrayList<>();
 		this.embeddingsComputed = false;
 		this.polynomialFactorizationCache = new TreeMap<>();
+		Integers z = Integers.z();
+		hasIntegerMinimalPolynomial = true;
+		IntE lcm = z.one();
+		for (int i = 0; i < degree(); i++) {
+			Fraction coeff = minimalPolynomial().univariateCoefficient(i);
+			if (!q.isInteger(coeff)) {
+				hasIntegerMinimalPolynomial = false;
+				IntE denominator = coeff.getDenominator();
+				FactorizationResult<IntE, IntE> denominatorFactors = z.uniqueFactorization(denominator);
+				for (IntE prime : denominatorFactors.primeFactors()) {
+					lcm = z.lcm(
+							z.power(prime,
+									MiscAlgorithms.DivRoundUp(denominatorFactors.multiplicity(prime), degree() - i)),
+							lcm);
+				}
+			}
+		}
+		if (!hasIntegerMinimalPolynomial) {
+			UnivariatePolynomial<Fraction> integerMinimalPolynomial = q.getUnivariatePolynomialRing()
+					.substitute(minimalPolynomial(), Collections.singletonList(
+							q.getUnivariatePolynomialRing().getEmbedding(q.inverse(q.getInteger(lcm)), 1)));
+			integerMinimalPolynomial = q.getUnivariatePolynomialRing().normalize(integerMinimalPolynomial);
+			withIntegerMinimalPolynomial = getNumberField(integerMinimalPolynomial);
+			multiplier = lcm;
+		}
 //		if (!q.isIrreducible(minimalPolynomial())) {
 //			throw new ArithmeticException("Not irreducible");
 //		}
 	}
 
+	public boolean hasIntegerMinimalPolynomial() {
+		return hasIntegerMinimalPolynomial;
+	}
+
+	public NumberField withIntegerMinimalPolynomial() {
+		return hasIntegerMinimalPolynomial ? this : withIntegerMinimalPolynomial;
+	}
+
+	public NFE toIntegerMinimalPolynomial(NFE t) {
+		return hasIntegerMinimalPolynomial ? t : divide(t, getInteger(multiplier));
+	}
+
+	public NFE fromIntegerMinimalPolynomial(NFE t) {
+		return hasIntegerMinimalPolynomial ? t : multiply(multiplier, t);
+	}
+
+	public MathMap<NFE, NFE> toIntegerMinimalPolynomialMap() {
+		return new FunctionMathMap<>((NFE t) -> toIntegerMinimalPolynomial(t));
+	}
+
+	public MathMap<NFE, NFE> fromIntegerMinimalPolynomialMap() {
+		return new FunctionMathMap<>((NFE t) -> fromIntegerMinimalPolynomial(t));
+	}
+
+	@Override
+	public NumberFieldIntegers ringOfIntegers() {
+		return maximalOrder();
+	}
+
+	@Override
+	public Rationals getBaseField() {
+		return q;
+	}
+
+	@Override
+	public NFE getInteger(NFE t) {
+		return t;
+	}
+
 	public NumberFieldIntegers maximalOrder() {
 		if (maximalOrder == null) {
+			if (!hasIntegerMinimalPolynomial()) {
+				throw new ArithmeticException("Does not have integer minimal polynomial!");
+			}
 			maximalOrder = new NumberFieldIntegers(this);
 		}
 		return maximalOrder;
@@ -166,6 +264,14 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 	@Override
 	public NumberField makeExtension(UnivariatePolynomial<Fraction> minimalPolynomial) {
 		return getNumberField(minimalPolynomial);
+	}
+
+	@Override
+	public ExtensionOfGlobalField<NFE, NFE, FFE, Fraction, IntE, PFE, NFE, NFE, PFE, FFE, FiniteField, LocalizedNumberField, NumberField> getGlobalFieldExtension(
+			UnivariatePolynomial<NFE> minimalPolynomial) {
+		Extension<NFE, Fraction, NFE, NumberField> extension = getExtension(minimalPolynomial);
+		return new ExtensionOfGlobalField<>(this, extension.extension(), extension.embeddingMap(),
+				extension.asVectorMap());
 	}
 
 	@Override
@@ -202,7 +308,7 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		}, c.getUnivariatePolynomialRing());
 		Map<ComplexNumber, Integer> roots = c.roots(minPoly);
 		for (ComplexNumber alpha : roots.keySet()) {
-			if (alpha.complexPart().equals(r.zero()) || alpha.complexPart().exponent() < -r.precision() + 5) {
+			if (alpha.complexPart().equals(r.zero()) || alpha.complexPart().exponent() < -r.precision() + 1) {
 				MathMap<Real, NFE> round = degree() == 1 ? new MathMap<>() {
 					@Override
 					public NFE evaluate(Real t) {
@@ -224,6 +330,9 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 			}
 		}
 		embeddingsComputed = true;
+		if (realEmbeddings.size() + 2 * complexEmbeddings.size() != degree()) {
+			throw new ArithmeticException("Embeddings not computed correctly!");
+		}
 	}
 
 	public List<EmbeddedNumberField<Real, Reals>> realEmbeddings() {
@@ -365,14 +474,33 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 
 	@Override
 	public FactorizationResult<Polynomial<NFE>, NFE> factorization(UnivariatePolynomial<NFE> t) {
+		if (t.degree() == 0) {
+			return new FactorizationResult<>(t.univariateCoefficient(0), Collections.emptySortedMap());
+		}
 		UnivariatePolynomialRing<NFE> ring = getUnivariatePolynomialRing();
+		if (t.degree() == 1) {
+			NFE unit = t.leadingCoefficient();
+			t = ring.normalize(t);
+			return new FactorizationResult<>(unit, SingletonSortedMap.map(t, 1));
+		}
 		SortedMap<Polynomial<NFE>, Integer> result = new TreeMap<>();
+		if (!hasIntegerMinimalPolynomial) {
+			UnivariatePolynomialRing<NFE> integerRing = withIntegerMinimalPolynomial().getUnivariatePolynomialRing();
+			UnivariatePolynomial<NFE> integer = integerRing.getEmbedding(t, toIntegerMinimalPolynomialMap());
+			FactorizationResult<Polynomial<NFE>, NFE> integerResult = withIntegerMinimalPolynomial()
+					.factorization(integer);
+			for (Polynomial<NFE> factor : integerResult.primeFactors()) {
+				result.put(ring.getEmbedding(factor, fromIntegerMinimalPolynomialMap()),
+						integerResult.multiplicity(factor));
+			}
+			return new FactorizationResult<>(fromIntegerMinimalPolynomial(integerResult.getUnit()), result);
+		}
 		NFE unit = t.leadingCoefficient();
 		t = removeDenominators(t);
 		FactorizationResult<Polynomial<NFE>, NFE> squareFree = ring.squareFreeFactorization(t);
 		for (Polynomial<NFE> squareFreeFactor : squareFree.primeFactors()) {
 			for (Polynomial<NFE> factor : factorizeSquareFree(removeDenominators(squareFreeFactor))) {
-				result.put(factor, squareFree.multiplicity(squareFreeFactor));
+				result.put(ring.normalize(factor), squareFree.multiplicity(squareFreeFactor));
 			}
 		}
 		return new FactorizationResult<>(unit, result);
@@ -384,7 +512,8 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		Integers z = Integers.z();
 		IntE lcm = z.one();
 		for (int i = 0; i <= t.degree(); i++) {
-			Vector<Fraction> c = asVector(p.univariateCoefficient(i));
+			Vector<Fraction> c = matrixAlgebra().multiply(maximalOrder().toIntegralBasisBaseChange(),
+					asVector(p.univariateCoefficient(i)));
 			for (int j = 0; j < degree(); j++) {
 				lcm = z.lcm(lcm, c.get(j + 1).getDenominator());
 			}
@@ -481,7 +610,6 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		UnivariatePolynomial<Ext> fp = zpr.getEmbedding(t, embeddedNumberFieldHigh.embeddingMap());
 		List<Polynomial<Ext>> liftedFactors = new ArrayList<>();
 		FactorizationResult<Polynomial<Ext>, Ext> padicFactorizationOkutsu = zp.factorization(zpr.normalize(fp));
-		System.out.println(padicFactorizationOkutsu);
 		EmbeddedNumberField<Ext, CompletedNumberField> embeddedNumberField = embeddedNumberFieldHigh;
 		for (Polynomial<Ext> factor : padicFactorizationOkutsu.primeFactors()) {
 			if (factor.degree() > 0) {
@@ -747,9 +875,10 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 			rational = rational && minimalPolynomial.univariateCoefficient(i).asPolynomial().degree() <= 0;
 		}
 		if (minimalPolynomial.degree() == 1) {
-		return new Pair<>(getUnivariatePolynomialRing().getVar(), getUnivariatePolynomialRing().getPolynomial(getBasis()));	
+			return new Pair<>(getUnivariatePolynomialRing().getVar(), getUnivariatePolynomialRing().getEmbedding(divide(
+					negative(minimalPolynomial.univariateCoefficient(0)), minimalPolynomial.univariateCoefficient(1))));
 		}
-		if (rational ) {
+		if (rational) {
 			UnivariatePolynomialRing<Fraction> rationalPolynomialRing = q.getUnivariatePolynomialRing();
 			UnivariatePolynomial<Fraction> rationalMinimalPolynomial = rationalPolynomialRing
 					.getEmbedding(minimalPolynomial, new MathMap<>() {

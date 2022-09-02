@@ -67,6 +67,10 @@ public class EmbeddedNumberField<T extends Element<T>, F extends ValueField<T>> 
 	public F embeddingField() {
 		return embeddingField;
 	}
+	
+	public NumberField numberField() {
+		return field;
+	}
 
 	@Override
 	public NFE zero() {

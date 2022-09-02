@@ -185,7 +185,7 @@ public class Monomial implements Comparable<Monomial> {
 				return a.degree() - b.degree();
 			for (int i = 0; i < a.numvars; i++) {
 				if (a.exponents[a.numvars - i - 1] != b.exponents[a.numvars - i - 1])
-					return b.exponents[a.numvars - i - 1] - a.exponents[a.numvars - i - 1];
+					return a.exponents[a.numvars - i - 1] - b.exponents[a.numvars - i - 1];
 			}
 			return 0;
 		}

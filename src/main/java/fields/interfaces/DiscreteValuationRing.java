@@ -7,6 +7,7 @@ import fields.integers.Rationals.Fraction;
 import fields.interfaces.DiscreteValuationField.Valuation;
 import fields.interfaces.Field.Extension;
 import fields.local.Value;
+import fields.vectors.Vector;
 import util.Pair;
 
 public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S>>
@@ -42,6 +43,14 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 		}
 		return t;
 	}
+	
+	public default T getDenominator(T t) {
+		Value v = valuation(t);
+		if (v.compareTo(Value.ZERO) >= 0) { 
+			return one();
+		}
+		return power(uniformizer(), -v.value());
+	}
 
 	public Field<S> reduction();
 
@@ -53,6 +62,11 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 	@Override
 	public default DiscreteValuationRing<T, S> localize(Ideal<T> maximalIdeal) {
 		return this;
+	}
+	
+	@Override
+	default DiscreteValuationField<T, S> localizeAndQuotient(Ideal<T> maximalIdeal) {
+		return localField();
 	}
 
 	public S reduce(T t);
@@ -78,8 +92,6 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 	public Polynomial<T> liftPolynomial(Polynomial<S> t);
 
 	public UnivariatePolynomial<T> liftUnivariatePolynomial(Polynomial<S> t);
-
-	public T henselLift(UnivariatePolynomial<T> f, S aReduced);
 
 	public interface OkutsuType<T extends Element<T>, S extends Element<S>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
 			extends Cloneable {
@@ -220,19 +232,35 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 	public HenselLiftFactorResult<T> extendedHenselLiftFactor(UnivariatePolynomial<T> f,
 			UnivariatePolynomial<S> gReduced, int accuracy);
 
+	public T henselLift(UnivariatePolynomial<T> f, S aReduced);
+
 	public T henselLift(UnivariatePolynomial<T> f, S aReduced, int accuracy);
 
 	public T henselLiftWithInitialLift(UnivariatePolynomial<T> f, T initialLift);
 
 	public T henselLiftWithInitialLift(UnivariatePolynomial<T> f, T initialLift, int accuracy);
 
+	public Vector<T> henselLiftVector(PolynomialRing<T> r, Vector<Polynomial<T>> f, Vector<S> aReduced);
+
+	public Vector<T> henselLiftVector(PolynomialRing<T> r, Vector<Polynomial<T>> f, Vector<S> aReduced, int accuracy);
+
+	public Vector<T> henselLiftVectorWithInitialLift(PolynomialRing<T> r, Vector<Polynomial<T>> f,
+			Vector<T> initialLift);
+
+	public Vector<T> henselLiftVectorWithInitialLift(PolynomialRing<T> r, Vector<Polynomial<T>> f,
+			Vector<T> initialLift, int accuracy);
+
 	public FactorizationResult<Polynomial<T>, T> henselLiftFactorization(UnivariatePolynomial<T> f, int accuracy);
 
+	public MathMap<T, T> roundMap(int accuracy);
+	
 	public T round(T t, int accuracy);
 
 	public Polynomial<T> roundPolynomial(Polynomial<T> t, int accuracy);
 
 	public UnivariatePolynomial<T> roundUnivariatePolynomial(Polynomial<T> t, int accuracy);
+
+	public Vector<T> roundVector(Vector<T> t, int accuracy);
 
 	public boolean hasGoodReduction(UnivariatePolynomial<T> t);
 
@@ -259,5 +287,4 @@ public interface DiscreteValuationRing<T extends Element<T>, S extends Element<S
 	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t, int accuracy);
 
 	Module<T, T> fieldOfFractionsAsModule();
-
 }

@@ -26,7 +26,7 @@ public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Is
 	
 	@Override
 	public String toString() {
-		return firstIsogeny.toString() + " o " + secondIsogeny.toString();
+		return secondIsogeny.toString() + " o " + firstIsogeny.toString();
 	}
 	
 	@Override
@@ -78,5 +78,13 @@ public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Is
 			this.asMorphism = new ProjectiveMorphism<>(getDomain().asGenericProjectiveScheme(), getRange().asGenericProjectiveScheme(), asPolynomials);
 		}
 		return asMorphism;
+	}
+
+	@Override
+	public List<ProjectivePoint<T>> kernelGenerators() {
+		List<ProjectivePoint<T>> firstKernel = firstIsogeny.kernelGenerators();
+		List<ProjectivePoint<T>> secondKernel = secondIsogeny.kernelGenerators();
+			// TODO Auto-generated method stub
+		return null;
 	}
 }

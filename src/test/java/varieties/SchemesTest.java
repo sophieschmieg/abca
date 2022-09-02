@@ -12,6 +12,7 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
+import varieties.affine.AffineMorphism;
 import varieties.affine.AffineScheme;
 import varieties.curves.elliptic.EllipticCurve;
 import varieties.projective.ProjectivePoint;
@@ -25,8 +26,8 @@ public class SchemesTest {
 		Polynomial<FFE> xy = polynomialRing.getEmbedding(fq.one(), new int[] { 1, 1 });
 		AffineScheme<FFE> twoLines = new AffineScheme<>(fq,
 				polynomialRing.getIdeal(Collections.singletonList(xy)).divideOut());
-		for (AffineScheme<FFE> line : twoLines.irreducibleComponents()) {
-			System.out.println(line);
+		for (AffineMorphism<FFE> line : twoLines.irreducibleComponents()) {
+			System.out.println(line.getDomain());
 		}
 	}
 
@@ -40,8 +41,8 @@ public class SchemesTest {
 		list.add(xy);
 		list.add(xpy);
 		AffineScheme<FFE> doublePoint = new AffineScheme<>(fq, polynomialRing.getIdeal(list).divideOut());
-		for (AffineScheme<FFE> point : doublePoint.irreducibleComponents()) {
-			System.out.println(point);
+		for (AffineMorphism<FFE> point : doublePoint.irreducibleComponents()) {
+			System.out.println(point.getDomain());
 		}
 	}
 
@@ -68,7 +69,7 @@ public class SchemesTest {
 		AffineScheme<FFE> union1 = AffineScheme.union(point1, point2).getUnion();
 		AffineScheme<FFE> union2 = AffineScheme.union(point3, point4).getUnion();
 		AffineScheme<FFE> union = AffineScheme.union(union1, union2).getUnion();
-		for (AffineScheme<FFE> point : union.irreducibleComponents()) {
+		for (AffineMorphism<FFE> point : union.irreducibleComponents()) {
 			System.out.println(point);
 		}
 	}
@@ -94,7 +95,7 @@ public class SchemesTest {
 		AffineScheme<FFE> l = new AffineScheme<>(fq,
 				polynomialRing.getIdeal(Collections.singletonList(line)).divideOut());
 		AffineScheme<FFE> intersection = AffineScheme.intersect(curve, l).getIntersection();
-		for (AffineScheme<FFE> point : intersection.irreducibleComponents()) {
+		for (AffineMorphism<FFE> point : intersection.irreducibleComponents()) {
 			System.out.println(point);
 		}
 	}

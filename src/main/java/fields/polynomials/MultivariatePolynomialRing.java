@@ -23,7 +23,6 @@ import fields.interfaces.PolynomialRing;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
-import fields.polynomials.Monomial.EliminationOrder;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
 
@@ -241,20 +240,20 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		return this.getPolynomial(coeffs);
 	}
 
-	public PolynomialRing<T> eliminateVariable() {
-		if (eliminatedVariable != null) {
-			return eliminatedVariable;
-		}
-		eliminatedVariable = AbstractPolynomialRing.getPolynomialRing(ring, numvars - 1, Monomial.GREVLEX);
-		return eliminatedVariable;
-	}
+//	public PolynomialRing<T> eliminateVariable() {
+//		if (eliminatedVariable != null) {
+//			return eliminatedVariable;
+//		}
+//		eliminatedVariable = AbstractPolynomialRing.getPolynomialRing(ring, numvars - 1, Monomial.GREVLEX);
+//		return eliminatedVariable;
+//	}
 
 	public UnivariatePolynomial<Polynomial<T>> asUnivariatePolynomial(Polynomial<T> t, int variable) {
 		if (variable < 1 || variable > numvars) {
 			throw new ArithmeticException("Variable out of bounds");
 		}
-		PolynomialRing<T> eliminated = eliminateVariable();
-		UnivariatePolynomialRing<Polynomial<T>> eliminatedRing = eliminated.getUnivariatePolynomialRing();
+		PolynomialRing<T> eliminated = eliminateVariable(variable);
+		UnivariatePolynomialRing<Polynomial<T>> eliminatedRing = eliminated.getUnivariatePolynomialRing().withVariableName(getVariableNames()[variable-1]);
 		UnivariatePolynomial<Polynomial<T>> result = eliminatedRing.zero();
 		for (Monomial m : t.monomials()) {
 			int[] exponents = new int[numvars - 1];
@@ -286,12 +285,12 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 		return result;
 	}
 
-	public MultivariatePolynomialRing<T> addVariableWithElimination(int shift) {
-		if (shift < 0)
-			throw new ArithmeticException("Cannot count");
-		return new MultivariatePolynomialRing<T>(ring, this.numvars + shift,
-				new EliminationOrder(Monomial.LEX, this.comparator, shift));
-	}
+//	public MultivariatePolynomialRing<T> addVariableWithElimination(int shift) {
+//		if (shift < 0)
+//			throw new ArithmeticException("Cannot count");
+//		return new MultivariatePolynomialRing<T>(ring, this.numvars + shift,
+//				new EliminationOrder(Monomial.LEX, this.comparator, shift));
+//	}
 
 	@Override
 	public MultivariatePolynomial<T> getRandomElement() {
@@ -500,19 +499,6 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 	}
 
 	@Override
-	public MultivariatePolynomial<T> substitute(Polynomial<T> t, List<Polynomial<T>> values) {
-		MultivariatePolynomial<T> result = this.zero();
-		for (Monomial m : t.monomials()) {
-			MultivariatePolynomial<T> value = getEmbedding(t.coefficient(m));
-			for (int i = 0; i < t.numberOfVariables(); i++) {
-				value = multiply(value, power(values.get(i), m.exponents()[i]));
-			}
-			result = add(result, value);
-		}
-		return result;
-	}
-
-	@Override
 	public boolean isHomogeneous(Polynomial<T> t) {
 		for (Monomial m : t.monomials())
 			if (m.degree() != t.degree())
@@ -582,7 +568,8 @@ public class MultivariatePolynomialRing<T extends Element<T>> extends AbstractPo
 
 	@Override
 	public Polynomial<T> resultant(Polynomial<T> t1, Polynomial<T> t2, int variable) {
-		UnivariatePolynomialRing<Polynomial<T>> eliminatedRing = eliminateVariable().getUnivariatePolynomialRing();
+		UnivariatePolynomialRing<Polynomial<T>> eliminatedRing = eliminateVariable(variable)
+				.getUnivariatePolynomialRing().withVariableName(getVariableNames()[variable - 1]);
 		return eliminatedRing.resultant(asUnivariatePolynomial(t1, variable), asUnivariatePolynomial(t2, variable));
 	}
 

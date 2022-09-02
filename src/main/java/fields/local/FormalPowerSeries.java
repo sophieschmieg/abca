@@ -164,18 +164,18 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 	}
 
 	@Override
-	public DiscreteValuationFieldExtension<PowerSeries<T>, T, ?, ?, ?, ?> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<PowerSeries<T>, T, ?, ?, ?, ?, ?, ?, ?> getUniqueExtension(
 			UnivariatePolynomial<PowerSeries<T>> minimalPolynomial) {
 		return getUniqueExtension(minimalPolynomial,
 				residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
 	}
 
-	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> DiscreteValuationFieldExtension<PowerSeries<T>, T, PowerSeries<T>, Ext<PowerSeries<T>>, RE, CompleteDVRExtension<PowerSeries<T>, T, R, RE, RFE>> getUniqueExtension(
+	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> ExtensionOfDiscreteValuationField<PowerSeries<T>, T, PowerSeries<T>,T, Ext<PowerSeries<T>>, CompleteDVRExtension<PowerSeries<T>,T, R, RE, RFE>, R, RE, RFE> getUniqueExtension(
 			UnivariatePolynomial<PowerSeries<T>> minimalPolynomial,
 			Extension<T, R, RE, RFE> trivialReductionExtension) {
 		CompleteDVRExtension<PowerSeries<T>, T, R, RE, RFE> extension = CompleteDVRExtension
 				.getCompleteDVRExtension(minimalPolynomial, this, trivialReductionExtension);
-		return new DiscreteValuationFieldExtension<>(this, extension, extension.getEmbeddingMap(),
+		return new ExtensionOfDiscreteValuationField<>(this, extension, extension.getEmbeddingMap(),
 				extension.asVectorMap());
 	}
 
@@ -417,13 +417,17 @@ public class FormalPowerSeries<T extends Element<T>> extends AbstractField<Power
 		}
 		return new Value(t.lowestPower);
 	}
-
+	
+	public PowerSeries<T> getEmbedding(PowerSeries<T> t) {
+		return t;
+	}
+	
 	public PowerSeries<T> getEmbedding(T value) {
 		return getEmbedding(ring.getEmbedding(value));
 	}
 
-	public PowerSeries<T> getEmbedding(UnivariatePolynomial<T> value) {
-		return getElement(value, 0);
+	public PowerSeries<T> getEmbedding(Polynomial<T> value) {
+		return getElement(ring.toUnivariate(value), 0);
 	}
 
 	public PowerSeries<T> getEmbedding(Fraction<Polynomial<T>> value) {

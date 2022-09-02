@@ -1,9 +1,14 @@
 package fields.interfaces;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import fields.helper.FieldEmbedding;
 import fields.local.Value;
 import fields.vectors.Vector;
 
-public interface DiscreteValuationField<T extends Element<T>, S extends Element<S>> extends ValueField<T> {
+public interface DiscreteValuationField<T extends Element<T>, S extends Element<S>>
+		extends ValueField<T>, GlobalField<T, T, S> {
 	boolean isComplete();
 
 	T inverse(T t, int accuracy);
@@ -32,7 +37,7 @@ public interface DiscreteValuationField<T extends Element<T>, S extends Element<
 	public Field<S> residueField();
 
 	public S reduceInteger(T t);
-	
+
 	public T upToUniformizerPower(T t);
 
 	public T liftToInteger(S s);
@@ -66,14 +71,14 @@ public interface DiscreteValuationField<T extends Element<T>, S extends Element<
 			return embedding;
 		}
 	}
-	
-	public class DiscreteValuationFieldExtension<T extends Element<T>, S extends Element<S>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, RE extends Element<RE>, FE extends FieldExtension<B, E, FE> & DiscreteValuationField<E, RE>> {
-		private DiscreteValuationField<T, S> field;
+
+	public class ExtensionOfDiscreteValuationField<T extends Element<T>, SR extends Element<SR>, B extends Element<B>, S extends Element<S>, E extends AlgebraicExtensionElement<B, E>, FE extends DiscreteValuationFieldExtension<B, S, E, FE, R, RE, RFE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> {
+		private DiscreteValuationField<T, SR> field;
 		private FE extension;
 		private MathMap<T, E> embeddingMap;
 		private MathMap<E, Vector<T>> asVectorMap;
-		
-		public DiscreteValuationFieldExtension(DiscreteValuationField<T, S> field, FE extension,
+
+		public ExtensionOfDiscreteValuationField(DiscreteValuationField<T, SR> field, FE extension,
 				MathMap<T, E> embeddingMap, MathMap<E, Vector<T>> asVectorMap) {
 			this.field = field;
 			this.extension = extension;
@@ -81,7 +86,7 @@ public interface DiscreteValuationField<T extends Element<T>, S extends Element<
 			this.asVectorMap = asVectorMap;
 		}
 
-		public DiscreteValuationField<T, S> getField() {
+		public DiscreteValuationField<T, SR> getField() {
 			return field;
 		}
 
@@ -96,11 +101,46 @@ public interface DiscreteValuationField<T extends Element<T>, S extends Element<
 		public MathMap<E, Vector<T>> getAsVectorMap() {
 			return asVectorMap;
 		}
-		
+
+		public ExtensionOfGlobalField<T, T, SR, B, B, S, E, E, R, RE, RFE, FE, FE> asGlobalFieldExtension() {
+			return new ExtensionOfGlobalField<T, T, SR, B, B, S, E, E, R, RE, RFE, FE, FE>(field, extension,
+					embeddingMap, asVectorMap);
+		}
+
+		public Extension<T, B, E, FE> asExtension() {
+			return new Extension<>(extension, field, embeddingMap, asVectorMap);
+		}
+
+		public ExtensionOfDiscreteValuationField<T, SR, B, S, E, FE, R, RE, RFE> extendFurther(
+				FieldEmbedding<B, E, FE> embedding) {
+			return new ExtensionOfDiscreteValuationField<>(field, embedding.getField(), new MathMap<>() {
+				@Override
+				public E evaluate(T t) {
+					return embedding.getEmbedding(embeddingMap.evaluate(t));
+				}
+			}, new MathMap<>() {
+				@Override
+				public Vector<T> evaluate(E t) {
+					Vector<E> asVector = embedding.asVector(t);
+					List<T> result = new ArrayList<>();
+					for (E element : asVector.asList()) {
+						result.addAll(asVectorMap.evaluate(element).asList());
+					}
+					return new Vector<>(result);
+				}
+			});
+		}
 	}
-	
-	DiscreteValuationFieldExtension<T, S, ?, ?, ?, ?> getUniqueExtension(UnivariatePolynomial<T> minimalPolynomial);
-	
+
+	ExtensionOfDiscreteValuationField<T, S, ?, ?, ?, ?, ?, ?, ?> getUniqueExtension(
+			UnivariatePolynomial<T> minimalPolynomial);
+
+	@Override
+	default ExtensionOfGlobalField<T, T, S, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?> getGlobalFieldExtension(
+			UnivariatePolynomial<T> minimalPolynomial) {
+		return getUniqueExtension(minimalPolynomial).asGlobalFieldExtension();
+	}
+
 	public OtherVersion<T, ?, S, ?> exact();
 
 	public OtherVersion<T, ?, S, ?> complete(int accuracy);
@@ -108,5 +148,10 @@ public interface DiscreteValuationField<T extends Element<T>, S extends Element<
 	T getRandomInteger();
 
 	DiscreteValuationRing<T, S> ringOfIntegers();
-	
+
+	@Override
+	default T getInteger(T t) {
+		return t;
+	}
+
 }

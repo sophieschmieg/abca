@@ -98,7 +98,7 @@ class PolynomialRingTest {
 		for (int i = 0; i < 10; i++) {
 			secondSet.add(ideal.getRandomElement());
 		}
-		GroebnerBasis<PFE> basis = polynomials.buchberger(secondSet);
+		GroebnerBasis<PFE> basis = polynomials.buchberger(secondSet, true);
 		for (int i = 0; i < basis.getBasis().size(); i++) {
 			Polynomial<PFE> test = polynomials.zero();
 			for (int j = 0; j < secondSet.size(); j++) {

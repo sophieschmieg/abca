@@ -15,12 +15,16 @@ import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.LocalizedCoordinateRing;
 import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.polynomials.PolynomialIdeal;
-import varieties.Morphism;
+import varieties.AbstractMorphism;
+import varieties.FunctionField;
+import varieties.GeneralRationalFunction;
+import varieties.RationalFunction;
 import varieties.affine.AffineMorphism;
 import varieties.affine.AffinePoint;
 import varieties.affine.AffineScheme;
 
-public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, ProjectivePoint<T>, ProjectivePoint<T>> {
+public class ProjectiveMorphism<T extends Element<T>>
+		extends AbstractMorphism<T, ProjectivePoint<T>, ProjectivePoint<T>> {
 	private Field<T> field;
 	private GenericProjectiveScheme<T> domain;
 	private GenericProjectiveScheme<T> range;
@@ -35,9 +39,9 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 		this.field = domain.getField();
 		this.domain = domain;
 		this.range = range;
-		this.asPolynomials = asPolynomials;
 		int degree = -1;
 		this.polynomials = domain.homogenousPolynomialRing();
+		Polynomial<T> gcd = polynomials.zero();
 		for (Polynomial<T> polynomial : asPolynomials) {
 			if (polynomial.numberOfVariables() != polynomials.numberOfVariables()) {
 				throw new ArithmeticException("domain dimensions mismatched!");
@@ -48,17 +52,71 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 			if (!polynomials.isHomogeneous(polynomial)) {
 				throw new ArithmeticException("polynomials not homogenous");
 			}
-			if (degree != polynomial.degree()) {
+			if (degree != polynomial.degree() && !polynomial.equals(polynomials.zero())) {
 				throw new ArithmeticException("polynomials not of equal degree");
 			}
+			gcd = polynomials.gcd(polynomial, gcd);
+		}
+		if (degree == -1) {
+			throw new ArithmeticException("No nonzero polynomial!");
 		}
 		if (asPolynomials.size() != range.homogenousPolynomialRing().numberOfVariables()) {
 			throw new ArithmeticException("range dimensions mismatched!");
 		}
+		this.asPolynomials = new ArrayList<>();
+		for (Polynomial<T> polynomial : asPolynomials) {
+			this.asPolynomials.add(polynomials.divideChecked(polynomial, gcd));
+		}
+	}
+
+	public static <T extends Element<T>> ProjectiveMorphism<T> fromRationalFunctions(GenericProjectiveScheme<T> domain,
+			GenericProjectiveScheme<T> range, List<RationalFunction<T>> asRationalFunctions, int rangeAffineIndex) {
+		FunctionField<T> functionField = domain.getFunctionField();
+		CoordinateRing<T> cr = functionField.affineCoordinateRing();
+		PolynomialRing<T> polynomialRing = cr.getPolynomialRing();
+		Polynomial<T> lcm = polynomialRing.one();
+		for (RationalFunction<T> rationalFunction : asRationalFunctions) {
+			lcm = polynomialRing.lcm(functionField.getIntegerDenominator(rationalFunction).getElement(), lcm);
+		}
+		lcm = cr.getEmbedding(lcm).getElement();
+		int degree = lcm.degree();
+		List<Polynomial<T>> reduced = new ArrayList<>();
+		for (RationalFunction<T> rationalFunction : asRationalFunctions) {
+			Polynomial<T> p = cr.divideChecked(
+					cr.multiply(cr.getEmbedding(lcm), functionField.getIntegerNumerator(rationalFunction)),
+					functionField.getIntegerDenominator(rationalFunction)).getElement();
+			reduced.add(p);
+			degree = Math.max(p.degree(), degree);
+		}
+		List<Polynomial<T>> asPolynomials = new ArrayList<>();
+		int index = 0;
+		for (int i = 0; i < range.homogenousPolynomialRing().numberOfVariables(); i++) {
+			Polynomial<T> p;
+			if (i == rangeAffineIndex) {
+				p = lcm;
+			} else {
+				p = reduced.get(index);
+				index++;
+			}
+			Polynomial<T> homogenous = domain.homogenize(p, functionField.affineCoverIndex());
+			homogenous = domain.asGenericProjectiveScheme().homogenousPolynomialRing()
+					.multiply(domain.asGenericProjectiveScheme().homogenousPolynomialRing().getVarPower(
+							functionField.affineCoverIndex() + 1, degree - homogenous.degree()), homogenous);
+			asPolynomials.add(homogenous);
+		}
+		return new ProjectiveMorphism<>(domain, range, asPolynomials);
 	}
 
 	public List<Polynomial<T>> asPolynomials() {
 		return asPolynomials;
+	}
+
+	public boolean isFinite() {
+		return false;
+	}
+
+	public boolean isInjective() {
+		return false;
 	}
 
 	private class UpToUniformizerResult {
@@ -125,12 +183,11 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 	}
 
 	@Override
-	public RestrictionResult<T> restrict(ProjectivePoint<T> preimage) {
+	public GeneralRationalFunction<T, ProjectivePoint<T>, ProjectivePoint<T>> restrict(ProjectivePoint<T> preimage) {
 		ProjectivePoint<T> image = evaluate(preimage);
 		int domainCoverIndex = domain.affineCoverIndex(preimage).get(0);
 		int rangeCoverIndex = range.affineCoverIndex(image).get(0);
 		AffineScheme<T> affineDomain = domain.getAffineCover().getCover().get(domainCoverIndex);
-		AffineScheme<T> affineRange = range.getAffineCover().getCover().get(rangeCoverIndex);
 		PolynomialRing<T> affineRing = affineDomain.getCoordinateRing().getPolynomialRing();
 		AffinePoint<T> affinePreimage = domain.asAffinePoint(preimage, domainCoverIndex);
 		LocalizedCoordinateRing<T> localizedRing = affineDomain.localizedCoordinateRing(affinePreimage);
@@ -188,8 +245,6 @@ public class ProjectiveMorphism<T extends Element<T>> implements Morphism<T, Pro
 			asPolynomials.add(domainSubsetRing.getEmbedding(polynomial));
 		}
 		AffineMorphism<T> restricted = new AffineMorphism<>(domainSubset, affineDomain, asPolynomials);
-		return new RestrictionResult<>(domainCoverIndex, rangeCoverIndex, embedding, affineRange.identityMorphism(),
-				restricted);
+		return new GeneralRationalFunction<>(domain, range, restricted, domainCoverIndex, embedding, rangeCoverIndex);
 	}
-
 }

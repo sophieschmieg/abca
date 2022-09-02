@@ -8,9 +8,9 @@ import java.util.SortedSet;
 import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
-import fields.interfaces.PolynomialRing;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
+import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.Value;
 import fields.vectors.Vector;
 
@@ -37,7 +37,7 @@ public class GenericUnivariatePolynomial<T extends Element<T>> extends AbstractE
 	}
 
 	@Override
-	public PolynomialRing<T> getPolynomialRing() {
+	public UnivariatePolynomialRing<T> getPolynomialRing() {
 		return polynomialRing;
 	}
 
@@ -93,7 +93,7 @@ public class GenericUnivariatePolynomial<T extends Element<T>> extends AbstractE
 		return univariateCoefficient(m.exponents()[0]);
 	}
 
-	List<T> coefficients() {
+	public List<T> coefficients() {
 		return Collections.unmodifiableList(this.coefficients);
 	}
 

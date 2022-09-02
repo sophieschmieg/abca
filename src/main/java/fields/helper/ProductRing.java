@@ -40,6 +40,11 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 		public T get(int index) {
 			return values.get(index);
 		}
+		
+		@Override
+		public String toString() {
+			return values.toString();
+		}
 
 		@Override
 		public int compareTo(ProductElement<T> o) {
@@ -568,18 +573,18 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<Ideal<ProductElement<T>>> maximalPrimeIdealChain(Ideal<ProductElement<T>> start) {
+	public List<ProductIdeal<T, R>> maximalPrimeIdealChain(Ideal<ProductElement<T>> start) {
 		ProductIdeal<T, R> ideal = (ProductIdeal<T, R>) start;
-		List<Ideal<T>> maximum = Collections.emptyList();
+		List<? extends Ideal<T>> maximum = Collections.emptyList();
 		int index = -1;
 		for (int i = 0; i < numberOfFactors(); i++) {
-			List<Ideal<T>> chainThisFactor = rings.get(i).maximalPrimeIdealChain(ideal.projection(i));
+			List<? extends Ideal<T>> chainThisFactor = rings.get(i).maximalPrimeIdealChain(ideal.projection(i));
 			if (chainThisFactor.size() > maximum.size()) {
 				maximum = chainThisFactor;
 				index = i;
 			}
 		}
-		List<Ideal<ProductElement<T>>> result = new ArrayList<>();
+		List<ProductIdeal<T, R>> result = new ArrayList<>();
 		for (Ideal<T> primeIdeal : maximum) {
 			result.add(injectFillWithUnitIdeals(primeIdeal, index));
 		}
@@ -588,21 +593,21 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<Ideal<ProductElement<T>>> maximalPrimeIdealChain(Ideal<ProductElement<T>> start,
+	public List<ProductIdeal<T, R>> maximalPrimeIdealChain(Ideal<ProductElement<T>> start,
 			Ideal<ProductElement<T>> end) {
 		ProductIdeal<T, R> startIdeal = (ProductIdeal<T, R>) start;
 		ProductIdeal<T, R> endIdeal = (ProductIdeal<T, R>) end;
-		List<Ideal<T>> maximum = Collections.emptyList();
+		List<? extends Ideal<T>> maximum = Collections.emptyList();
 		int index = -1;
 		for (int i = 0; i < numberOfFactors(); i++) {
-			List<Ideal<T>> chainThisFactor = rings.get(i).maximalPrimeIdealChain(startIdeal.projection(i),
+			List<? extends Ideal<T>> chainThisFactor = rings.get(i).maximalPrimeIdealChain(startIdeal.projection(i),
 					endIdeal.projection(index));
 			if (chainThisFactor.size() > maximum.size()) {
 				maximum = chainThisFactor;
 				index = i;
 			}
 		}
-		List<Ideal<ProductElement<T>>> result = new ArrayList<>();
+		List<ProductIdeal<T, R>> result = new ArrayList<>();
 		for (Ideal<T> primeIdeal : maximum) {
 			result.add(injectFillWithUnitIdeals(primeIdeal, index));
 		}

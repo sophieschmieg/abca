@@ -2,6 +2,7 @@ package fields.numberfields;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -33,6 +34,7 @@ import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Algebra;
 import fields.interfaces.DedekindRing;
+import fields.interfaces.DedekindRingExtension;
 import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.DiscreteValuationRing.OkutsuType;
 import fields.interfaces.DiscreteValuationRing.TheMontesResult;
@@ -41,6 +43,7 @@ import fields.interfaces.Lattice;
 import fields.interfaces.MathMap;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.local.LocalRingExtension;
 import fields.local.Value;
 import fields.numberfields.ModuloNumberFieldIdeal.ModNFE;
 import fields.numberfields.NumberField.NFE;
@@ -58,8 +61,9 @@ import util.Identity;
 import util.MiscAlgorithms;
 import util.SingletonSortedMap;
 
-public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
-		implements Algebra<IntE, NFE>, DedekindRing<NFE, NFE, FFE>, Lattice<NFE, Real, Vector<Real>> {
+public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements Algebra<IntE, NFE>,
+		DedekindRingExtension<Fraction, IntE, PFE, NFE, NFE, PFE, FFE, FiniteField, LocalizedNumberField, NumberField>,
+		Lattice<NFE, Real, Vector<Real>> {
 	private NumberField field;
 	private UnivariatePolynomial<IntE> minimalPolynomial;
 	private IntE minimalPolynomialDenominator;
@@ -456,6 +460,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			for (int j = 0; j < m.columns(); j++) {
 				row.add(asMatrix(m.entry(i + 1, j + 1)));
 			}
+			result.add(row);
 		}
 		return Matrix.fromBlockMatrix(result);
 	}
@@ -586,6 +591,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		}
 		FactorizationResult<IntE, IntE> factorization = z.uniqueFactorization(normGcd);
 		return getIdealWithFactorization(generators, factorization);
+	}
+
+	@Override
+	public NumberFieldIdeal getIdeal(NFE... generators) {
+		return getIdeal(Arrays.asList(generators));
 	}
 
 	public Optional<NumberFieldIdeal> getIdealIfSmoothOver(List<NFE> generators, Set<IntE> smoothnessBase) {
@@ -853,29 +863,37 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	public List<NumberFieldIdeal> idealsOver(IntE prime) {
-		if (!Integers.z().isPrime(prime)) {
+		Integers z = Integers.z();
+		if (!z.isPrime(prime)) {
 			throw new ArithmeticException("Prime number required!");
 		}
 		if (idealsOverPrime.containsKey(prime)) {
 			return idealsOverPrime.get(prime);
 		}
-		DiscreteValuationRing<Fraction, PFE> zp = Integers.z().localize(prime);
-		PrimeField fp = PrimeField.getPrimeField(prime);
-		Rationals q = Rationals.q();
-		UnivariatePolynomial<Fraction> zpMinimalPolynomial = q.getUnivariatePolynomialRing()
-				.getEmbedding(minimalPolynomial(), new MathMap<>() {
-					@Override
-					public Fraction evaluate(IntE t) {
-						return q.getInteger(t);
-					}
-				});
-		TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = zp.theMontesAlgorithm(zpMinimalPolynomial,
-				fp.getExtension(fp.getUnivariatePolynomialRing().getVar()));
+//		DiscreteValuationRing<Fraction, PFE> zp = Integers.z().localize(prime);
+//		PrimeField fp = PrimeField.getPrimeField(prime);
+//		Rationals q = Rationals.q();
+//		UnivariatePolynomial<Fraction> zpMinimalPolynomial = q.getUnivariatePolynomialRing()
+//				.getEmbedding(minimalPolynomial(), new MathMap<>() {
+//					@Override
+//					public Fraction evaluate(IntE t) {
+//						return q.getInteger(t);
+//					}
+//				});
+//		TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = zp.theMontesAlgorithm(zpMinimalPolynomial,
+//				fp.getExtension(fp.getUnivariatePolynomialRing().getVar()));
+//		List<NumberFieldIdeal> ideals = new ArrayList<>();
+//		List<List<UnivariatePolynomial<Fraction>>> integralBasis = zp.integralBasis(zpMinimalPolynomial, theMontes,
+//				true);
+//		for (int i = 0; i < theMontes.getTypes().size(); i++) {
+//			ideals.add(new NumberFieldIdeal(zp, theMontes.getTypes(), i, integralBasis));
+//		}
+		List<TwoGeneratorIdeal<IntE, Fraction, PFE, PFE, FFE, FiniteField>> twoGeneratorIdeals = z
+				.idealsOverGenerators(minimalPolynomial(), prime, PrimeField.getPrimeField(prime)
+						.getExtension(PrimeField.getPrimeField(prime).getUnivariatePolynomialRing().getVar()));
 		List<NumberFieldIdeal> ideals = new ArrayList<>();
-		List<List<UnivariatePolynomial<Fraction>>> integralBasis = zp.integralBasis(zpMinimalPolynomial, theMontes,
-				true);
-		for (int i = 0; i < theMontes.getTypes().size(); i++) {
-			ideals.add(new NumberFieldIdeal(zp, theMontes.getTypes(), i, integralBasis));
+		for (TwoGeneratorIdeal<IntE, Fraction, PFE, PFE, FFE, FiniteField> ideal : twoGeneratorIdeals) {
+			ideals.add(new NumberFieldIdeal(ideal));
 		}
 		idealsOverPrime.put(prime, ideals);
 		return ideals;
@@ -1125,7 +1143,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	public IntegerIdeal annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<IntE>> getSyzygies() {
 		return Collections.emptyList();
@@ -1320,10 +1338,14 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	public NFE getDenominator(NFE t) {
-		if (isElement(t)) {
-			return one();
-		}
+		return getEmbedding(getIntegerDenominator(t));
+	}
+
+	public IntE getIntegerDenominator(NFE t) {
 		Integers z = Integers.z();
+		if (isElement(t)) {
+			return z.one();
+		}
 		Vector<Fraction> asVector = field.asVector(t);
 		Matrix<Fraction> baseChange = toIntegralBasisBaseChange();
 		Vector<Fraction> asIntegralVector = field.asVectorSpace().matrixAlgebra().multiply(baseChange, asVector);
@@ -1331,9 +1353,10 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 		for (Fraction c : asIntegralVector.asList()) {
 			denominator = z.lcm(denominator, c.getDenominator());
 		}
-		return getEmbedding(denominator);
+		return denominator;
 	}
 
+	@Override
 	public NFE asInteger(NFE t) {
 		if (isElement(t)) {
 			return t;
@@ -1403,6 +1426,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	@Override
 	public boolean isInteger(NFE t) {
 		return isElement(t);
+	}
+
+	@Override
+	public NumberField quotientField() {
+		return numberField();
 	}
 
 	public NumberField numberField() {
@@ -1900,7 +1928,8 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 	}
 
 	@Override
-	public DiscreteValuationRing<NFE, FFE> localize(Ideal<NFE> maximalIdeal) {
+	public LocalRingExtension<Fraction, PFE, NFE, LocalizedNumberField, PFE, FFE, FiniteField> localize(
+			Ideal<NFE> maximalIdeal) {
 		if (!localizations.containsKey(maximalIdeal)) {
 			NumberFieldIdeal ideal = (NumberFieldIdeal) maximalIdeal;
 			localizations.put(maximalIdeal,
@@ -1973,84 +2002,85 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			this.idealFactorization = new FactorizationResult<>(this, Collections.emptySortedMap());
 		}
 
-		private NumberFieldIdeal(DiscreteValuationRing<Fraction, PFE> localized,
+		private NumberFieldIdeal(TwoGeneratorIdeal<IntE,	 Fraction, PFE, PFE, FFE, FiniteField> ideal/*DiscreteValuationRing<Fraction, PFE> localized,
 				List<OkutsuType<Fraction, PFE, PFE, FFE, FiniteField>> types, int index,
-				List<List<UnivariatePolynomial<Fraction>>> integral) {
+				List<List<UnivariatePolynomial<Fraction>>> integral*/) {
 			super(NumberFieldIntegers.this);
-			this.type = types.get(index);
-			this.allTypes = types;
-			this.typeIndex = index;
-			this.integralBases = integral;
+			this.type = ideal.getType(); //types.get(index);
+			this.allTypes = ideal.getTypes();//types;
+			this.typeIndex = ideal.getIndex();//index;
+			this.integralBases = ideal.getIntegralBases();//  integral;
+			this.uniformizer = field.fromPolynomial(ideal.getUniformizer());
+			this.intGenerator = ideal.getIntGenerator();
 			this.maximal = true;
-			Rationals q = Rationals.q();
-			UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
-			UnivariatePolynomial<Fraction> uniformizer = null;
-			UnivariatePolynomial<Fraction> basisElement = null;
-			if (type.ramificationIndex() == 1) {
-				uniformizer = polynomials.getEmbedding(localized.uniformizer());
-				basisElement = integral.get(index).get(0);
-			} else {
-				boolean foundUniformizer = false;
-				boolean foundZero = false;
-				for (int i = 0; i < integral.get(index).size(); i++) {
-					Value value = type.valuation(integral.get(index).get(i));
-					if (!foundUniformizer && value.equals(Value.ONE)) {
-						foundUniformizer = true;
-						uniformizer = integral.get(index).get(i);
-					} else if (!foundZero && value.equals(Value.ZERO)) {
-						foundZero = true;
-						basisElement = integral.get(index).get(i);
-					}
-					if (foundZero && foundUniformizer) {
-						break;
-					}
-				}
-				if (!foundUniformizer) {
-					System.err.println("Did not find uniformizer, but kinda expected to find one!");
-					uniformizer = type.lift(type.reduction().extension().one(), 1);
-				}
-				if (!foundZero) {
-					throw new ArithmeticException("Did not find zero valuation element in integral basis!");
-				}
-			}
-			UnivariatePolynomial<Fraction> generator = polynomials.multiply(uniformizer, basisElement);
-			for (int i = 0; i < types.size(); i++) {
-				if (i == index) {
-					continue;
-				}
-				OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> otherType = types.get(i);
-				if (!otherType.valuation(generator).equals(Value.ZERO)) {
-					for (int j = 0; j < integral.get(i).size(); j++) {
-						if (otherType.valuation(integral.get(i).get(j)).equals(Value.ZERO)) {
-							generator = polynomials.add(generator, integral.get(i).get(j));
-							break;
-						}
-					}
-				}
-			}
-			for (int i = 0; i < types.size(); i++) {
-				if (i == index) {
-					if (!types.get(i).valuation(generator).equals(Value.ONE)) {
-						throw new ArithmeticException("Not a uniformizer of the prime ideal!");
-					}
-				} else {
-					if (!types.get(i).valuation(generator).equals(Value.ZERO)) {
-						throw new ArithmeticException("Not a unit mod the other prime ideals!");
-					}
-				}
-			}
-			this.uniformizer = field.fromPolynomial(generator);
-//			this.originalUniformizer = this.uniformizer;
-			this.intGenerator = localized.uniformizer().asInteger();
+//			Rationals q = Rationals.q();
+//			UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+//			UnivariatePolynomial<Fraction> uniformizer = null;
+//			UnivariatePolynomial<Fraction> basisElement = null;
+//			if (type.ramificationIndex() == 1) {
+//				uniformizer = polynomials.getEmbedding(localized.uniformizer());
+//				basisElement = integral.get(index).get(0);
+//			} else {
+//				boolean foundUniformizer = false;
+//				boolean foundZero = false;
+//				for (int i = 0; i < integral.get(index).size(); i++) {
+//					Value value = type.valuation(integral.get(index).get(i));
+//					if (!foundUniformizer && value.equals(Value.ONE)) {
+//						foundUniformizer = true;
+//						uniformizer = integral.get(index).get(i);
+//					} else if (!foundZero && value.equals(Value.ZERO)) {
+//						foundZero = true;
+//						basisElement = integral.get(index).get(i);
+//					}
+//					if (foundZero && foundUniformizer) {
+//						break;
+//					}
+//				}
+//				if (!foundUniformizer) {
+//					System.err.println("Did not find uniformizer, but kinda expected to find one!");
+//					uniformizer = type.lift(type.reduction().extension().one(), 1);
+//				}
+//				if (!foundZero) {
+//					throw new ArithmeticException("Did not find zero valuation element in integral basis!");
+//				}
+//			}
+//			UnivariatePolynomial<Fraction> generator = polynomials.multiply(uniformizer, basisElement);
+//			for (int i = 0; i < types.size(); i++) {
+//				if (i == index) {
+//					continue;
+//				}
+//				OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> otherType = types.get(i);
+//				if (!otherType.valuation(generator).equals(Value.ZERO)) {
+//					for (int j = 0; j < integral.get(i).size(); j++) {
+//						if (otherType.valuation(integral.get(i).get(j)).equals(Value.ZERO)) {
+//							generator = polynomials.add(generator, integral.get(i).get(j));
+//							break;
+//						}
+//					}
+//				}
+//			}
+//			for (int i = 0; i < types.size(); i++) {
+//				if (i == index) {
+//					if (!types.get(i).valuation(generator).equals(Value.ONE)) {
+//						throw new ArithmeticException("Not a uniformizer of the prime ideal!");
+//					}
+//				} else {
+//					if (!types.get(i).valuation(generator).equals(Value.ZERO)) {
+//						throw new ArithmeticException("Not a unit mod the other prime ideals!");
+//					}
+//				}
+//			}
+//			this.uniformizer = field.fromPolynomial(generator);
+//			this.intGenerator = localized.uniformizer().asInteger();
 			this.idealFactorization = new FactorizationResult<>(getUnitIdeal(), SingletonSortedMap.map(this, 1));
 			init();
-			for (int i = 0; i < types.size(); i++) {
-				if (i == index) {
-					if (!types.get(i).valuation(this.uniformizer.asPolynomial()).equals(Value.ONE)) {
+			for (int i = 0; i < allTypes.size(); i++) {
+				if (i == typeIndex) {
+					if (!allTypes.get(i).valuation(this.uniformizer.asPolynomial()).equals(Value.ONE)) {
 						throw new ArithmeticException("Not a uniformizer of the prime ideal!");
 					}
 				} else {
-					if (!types.get(i).valuation(this.uniformizer.asPolynomial()).equals(Value.ZERO)) {
+					if (!allTypes.get(i).valuation(this.uniformizer.asPolynomial()).equals(Value.ZERO)) {
 						throw new ArithmeticException("Not a unit mod the other prime ideals!");
 					}
 				}
@@ -2201,17 +2231,13 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			List<NFE> basis = asSubModule.getBasis();
 			if (!skipLLL) {
 				basis = sublatticeReduction(basis, 1.0);
-			} // else {
-//				throw new ArithmeticException("Things are too large");
-//				Vector<IntE> asVector = NumberFieldIntegers.this.asVector(uniformizer);
-//				List<IntE> reduced = new ArrayList<>();
-//				for (IntE c : asVector.asList()) {
-//					reduced.add(new IntE(c.getValue().mod(intGenerator.getValue())));
-//				}
-//				proposeNewUniformizer(NumberFieldIntegers.this.fromVector(new Vector<>(reduced)));
-//			}
-			for (NFE b : basis) {
-				proposeNewUniformizer(b);
+			}
+			if (isElement(field.divide(uniformizer, field.getEmbedding(intGenerator)))) {
+				this.uniformizer = field.getEmbedding(intGenerator);
+			} else {
+				for (NFE b : basis) {
+					proposeNewUniformizer(b);
+				}
 			}
 			if (isElement(field.divide(uniformizer, field.getEmbedding(intGenerator)))) {
 				this.uniformizer = field.getEmbedding(intGenerator);
@@ -2272,6 +2298,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE>
 			return shortestElement;
 		}
 
+		@Override
 		public NFE principalGenerator() {
 			if (generators.size() == 1) {
 				return generators.get(0);

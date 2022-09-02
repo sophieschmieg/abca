@@ -77,9 +77,11 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public TranscendentalFieldExtension(Field<T> baseField, String[] variables) {
 		this(baseField, variables, Monomial.GREVLEX);
 	}
+
 	public TranscendentalFieldExtension(Field<T> baseField, int dimensions) {
 		this(baseField, dimensions, Monomial.GREVLEX);
 	}
+
 	public TranscendentalFieldExtension(Field<T> baseField, String[] variables, Comparator<Monomial> comparator) {
 		this(baseField, AbstractPolynomialRing.getPolynomialRing(baseField, comparator, variables));
 	}
@@ -296,8 +298,26 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		return getElement(asFieldOfFractions.getEmbedding(polynomialRing.getEmbedding(t)));
 	}
 
+	public MathMap<T, TExt<T>> getEmbeddingMap() {
+		return new MathMap<>() {
+			@Override
+			public TExt<T> evaluate(T t) {
+				return getEmbedding(t);
+			}
+		};
+	}
+
 	public TExt<T> getEmbedding(Polynomial<T> t) {
 		return getElement(asFieldOfFractions.getEmbedding(t));
+	}
+
+	public TExt<T> getElement(Polynomial<T> numerator, Polynomial<T> denomiator) {
+		return getElement(asFieldOfFractions.getFraction(numerator, denomiator));
+	}
+
+	public <S extends Element<S>> TExt<T> getEmbedding(TExt<S> t, MathMap<S, T> map) {
+		return getElement(polynomialRing.getEmbedding(t.getNumerator(), map),
+				polynomialRing.getEmbedding(t.getDenominator(), map));
 	}
 
 	public TExt<T> getVar(int i) {
@@ -383,4 +403,34 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		}
 		return new FactorizationResult<>(getElement(factorization.getUnit()), result);
 	}
+
+	public TExt<T> characteristicRoot(TExt<T> t, int power) {
+		return divide(getEmbedding(polynomialRing.characteristicRoot(t.getNumerator(), power)),
+				getEmbedding(polynomialRing.characteristicRoot(t.getDenominator(), power)));
+	}
+
+	@Override
+	public boolean hasCharacteristicRoot(TExt<T> t, int power) {
+		return polynomialRing.hasCharacteristicRoot(t.getNumerator(), power)
+				&& polynomialRing.hasCharacteristicRoot(t.getDenominator(), power);
+	}
+
+	public TExt<T> substitute(Polynomial<T> t, List<TExt<T>> substitutes) {
+		TExt<T> result = zero();
+		for (Monomial m : t.monomials()) {
+			TExt<T> value = getEmbedding(t.coefficient(m));
+			for (int i = 0; i < m.exponents().length; i++) {
+				if (m.exponents()[i] != 0) {
+					value = multiply(power(substitutes.get(i), m.exponents()[i]), value);
+				}
+			}
+			result = add(value, result);
+		}
+		return result;
+	}
+
+	public TExt<T> substitute(TExt<T> t, List<TExt<T>> substitutes) {
+		return divide(substitute(t.getNumerator(), substitutes), substitute(t.getDenominator(), substitutes));
+	}
+
 }

@@ -1,6 +1,7 @@
 package varieties.curves.elliptic;
 
 import java.math.BigInteger;
+import java.util.List;
 
 import fields.interfaces.Element;
 import varieties.projective.ProjectiveMorphism;
@@ -65,6 +66,11 @@ public class MultiplicationIsogeny<T extends Element<T>> implements Isogeny<T> {
 			asMorphism = curve.multiplicationMorphism(n.intValueExact());
 		}
 		return asMorphism;
+	}
+
+	@Override
+	public List<ProjectivePoint<T>> kernelGenerators() {
+		return curve.getTorsionPointBasis(n);
 	}
 
 }

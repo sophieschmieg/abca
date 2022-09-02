@@ -265,16 +265,6 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public T numerator(T t) {
-		return t;
-	}
-
-	@Override
-	public T denominator(T t) {
-		return one();
-	}
-
-	@Override
 	public T divideChecked(T dividend, T divisor) {
 		QuotientAndRemainderResult<T> result = quotientAndRemainder(dividend, divisor);
 		if (!result.getRemainder().equals(zero())) {
@@ -296,10 +286,9 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	@Override
 	public BezoutIdentityResult<T> bezoutIdentity(Ideal<T> t1, Ideal<T> t2) {
 		if (isEuclidean()) {
-			if (t1.generators().size() != 1 || t2.generators().size() != 1) {
-				throw new ArithmeticException("Euclidean rings should use principal ideals");
-			}
-			ExtendedEuclideanResult<T> ee = extendedEuclidean(t1.generators().get(0), t2.generators().get(0));
+			T generator1 = t1.principalGenerator();
+			T generator2 = t2.principalGenerator();
+			ExtendedEuclideanResult<T> ee = extendedEuclidean(generator1, generator2);
 			T inverseGcd = inverse(ee.getGcd());
 			return new BezoutIdentityResult<>(Collections.singletonList(multiply(inverseGcd, ee.getCoeff1())),
 					Collections.singletonList(multiply(inverseGcd, ee.getCoeff2())));
@@ -720,17 +709,17 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
-	public List<Ideal<T>> maximalPrimeIdealChain() {
+	public List<? extends Ideal<T>> maximalPrimeIdealChain() {
 		return maximalPrimeIdealChain(getNilRadical());
 	}
 
 	@Override
-	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start) {
+	public List<? extends Ideal<T>> maximalPrimeIdealChain(Ideal<T> start) {
 		throw new UnsupportedOperationException("Not implemented!");
 	}
 
 	@Override
-	public List<Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end) {
+	public List<? extends Ideal<T>> maximalPrimeIdealChain(Ideal<T> start, Ideal<T> end) {
 		throw new UnsupportedOperationException("Not implemented!");
 	}
 

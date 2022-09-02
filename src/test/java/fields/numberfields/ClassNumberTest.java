@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 import fields.helper.FieldEmbedding;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
-import fields.integers.LocalizedFractions;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Ring.FactorizationResult;

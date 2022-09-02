@@ -13,10 +13,10 @@ import fields.helper.AbstractElement;
 import fields.helper.AbstractField;
 import fields.helper.FieldOfFractions;
 import fields.helper.FieldOfFractions.Fraction;
-import fields.interfaces.Element;
-import fields.interfaces.Field;
 import fields.interfaces.DiscreteValuationField;
 import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.Element;
+import fields.interfaces.Field;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
@@ -32,6 +32,7 @@ import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import util.Identity;
 import util.Pair;
 
@@ -166,8 +167,8 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		if (this.uniformizerVariable == -1) {
 			this.uniformizerVariable = 1;
 		}
-		this.polynomialRing = AbstractPolynomialRing.getPolynomialRing(field, polynomialRing.numberOfVariables(),
-				new Monomial.InvertedEliminateVariableOrder(uniformizerVariable));
+		this.polynomialRing = AbstractPolynomialRing.getPolynomialRing(field,
+				new Monomial.InvertedEliminateVariableOrder(uniformizerVariable), polynomialRing.getVariableNames());
 		this.fieldOfFractions = new FieldOfFractions<>(this.polynomialRing);
 		List<Polynomial<T>> idealGenerators = new ArrayList<>();
 		for (Polynomial<T> generator : ring.getIdeal().generators()) {
@@ -198,6 +199,29 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 			Pair<Fraction<Polynomial<T>>, Value> denominatorPair = asUniformizerPower(getEmbedding(t.getDenominator()));
 			return new Pair<>(fieldOfFractions.divide(numeratorPair.getFirst(), denominatorPair.getFirst()),
 					g.subtract(numeratorPair.getSecond(), denominatorPair.getSecond()));
+		}
+		if (!ideal.contains(t.getNumerator())) {
+			return new Pair<>(t.asPolynomialFraction, new Value(0));
+		}
+		int value = ideal.maximumPowerContains(t.getNumerator()).value();
+		List<CoordinateRingElement<T>> row = new ArrayList<>();
+		row.add(ring.negative(t.getNumerator()));
+		row.add(ring.power(ring.getEmbedding(uniformizerAsPolynomial), value));
+		List<Vector<CoordinateRingElement<T>>> syzygies = ring.syzygyProblem(row);
+		boolean syzygyFound = false;
+		for (Vector<CoordinateRingElement<T>> syzygy : syzygies) {
+			if (ideal.contains(syzygy.get(1))) {
+				continue;
+			}
+			if (ideal.contains(syzygy.get(2))) {
+				continue;
+			}
+			syzygyFound = true;
+			return new Pair<>(fieldOfFractions.getFraction(syzygy.get(2).getElement(),
+					ring.multiply(t.getDenominator(), syzygy.get(1)).getElement()), new Value(value));
+		}
+		if (!syzygyFound) {
+			throw new ArithmeticException("No syzygy found!");
 		}
 		int power = 0;
 		Polynomial<T> numerator = t.getNumerator().getElement();
@@ -248,6 +272,11 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		return new LocalizedElement<>(this, fraction, ring, fieldOfFractions);
 	}
 
+	@Override
+	public LocalizedElement<T> getInteger(LocalizedElement<T> t) {
+		return t;
+	}
+
 	public LocalizedElement<T> getEmbedding(T t) {
 		return getEmbedding(polynomialRing.getEmbedding(t));
 	}
@@ -271,7 +300,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		}
 		return r.exp(r.getInteger(-valuation(t).value()));
 	}
-	
+
 	@Override
 	public Reals getReals() {
 		return r;
@@ -459,7 +488,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 				for (int i = minPower; i < accuracy; i++) {
 					T c = reduceInteger(t);
 					coefficients.add(c);
-					t = divide(subtract(t,getEmbedding(c)), uniformizer());
+					t = divide(subtract(t, getEmbedding(c)), uniformizer());
 					if (t.equals(zero())) {
 						break;
 					}
@@ -495,11 +524,11 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 	public DiscreteValuationRing<LocalizedElement<T>, T> ringOfIntegers() {
 		return localRing;
 	}
-	
+
 	@Override
-	public DiscreteValuationFieldExtension<LocalizedElement<T>, T, ?, ?, ?, ?> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<LocalizedElement<T>, T, ?, ?, ?, ?, ?, ?, ?> getUniqueExtension(
 			UnivariatePolynomial<LocalizedElement<T>> minimalPolynomial) {
-	throw new UnsupportedOperationException("Not implemented!");
+		throw new UnsupportedOperationException("Not implemented!");
 	}
 
 }

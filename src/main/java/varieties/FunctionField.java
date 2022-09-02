@@ -58,6 +58,9 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 	}
 
 	public RationalFunction<T> getEmbedding(Polynomial<T> t) {
+		if (t.equals(projectivePolynomialRing.zero())) {
+			return getFunction(t, projectivePolynomialRing.one());
+		}
 		return getFunction(t, projectivePolynomialRing.getVarPower(affineCoverIndex + 1, t.degree()));
 	}
 
@@ -70,10 +73,10 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 	}
 
 	public RationalFunction<T> getFunction(CoordinateRingElement<T> numerator, CoordinateRingElement<T> denominator) {
-		Polynomial<T> homogenousNumerator = projectivePolynomialRing.homogenize(numerator.getElement(),
-				affineCoverIndex + 1);
-		Polynomial<T> homogenousDenominator = projectivePolynomialRing.homogenize(denominator.getElement(),
-				affineCoverIndex + 1);
+		Polynomial<T> homogenousNumerator = domain.asGenericProjectiveScheme().homogenize(numerator.getElement(),
+				affineCoverIndex);
+		Polynomial<T> homogenousDenominator = domain.asGenericProjectiveScheme().homogenize(denominator.getElement(),
+				affineCoverIndex);
 		int degree = Math.max(homogenousNumerator.degree(), homogenousDenominator.degree());
 		homogenousNumerator = projectivePolynomialRing.multiply(homogenousNumerator,
 				projectivePolynomialRing.getVarPower(affineCoverIndex + 1, degree - homogenousNumerator.degree()));
@@ -127,19 +130,19 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 		return affineCoordinateRing.getEmbedding(affinePolynomialRing.getEmbedding(projectivePolynomialRing.dehomogenize(t, affineCoverIndex+1)));
 	}
 		
-	private CoordinateRingElement<T> getNumerator(RationalFunction<T> t) {
+	public CoordinateRingElement<T> getIntegerNumerator(RationalFunction<T> t) {
 		return getAffine(t.getNumerator());
 	}
 
-	private CoordinateRingElement<T> getDenominator(RationalFunction<T> t) {
+	public CoordinateRingElement<T> getIntegerDenominator(RationalFunction<T> t) {
 		return getAffine(t.getDenominator());
 	}
 
 	@Override
 	public RationalFunction<T> add(RationalFunction<T> t1, RationalFunction<T> t2) {
-		CoordinateRingElement<T> numerator = affineCoordinateRing.add(affineCoordinateRing.multiply(getNumerator(t1), getDenominator(t2)),
-				affineCoordinateRing.multiply(getNumerator(t2), getDenominator(t1)));
-		CoordinateRingElement<T> denominator = affineCoordinateRing.multiply(getDenominator(t1), getDenominator(t2));
+		CoordinateRingElement<T> numerator = affineCoordinateRing.add(affineCoordinateRing.multiply(getIntegerNumerator(t1), getIntegerDenominator(t2)),
+				affineCoordinateRing.multiply(getIntegerNumerator(t2), getIntegerDenominator(t1)));
+		CoordinateRingElement<T> denominator = affineCoordinateRing.multiply(getIntegerDenominator(t1), getIntegerDenominator(t2));
 		return getFunction(numerator, denominator);
 	}
 
@@ -150,8 +153,8 @@ public class FunctionField<T extends Element<T>> extends AbstractField<RationalF
 
 	@Override
 	public RationalFunction<T> multiply(RationalFunction<T> t1, RationalFunction<T> t2) {
-		CoordinateRingElement<T> numerator = affineCoordinateRing.multiply(getNumerator(t1), getNumerator(t2));
-		CoordinateRingElement<T> denominator = affineCoordinateRing.multiply(getDenominator(t1), getDenominator(t2));
+		CoordinateRingElement<T> numerator = affineCoordinateRing.multiply(getIntegerNumerator(t1), getIntegerNumerator(t2));
+		CoordinateRingElement<T> denominator = affineCoordinateRing.multiply(getIntegerDenominator(t1), getIntegerDenominator(t2));
 		return getFunction(numerator, denominator);
 	}
 

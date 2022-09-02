@@ -2,6 +2,7 @@ package varieties.projective;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -12,8 +13,10 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
+import varieties.AbstractMorphism;
 import varieties.AbstractScheme;
 import varieties.FunctionField;
+import varieties.GeneralRationalFunction;
 import varieties.Morphism;
 import varieties.SpectrumOfField;
 import varieties.SpectrumOfField.SingletonPoint;
@@ -41,10 +44,11 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 		}
 		List<AffineScheme<T>> coverList = new ArrayList<>();
 		List<List<AffineMorphism<T>>> intersectionList = new ArrayList<>();
-		PolynomialRing<T> affineRing = AbstractPolynomialRing.getPolynomialRing(field,
-				polynomialRing.numberOfVariables() - 1, polynomialRing.getComparator());
+//		PolynomialRing<T> affineRing = AbstractPolynomialRing.getPolynomialRing(field,
+//				polynomialRing.numberOfVariables() - 1, polynomialRing.getComparator());
 		Polynomial<T> z = polynomialRing.getVar(polynomialRing.numberOfVariables());
 		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+			PolynomialRing<T> affineRing = polynomialRing.eliminateVariable(i + 1);
 			List<Polynomial<T>> affineList = new ArrayList<>();
 			int[] map = new int[polynomialRing.numberOfVariables()];
 			for (int j = 0; j < polynomialRing.numberOfVariables(); j++) {
@@ -96,7 +100,7 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 			}
 			intersectionList.get(i).add(coverList.get(i).identityMorphism());
 		}
-		this.cover = new AffineCover<>(coverList, intersectionList);
+		this.cover = new AffineCover<>(coverList, intersectionList, true);
 	}
 
 	public static <T extends Element<T>> GenericProjectiveScheme<T> fromAffineScheme(AffineScheme<T> affine) {
@@ -127,6 +131,43 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 	}
 
 	@Override
+	public String toString() {
+		String[] generatorNames = new String[generators.size()];
+		for (int i = 0; i < generators.size(); i++) {
+			generatorNames[i] = generators.get(i).toString();
+		}
+		return "Proj(" + homogenousPolynomialRing() + "/(" + String.join(", ", generatorNames) + "))";
+	}
+
+	public Polynomial<T> homogenize(Polynomial<T> t, int affineCoverIndex) {
+		int index = 0;
+		int[] map = new int[polynomialRing.numberOfVariables() - 1];
+		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+			if (i == affineCoverIndex) {
+				continue;
+			}
+			map[index] = i;
+			index++;
+		}
+		return polynomialRing.homogenize(polynomialRing.getEmbedding(t), affineCoverIndex + 1);
+	}
+
+	public Polynomial<T> dehomogenize(Polynomial<T> t, int affineCoverIndex) {
+		int index = 0;
+		int[] map = new int[polynomialRing.numberOfVariables()];
+		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+			if (i == affineCoverIndex) {
+				map[i] = -1;
+				continue;
+			}
+			map[i] = index;
+			index++;
+		}
+		return cover.get(affineCoverIndex).getCoordinateRing().getPolynomialRing()
+				.getEmbedding(polynomialRing.dehomogenize(t, affineCoverIndex + 1), map);
+	}
+
+	@Override
 	public Exactness exactness() {
 		return field.exactness();
 	}
@@ -148,7 +189,46 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 
 	@Override
 	public Iterator<ProjectivePoint<T>> iterator() {
-		throw new UnsupportedOperationException();
+		if (polynomialRing.numberOfVariables() == 1) {
+			return Collections.emptyIterator();
+		}
+		Iterator<AffinePoint<T>> affineIterator = cover.get(projectiveEmbeddingDimension()).iterator();
+		List<T> eval = new ArrayList<>();
+		for (int i = 0; i < projectiveEmbeddingDimension(); i++) {
+			eval.add(null);
+		}
+		eval.add(field.zero());
+		List<Polynomial<T>> zeroGenerators = new ArrayList<>();
+		PolynomialRing<T> reduced = AbstractPolynomialRing.getPolynomialRing(field, projectiveEmbeddingDimension(),
+				polynomialRing.getComparator());
+		for (Polynomial<T> generator : generators) {
+			zeroGenerators.add(reduced.getEmbedding(polynomialRing.partiallyEvaluate(generator, eval)));
+		}
+		Iterator<ProjectivePoint<T>> lowerIterator = new GenericProjectiveScheme<>(field, reduced, zeroGenerators)
+				.iterator();
+		return new Iterator<>() {
+
+			@Override
+			public boolean hasNext() {
+				return affineIterator.hasNext() || lowerIterator.hasNext();
+			}
+
+			@Override
+			public ProjectivePoint<T> next() {
+				if (affineIterator.hasNext()) {
+					AffinePoint<T> point = affineIterator.next();
+					List<T> result = new ArrayList<>();
+					result.addAll(point.getCoords());
+					result.add(field.one());
+					return new ProjectivePoint<>(field, result);
+				}
+				ProjectivePoint<T> point = lowerIterator.next();
+				List<T> result = new ArrayList<>();
+				result.addAll(point.getCoords());
+				result.add(field.zero());
+				return new ProjectivePoint<>(field, result);
+			}
+		};
 	}
 
 	@Override
@@ -165,7 +245,7 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 		}
 		return true;
 	}
-	
+
 	public List<Polynomial<T>> generators() {
 		return generators;
 	}
@@ -192,8 +272,19 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 	}
 
 	@Override
+	public int recommendAffineCoverIndex(ProjectivePoint<T> p) {
+		for (int i = polynomialRing.numberOfVariables() - 1; i >= 0; i--) {
+			T coord = p.getCoord(i + 1);
+			if (!coord.equals(field.zero())) {
+				return i;
+			}
+		}
+		throw new ArithmeticException("Point invalid!");
+	}
+
+	@Override
 	public Morphism<T, AffinePoint<T>, ProjectivePoint<T>> embedding(int coverIndex) {
-		return new Morphism<>() {
+		return new AbstractMorphism<>() {
 
 			@Override
 			public ProjectivePoint<T> evaluate(AffinePoint<T> t) {
@@ -219,11 +310,10 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 			}
 
 			@Override
-			public RestrictionResult<T> restrict(AffinePoint<T> p) {
-				return new RestrictionResult<>(coverIndex, coverIndex,
-						cover.getCover().get(coverIndex).identityMorphism(),
-						cover.getCover().get(coverIndex).identityMorphism(),
-						cover.getCover().get(coverIndex).identityMorphism());
+			public GeneralRationalFunction<T, AffinePoint<T>, ProjectivePoint<T>> restrict(AffinePoint<T> point) {
+				return new GeneralRationalFunction<>(cover.getCover().get(coverIndex), getRange(),
+						getDomain().identityMorphism(), 0,
+						getDomain().identityMorphism(), coverIndex);
 			}
 		};
 	}
@@ -249,7 +339,7 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 	@Override
 	public Morphism<T, SingletonPoint, ProjectivePoint<T>> pointAsMorphism(ProjectivePoint<T> p) {
 		SpectrumOfField<T> domain = new SpectrumOfField<>(field);
-		return new Morphism<>() {
+		return new AbstractMorphism<>() {
 
 			@Override
 			public ProjectivePoint<T> evaluate(SingletonPoint t) {
@@ -267,45 +357,64 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 			}
 
 			@Override
-			public RestrictionResult<T> restrict(SingletonPoint preimage) {
+			public GeneralRationalFunction<T, SingletonPoint, ProjectivePoint<T>> restrict(SingletonPoint point) {
+				int rangeCoverIndex = recommendAffineCoverIndex(p);
 				AffineScheme<T> singleton = domain.getAffineCover().getCover().get(0);
 				PolynomialRing<T> polynomials = singleton.getCoordinateRing().getPolynomialRing();
 				List<Polynomial<T>> asPolynomials = new ArrayList<>();
-				int rangeCoverIndex = affineCoverIndex(p).get(0);
 				AffineScheme<T> affineRange = getAffineCover().getCover().get(rangeCoverIndex);
-				for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
-					if (i == rangeCoverIndex) {
-						continue;
-					}
-					asPolynomials.add(polynomials.getEmbedding(p.getDehomogenisedCoord(i + 1, rangeCoverIndex + 1)));
+				for (T coord : asAffinePoint(p, rangeCoverIndex).getCoords()) {
+					asPolynomials.add(polynomials.getEmbedding(coord));
 				}
-				return new RestrictionResult<>(0, rangeCoverIndex, singleton.identityMorphism(),
-						affineRange.identityMorphism(),
-						AffineMorphism.fromPolynomials(singleton, affineRange, asPolynomials));
-			}
+				return new GeneralRationalFunction<>(domain, getRange(),
+						AffineMorphism.fromPolynomials(singleton, affineRange, asPolynomials), 0,
+						singleton.identityMorphism(), rangeCoverIndex);
+				}
 
 		};
 	}
 
 	@Override
-	public List<GenericProjectiveScheme<T>> irreducibleComponents() {
-		List<GenericProjectiveScheme<T>> result = new ArrayList<>();
-		for (AffineScheme<T> affine : getAffineCover().getCover().get(0).irreducibleComponents()) {
-			result.add(fromAffineScheme(affine));
+	public ProjectiveMorphism<T> identityMorphism() {
+		List<Polynomial<T>> polynomials = new ArrayList<>();
+		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+			polynomials.add(polynomialRing.getVar(i + 1));
 		}
-		return result;
+		return new ProjectiveMorphism<>(this, this, polynomials);
 	}
-	
+
 	@Override
-	public GenericProjectiveScheme<T> reduced() {
-		return fromAffineScheme(getAffineCover().getCover().get(0).reduced());
+	public List<ProjectiveMorphism<T>> irreducibleComponents() {
+		List<GenericProjectiveScheme<T>> result = new ArrayList<>();
+		for (AffineMorphism<T> affine : getAffineCover().get(0).irreducibleComponents()) {
+			result.add(fromAffineScheme(affine.getDomain()));
+		}
+		return null;
+		// return result;
+	}
+
+	@Override
+	public ProjectiveMorphism<T> reduced() {
+		return null;
+//		return fromAffineScheme(getAffineCover().getCover().get(0).reduced());
 	}
 
 	@Override
 	public GenericProjectiveScheme<T> asGenericProjectiveScheme() {
 		return this;
 	}
-	
+
+	public ProjectiveMorphism<T> project(ProjectiveMorphism<T> subspace, ProjectivePoint<T> point) {
+		if (point.getDim() != projectiveEmbeddingDimension()) {
+			throw new ArithmeticException("Point not in space!");
+		}
+		if (hasRationalPoint(point)) {
+			throw new ArithmeticException("Point in scheme");
+		}
+		// if (!subspace.)
+		return null;
+	}
+
 	@Override
 	public FunctionField<T> getFunctionField() {
 		if (functionField == null) {

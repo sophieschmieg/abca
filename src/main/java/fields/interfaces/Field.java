@@ -1,9 +1,12 @@
 package fields.interfaces;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import fields.exceptions.InfinityException;
+import fields.helper.FieldEmbedding;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
 import fields.vectors.Vector;
@@ -135,6 +138,26 @@ public interface Field<T extends Element<T>> extends MathSet<T>, Ring<T>, Dedeki
 		public Field<T> domain() {
 			return domain;
 		}
+
+		public Extension<T, Base, Ext, ExtField> extendFurther(FieldEmbedding<Base, Ext, ExtField> embedding) {
+			return new Extension<>(embedding.getField(), domain, new MathMap<>() {
+				@Override
+				public Ext evaluate(T t) {
+					return embedding.getEmbedding(embeddingMap.evaluate(t));
+				}
+			}, new MathMap<>() {
+				@Override
+				public Vector<T> evaluate(Ext t) {
+					Vector<Ext> asVector = embedding.asVector(t);
+					List<T> result = new ArrayList<>();
+					for (Ext element : asVector.asList()) {
+						result.addAll(asVectorMap.evaluate(element).asList());
+					}
+					return new Vector<>(result);
+				}
+			});
+		}
+
 	}
 
 	public Extension<T, ?, ?, ?> getExtension(UnivariatePolynomial<T> minimalPolynomial);

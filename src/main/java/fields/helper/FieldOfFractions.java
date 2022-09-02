@@ -144,12 +144,12 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 	}
 
 	@Override
-	public Fraction<T> numerator(Fraction<T> t) {
+	public Fraction<T> getNumerator(Fraction<T> t) {
 		return getEmbedding(t.getNumerator());
 	}
 
 	@Override
-	public Fraction<T> denominator(Fraction<T> t) {
+	public Fraction<T> getDenominator(Fraction<T> t) {
 		return getEmbedding(t.getDenominator());
 	}
 

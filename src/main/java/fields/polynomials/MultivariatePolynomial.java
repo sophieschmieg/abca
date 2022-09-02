@@ -107,8 +107,9 @@ public class MultivariatePolynomial<T extends Element<T>> extends AbstractElemen
 	}
 
 	public Monomial leadingMonomial() {
-		if (this.coeff.isEmpty())
-			return null;
+		if (this.coeff.isEmpty()) {
+			return polynomialRing.getMonomial(new int[numvars]);
+		}
 		return this.coeff.lastKey();
 	}
 

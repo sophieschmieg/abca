@@ -4,8 +4,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import fields.polynomials.DifferentialForms;
+import fields.polynomials.DifferentialForms.DifferentialForm;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
+import fields.vectors.Matrix;
 import fields.vectors.Vector;
 import varieties.affine.AffinePoint;
 
@@ -27,6 +30,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public ModuloMaximalIdealResult<Polynomial<T>, ?, PolynomialRing<T>, PolynomialIdeal<T>, ?> moduloMaximalIdeal(Ideal<Polynomial<T>> ideal);
 
 	public PolynomialRing<T> eliminateVariable();
+	public PolynomialRing<T> eliminateVariable(int variable);
 	public UnivariatePolynomial<Polynomial<T>> asUnivariatePolynomial(Polynomial<T> t, int variable);
 	public Polynomial<T> fromUnivariatePolynomial(UnivariatePolynomial<Polynomial<T>> t, int variable);
 	public Polynomial<T> flattenPolynomial(Polynomial<Polynomial<T>> t);
@@ -37,6 +41,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Polynomial<T> getEmbedding(Polynomial<T> t);
 
 	public Polynomial<T> multiply(T t1, Polynomial<T> t2);
+	public Polynomial<T> multiply(T t1, Polynomial<T> t2, Polynomial<T> t3);
 	public Polynomial<T> multiply(T t1, Monomial m, Polynomial<T> t2);
 	public Polynomial<T> divideScalar(Polynomial<T> dividend, T divisor);
 	public static class GeneralQuotientAndRemainderResult<T extends Element<T>> {
@@ -79,8 +84,8 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 			return syzygies;
 		}
 	}
-	public GroebnerBasis<T> buchberger(List<Polynomial<T>> generators);
-	public GroebnerBasis<T> reduceBasis(GroebnerBasis<T> basis);
+	public GroebnerBasis<T> buchberger(List<Polynomial<T>> generators, boolean computeExpressionsAndSyzygies);
+	public GroebnerBasis<T> reduceBasis(GroebnerBasis<T> basis, boolean computeExpressionsAndSyzygies);
 	
 	public List<AffinePoint<T>> solve(List<Polynomial<T>> polynomials);
 	public List<AffinePoint<T>> solve(PolynomialIdeal<T> ideal);
@@ -100,11 +105,16 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<T>> t);
 	public PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<T>> t, int[] map);
 	public <S extends Element<S>> PolynomialIdeal<T> getEmbedding(Ideal<Polynomial<S>> t, MathMap<S, T> map);
+	public List <PolynomialIdeal<T>> maximalPrimeIdealChain();
+	public List <PolynomialIdeal<T>> maximalPrimeIdealChain(Ideal<Polynomial<T>> start);
+	public List <PolynomialIdeal<T>> maximalPrimeIdealChain(Ideal<Polynomial<T>> start,Ideal<Polynomial<T>> end);
 	
 	public T evaluate(Polynomial<T> t, @SuppressWarnings("unchecked") T... ts);
 	public T evaluate(Polynomial<T> t, List<T> ts);
 	public T evaluate(Polynomial<T> t, Vector<T> ts);
 	public T evaluate(Polynomial<T> t, AffinePoint<T> ts);
+	public Vector<T> evaluate(Vector<Polynomial<T>> t, Vector<T> ts);
+	public Matrix<T> evaluate(Matrix<Polynomial<T>> t, Vector<T> ts);
 	public Polynomial<T> partiallyEvaluate(Polynomial<T> t, List<T> ts);
 	public Polynomial<T> substitute(Polynomial<T> t, List<Polynomial<T>> values);
 	
@@ -116,6 +126,10 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Polynomial<T> radical(Polynomial<T> t);
 
 	public Polynomial<T> derivative(Polynomial<T> t, int variable);
+	public Vector<Polynomial<T>> gradient(Polynomial<T> t);
+	public Matrix<Polynomial<T>> jacobianMatrix(Vector<Polynomial<T>> t);
+	public DifferentialForm<T> totalDerivative(Polynomial<T> t);
+	public DifferentialForms<T> differentialForms();
 	
 	public Polynomial<T> resultant(Polynomial<T> t1, Polynomial<T> t2, int variable);
 	
