@@ -52,8 +52,20 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 		return r.multiply(s, t);
 	}
 
+	@Override
 	public boolean isPrincipal() {
-		return this.generators().size() == 1;
+		return this.generators().size() <= 1;
+	}
+
+	@Override
+	public T principalGenerator() {
+		if (!isPrincipal()) {
+			throw new ArithmeticException("Not a principal ideal");
+		}
+		if (generators().isEmpty()) {
+			return r.zero();
+		}
+		return generators().get(0);
 	}
 
 	@Override
@@ -142,12 +154,12 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 	public final List<T> getModuleGenerators() {
 		return generators();
 	}
-	
+
 	@Override
 	public final List<Vector<T>> nonTrivialCombinations(List<T> s) {
 		return r.syzygyProblem(s);
 	}
-	
+
 	@Override
 	public final List<Vector<T>> getSyzygies() {
 		return r.syzygyProblem(generators());
@@ -241,7 +253,7 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 		}
 		return new Value(value);
 	}
-	
+
 	@Override
 	public Value maximumPowerContains(Ideal<T> other) {
 		Value result = Value.INFINITY;

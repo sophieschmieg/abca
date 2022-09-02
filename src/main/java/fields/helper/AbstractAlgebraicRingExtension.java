@@ -242,7 +242,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		}
 		return asFreeModule.nonTrivialCombinations(asVectors);
 	}
-	
+
 	@Override
 	public List<Vector<T>> getSyzygies() {
 		return Collections.emptyList();
@@ -328,7 +328,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	@Override
 	public final T asBaseFieldElement(S s) {
-		if (degree != 1) {
+		if (s.asPolynomial().degree() > 0) {
 			throw new ArithmeticException("not degree one!");
 		}
 		return s.asPolynomial().univariateCoefficient(0);
@@ -585,16 +585,19 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 
 	@Override
 	public QuotientAndRemainderResult<S> quotientAndRemainder(S dividend, S divisor) {
-		Polynomial<T> gcd = polynomials.gcd(dividend.asPolynomial(), divisor.asPolynomial());
-		Polynomial<T> polynomialDividend = polynomials.divideChecked(dividend.asPolynomial(), gcd);
-		Polynomial<T> polynomialDivisor = polynomials.divideChecked(divisor.asPolynomial(), gcd);
-		ExtendedResultantResult<T> resultant = polynomials.extendedResultant(polynomialDivisor, minimalPolynomial);
-		if (baseRing.isZeroDivisor(resultant.getResultant())) {
-			return new QuotientAndRemainderResult<>(zero(), dividend);
+		List<Polynomial<T>> generators = new ArrayList<>();
+		generators.add(polynomials.getEmbedding(divisor.asPolynomial()));
+		generators.add(polynomials.getEmbedding(minimalPolynomial));
+		IdealResult<Polynomial<T>, PolynomialIdeal<T>> divisorIdeal = polynomials.getIdealWithTransforms(generators);
+		List<Polynomial<T>> generate = divisorIdeal.getIdeal().generate(dividend.asPolynomial());
+		UnivariatePolynomial<T> quotient = polynomials.zero();
+		for (int i = 0; i < divisorIdeal.getGeneratorExpressions().size(); i++) {
+			quotient = polynomials.add(
+					polynomials.multiply(divisorIdeal.getGeneratorExpressions().get(i).get(0), generate.get(i)),
+					quotient);
 		}
-		Polynomial<T> inverse = polynomials.divideChecked(resultant.getCoeff1(), resultant.getGcd());
-		return new QuotientAndRemainderResult<>(fromPolynomial(polynomials.multiply(polynomialDividend, inverse)),
-				zero());
+		return new QuotientAndRemainderResult<>(fromPolynomial(quotient),
+				fromPolynomial(polynomials.toUnivariate(divisorIdeal.getIdeal().residue(dividend.asPolynomial()))));
 	}
 
 	@Override
@@ -621,7 +624,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	public List<Ideal<S>> maximalPrimeIdealChain(Ideal<S> start) {
 		RingExtensionIdeal ideal = (RingExtensionIdeal) start;
 		Ideal<T> intersectionIdeal = ideal.polynomialIdeal.intersectToRing();
-		List<Ideal<T>> chain = baseRing.maximalPrimeIdealChain(intersectionIdeal);
+		List<? extends Ideal<T>> chain = baseRing.maximalPrimeIdealChain(intersectionIdeal);
 		List<Ideal<S>> result = new ArrayList<>();
 		Ideal<S> prev = start;
 		for (Ideal<T> t : chain) {
@@ -640,7 +643,7 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 		RingExtensionIdeal endIdeal = (RingExtensionIdeal) end;
 		Ideal<T> intersectionIdealStart = startIdeal.polynomialIdeal.intersectToRing();
 		Ideal<T> intersectionIdealEnd = endIdeal.polynomialIdeal.intersectToRing();
-		List<Ideal<T>> chain = baseRing.maximalPrimeIdealChain(intersectionIdealStart, intersectionIdealEnd);
+		List<? extends Ideal<T>> chain = baseRing.maximalPrimeIdealChain(intersectionIdealStart, intersectionIdealEnd);
 		List<Ideal<S>> result = new ArrayList<>();
 		Ideal<S> prev = start;
 		for (Ideal<T> t : chain) {

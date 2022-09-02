@@ -176,7 +176,7 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 		}
 		return asFreeModule;
 	}
-	
+
 	public FreeModule<T> asGradedFreeModule(int degree) {
 		if (degree < 0 || degree > variableNames.length) {
 			throw new ArithmeticException("Undefined");
@@ -188,7 +188,8 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 			asGradedFreeModule.add(null);
 		}
 		if (asGradedFreeModule.get(degree) == null) {
-			asGradedFreeModule.set(degree, new FreeModule<>(ring, MiscAlgorithms.binomial(variableNames.length, degree)));
+			asGradedFreeModule.set(degree,
+					new FreeModule<>(ring, MiscAlgorithms.binomial(variableNames.length, degree)));
 		}
 		return asGradedFreeModule.get(degree);
 	}
@@ -242,7 +243,7 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 	public Ideal<T> annihilator() {
 		return module.getRing().getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<T>> getSyzygies() {
 		return Collections.emptyList();
@@ -301,7 +302,27 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 	}
 
 	public List<WedgeProductSum<T>> getGradedModuleGenerators(int degree) {
-		getModuleGenerators();
+		int rank = module.getModuleGenerators().size();
+		if (gradedGenerators == null) {
+			this.gradedGenerators = new ArrayList<>();
+			for (int i = 0; i <= rank; i++) {
+				gradedGenerators.add(null);
+			}
+		}
+		if (gradedGenerators.get(degree) == null) {
+			gradedGenerators.set(degree, new ArrayList<>());
+			SortedSet<Integer> indeces = new TreeSet<>();
+			for (int i = 0; i < rank; i++) {
+				indeces.add(i + 1);
+			}
+			List<SortedSet<Integer>> indexSets = MiscAlgorithms.subsets(indeces, degree);
+			for (SortedSet<Integer> indexSet : indexSets) {
+				WedgeProductSum<T> generator = new WedgeProductSum<>(
+						Collections.singletonMap(new WedgeProduct(indexSet, variableNames), ring.one()), ring);
+				gradedGenerators.get(degree).add(generator);
+			}
+			Collections.sort(gradedGenerators.get(degree));
+		}
 		return gradedGenerators.get(degree);
 	}
 

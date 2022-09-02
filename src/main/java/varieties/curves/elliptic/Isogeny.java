@@ -22,5 +22,5 @@ public interface Isogeny<T extends Element<T>>
 
 	public Isogeny<T> getDual();
 	
-//	public List<ProjectivePoint<T>> kernelGenerators();
+	public List<ProjectivePoint<T>> kernelGenerators();
 }

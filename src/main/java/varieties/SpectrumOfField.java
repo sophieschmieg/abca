@@ -88,12 +88,17 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 		PolynomialRing<T> polynomials = AbstractPolynomialRing.getPolynomialRing(field, 0, Monomial.GREVLEX);
 		AffineScheme<T> asAffineVariety = new AffineScheme<>(field, polynomials.getZeroIdeal().divideOut());
 		return new AffineCover<>(Collections.singletonList(asAffineVariety),
-				Collections.singletonList(Collections.singletonList(asAffineVariety.identityMorphism())));
+				Collections.singletonList(Collections.singletonList(asAffineVariety.identityMorphism())), false);
 	}
 
 	@Override
 	public List<Integer> affineCoverIndex(SingletonPoint p) {
 		return Collections.singletonList(0);
+	}
+
+	@Override
+	public int recommendAffineCoverIndex(SingletonPoint p) {
+		return 0;
 	}
 
 	@Override
@@ -108,7 +113,7 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 
 	@Override
 	public Morphism<T, AffinePoint<T>, SingletonPoint> embedding(int affineCoverIndex) {
-		return new Morphism<>() {
+		return new AbstractMorphism<>() {
 
 			@Override
 			public SingletonPoint evaluate(AffinePoint<T> t) {
@@ -126,16 +131,16 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 			}
 
 			@Override
-			public RestrictionResult<T> restrict(AffinePoint<T> preimage) {
+			public GeneralRationalFunction<T, AffinePoint<T>, SingletonPoint> restrict(AffinePoint<T> point) {
 				AffineMorphism<T> id = getAffineCover().getCover().get(0).identityMorphism();
-				return new RestrictionResult<>(0, 0, id, id, id);
+				return new GeneralRationalFunction<>(getDomain(), getRange(), id, 0, id, 0);
 			}
 		};
 	}
 
 	@Override
 	public Morphism<T, SingletonPoint, SingletonPoint> pointAsMorphism(SingletonPoint p) {
-		return new Morphism<>() {
+		return new AbstractMorphism<>() {
 
 			@Override
 			public SingletonPoint evaluate(SingletonPoint t) {
@@ -153,20 +158,25 @@ public class SpectrumOfField<T extends Element<T>> extends AbstractScheme<T, Sin
 			}
 
 			@Override
-			public RestrictionResult<T> restrict(SingletonPoint preimage) {
+			public GeneralRationalFunction<T, SingletonPoint, SingletonPoint> restrict(SingletonPoint point) {
 				AffineMorphism<T> id = getAffineCover().getCover().get(0).identityMorphism();
-				return new RestrictionResult<>(0, 0, id, id, id);
+				return new GeneralRationalFunction<>(getDomain(), getRange(), id, 0, id, 0);
 			}
 		};
 	}
 
 	@Override
-	public List<SpectrumOfField<T>> irreducibleComponents() {
-		return Collections.singletonList(this);
+	public Morphism<T, SingletonPoint, SingletonPoint> identityMorphism() {
+		return pointAsMorphism(POINT);
 	}
-	
+
 	@Override
-	public SpectrumOfField<T> reduced() {
-		return this;
+	public List<Morphism<T, SingletonPoint, SingletonPoint>> irreducibleComponents() {
+		return Collections.singletonList(identityMorphism());
+	}
+
+	@Override
+	public Morphism<T, SingletonPoint, SingletonPoint> reduced() {
+		return identityMorphism();
 	}
 }

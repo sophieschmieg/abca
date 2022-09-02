@@ -15,9 +15,9 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import fields.interfaces.Element;
 import fields.interfaces.DiscreteValuationField;
 import fields.interfaces.DiscreteValuationRing;
+import fields.interfaces.Element;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
@@ -29,8 +29,8 @@ import fields.vectors.Vector;
 import util.Pair;
 import util.PeekableReader;
 
-public class GenericUnivariatePolynomialRing<T extends Element<T>> extends AbstractPolynomialRing<T> implements
-		PolynomialRing<T>/* , DedekindRing<Polynomial<T>, RationalFunction<T>, T> */, UnivariatePolynomialRing<T> {
+public class GenericUnivariatePolynomialRing<T extends Element<T>> extends AbstractPolynomialRing<T>
+		implements PolynomialRing<T>, UnivariatePolynomialRing<T> {
 	private Ring<T> ring;
 	private SortedSet<Monomial> monomials;
 	private GenericUnivariatePolynomial<T> zero;
@@ -202,11 +202,11 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		return true;
 	}
 
-	@Override
-	public MultivariatePolynomialRing<T> addVariableWithElimination(int shift) {
-		return new MultivariatePolynomialRing<>(ring, shift + 1,
-				new Monomial.EliminationOrder(Monomial.LEX, Monomial.LEX, shift));
-	}
+//	@Override
+//	public MultivariatePolynomialRing<T> addVariableWithElimination(int shift) {
+//		return new MultivariatePolynomialRing<>(ring, shift + 1,
+//				new Monomial.EliminationOrder(Monomial.LEX, Monomial.LEX, shift));
+//	}
 
 	@Override
 	public UnivariatePolynomial<T> getEmbedding(Polynomial<T> t, int[] map) {
@@ -282,6 +282,11 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			c.add(ring.negative(p.univariateCoefficient(i)));
 		}
 		return getPolynomial(c);
+	}
+
+	@Override
+	public GenericUnivariatePolynomial<T> subtract(Polynomial<T> minuend, Polynomial<T> subtrahend) {
+		return add(minuend, negative(subtrahend));
 	}
 
 	@Override
@@ -502,7 +507,8 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 					result.put(factor, power);
 				}
 			} else {
-				throw new ArithmeticException("Characteristic zero should not have any remaining factors");
+				throw new ArithmeticException(
+						"Characteristic zero should not have any remaining factors or this is not separable!");
 			}
 		}
 		if (!isUnit(degreeMinusI)) {
@@ -768,7 +774,7 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 			}
 		};
 	}
-	
+
 	@Override
 	public ChineseRemainderPreparation<Polynomial<T>> prepareInterpolation(List<T> interpolationPoints) {
 		List<Polynomial<T>> linear = new ArrayList<>();
@@ -777,16 +783,17 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		}
 		return prepareChineseRemainderTheoremModuli(linear);
 	}
-	
+
 	@Override
-	public UnivariatePolynomial<T> interpolate(ChineseRemainderPreparation<Polynomial<T>> preparation, List<T> interpolationValues) {
+	public UnivariatePolynomial<T> interpolate(ChineseRemainderPreparation<Polynomial<T>> preparation,
+			List<T> interpolationValues) {
 		List<Polynomial<T>> constant = new ArrayList<>();
 		for (T point : interpolationValues) {
 			constant.add(getEmbedding(point));
 		}
 		return toUnivariate(chineseRemainderTheorem(constant, preparation));
 	}
-	
+
 	@Override
 	public UnivariatePolynomial<T> interpolate(List<T> interpolationPoints, List<T> interpolationValues) {
 		return interpolate(prepareInterpolation(interpolationPoints), interpolationValues);
@@ -820,6 +827,12 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 
 	@Override
 	public GenericUnivariatePolynomial<T> substitute(Polynomial<T> t, List<Polynomial<T>> values) {
+		if (t.numberOfVariables() != 1) {
+			return toUnivariate(super.substitute(t, values));
+		}
+		if (t.degree() < 0) {
+			return zero();
+		}
 		GenericUnivariatePolynomial<T> p = toUnivariate(t);
 		if (values.get(0).equals(getVar())) {
 			return p;
@@ -910,14 +923,14 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 		return eliminateVariable().getEmbedding(resultant(t1, t2));
 	}
 
-	@Override
-	public PolynomialRing<T> eliminateVariable() {
-		if (asUnivariateBaseRing != null) {
-			return asUnivariateBaseRing;
-		}
-		asUnivariateBaseRing = AbstractPolynomialRing.getPolynomialRing(ring, 0, Monomial.GREVLEX);
-		return asUnivariateBaseRing;
-	}
+//	@Override
+//	public PolynomialRing<T> eliminateVariable() {
+//		if (asUnivariateBaseRing != null) {
+//			return asUnivariateBaseRing;
+//		}
+//		asUnivariateBaseRing = AbstractPolynomialRing.getPolynomialRing(ring, 0, Monomial.GREVLEX);
+//		return asUnivariateBaseRing;
+//	}
 
 	@Override
 	public UnivariatePolynomial<Polynomial<T>> asUnivariatePolynomial(Polynomial<T> t, int variable) {

@@ -44,7 +44,9 @@ import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.ValueField.AbsoluteValue;
 import fields.polynomials.AbstractPolynomialRing;
+import fields.vectors.FiniteVectorSpace;
 import fields.vectors.FreeModule;
+import fields.vectors.Matrix;
 import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
@@ -490,6 +492,11 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		return field;
 	}
 
+	@Override
+	public DiscreteValuationField<T, S> quotientField() {
+		return localField();
+	}
+
 	public boolean isElement(T t) {
 		return field.isInteger(t);
 	}
@@ -549,6 +556,16 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
+	public MathMap<T, T> roundMap(int accuracy) {
+		return new MathMap<>() {
+			@Override
+			public T evaluate(T t) {
+				return round(t, accuracy);
+			}
+		};
+	}
+
+	@Override
 	public T round(T s, int accuracy) {
 		return field.round(s, accuracy);
 		// return getIdeal(Collections.singletonList(power(uniformizer(),
@@ -559,17 +576,17 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	public Polynomial<T> roundPolynomial(Polynomial<T> s, int accuracy) {
 		PolynomialRing<T> ring = AbstractPolynomialRing.getPolynomialRing(this, s.numberOfVariables(),
 				s.getPolynomialRing().getComparator());
-		return ring.getEmbedding(s, new MathMap<>() {
-			@Override
-			public T evaluate(T t) {
-				return round(t, accuracy);
-			}
-		});
+		return ring.getEmbedding(s, roundMap(accuracy));
 	}
 
 	@Override
 	public UnivariatePolynomial<T> roundUnivariatePolynomial(Polynomial<T> t, int accuracy) {
 		return getUnivariatePolynomialRing().toUnivariate(roundPolynomial(t, accuracy));
+	}
+
+	@Override
+	public Vector<T> roundVector(Vector<T> t, int accuracy) {
+		return Vector.mapVector(roundMap(accuracy), t);
 	}
 
 	public boolean hasGoodReduction(UnivariatePolynomial<T> t) {
@@ -699,12 +716,11 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		return henselLiftWithInitialLift(f, initialLift, field.getAccuracy());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
-	public T henselLiftWithInitialLift(fields.interfaces.UnivariatePolynomial<T> f, T initialLift, int accuracy) {
+	public T henselLiftWithInitialLift(UnivariatePolynomial<T> f, T initialLift, int accuracy) {
 		UnivariatePolynomialRing<T> ring = getUnivariatePolynomialRing();
 		UnivariatePolynomial<T> derivative = ring.derivative(f);
-		Value initialAccuracy = valuation(ring.evaluate(f, initialLift));
+		Value initialAccuracy = valuation(ring.evaluate(f, Collections.singletonList(initialLift)));
 		if (initialAccuracy.isInfinite()) {
 			return initialLift;
 		}
@@ -714,8 +730,99 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		}
 		T a = initialLift;
 		while (achievedAccuracy < accuracy) {
-			a = subtract(a, divide(ring.evaluate(f, a), ring.evaluate(derivative, a)));
+			a = subtract(a, divide(ring.evaluate(f, Collections.singletonList(a)),
+					ring.evaluate(derivative, Collections.singletonList(a))));
 			achievedAccuracy *= 2;
+		}
+		return a;
+	}
+
+	@Override
+	public Vector<T> henselLiftVector(PolynomialRing<T> r, Vector<Polynomial<T>> f, Vector<S> aReduced) {
+		return henselLiftVector(r, f, aReduced, field.getAccuracy());
+	}
+
+	@Override
+	public Vector<T> henselLiftVector(PolynomialRing<T> r, Vector<Polynomial<T>> f, Vector<S> aReduced, int accuracy) {
+		if (r.numberOfVariables() != f.dimension() || f.dimension() != aReduced.dimension()) {
+			throw new ArithmeticException("Dimensions mismatched!");
+		}
+		Vector<Polynomial<S>> fReduced = Vector.mapVector(new MathMap<Polynomial<T>, Polynomial<S>>() {
+			@Override
+			public Polynomial<S> evaluate(Polynomial<T> t) {
+				return reducePolynomial(t);
+			}
+		}, f);
+		PolynomialRing<S> reducedRing = AbstractPolynomialRing.getPolynomialRing(reduction(), r.numberOfVariables(),
+				r.getComparator());
+		for (int i = 0; i < f.dimension(); i++) {
+			if (fReduced.get(i + 1).degree() != f.get(i + 1).degree()) {
+				throw new ArithmeticException("Leading coefficient divisible by p!");
+			}
+		}
+		FiniteVectorSpace<S> reducedVectorSpace = new FiniteVectorSpace<>(reduction(), f.dimension());
+		if (!reducedRing.evaluate(fReduced, aReduced).equals(reducedVectorSpace.zero())) {
+			throw new ArithmeticException("reduced polynomial does not have a zero at a!");
+		}
+		if (!reducedVectorSpace.matrixAlgebra()
+				.isUnit(reducedRing.evaluate(reducedRing.jacobianMatrix(fReduced), aReduced))) {
+			throw new ArithmeticException("reduced derivative does have a zero at a!");
+		}
+
+		Vector<T> a = Vector.mapVector(new MathMap<S, T>() {
+			@Override
+			public T evaluate(S t) {
+				return lift(t);
+			}
+		}, aReduced);
+		return henselLiftVectorWithInitialLift(r, f, a, accuracy);
+	}
+
+	@Override
+	public Vector<T> henselLiftVectorWithInitialLift(PolynomialRing<T> r, Vector<Polynomial<T>> f,
+			Vector<T> initialLift) {
+		return henselLiftVectorWithInitialLift(r, f, initialLift, field.getAccuracy());
+	}
+
+	@Override
+	public Vector<T> henselLiftVectorWithInitialLift(PolynomialRing<T> r, Vector<Polynomial<T>> f,
+			Vector<T> initialLift, int accuracy) {
+		Matrix<Polynomial<T>> derivative = r
+				.jacobianMatrix(Vector.mapVector(new MathMap<Polynomial<T>, Polynomial<T>>() {
+					@Override
+					public Polynomial<T> evaluate(Polynomial<T> t) {
+						return roundPolynomial(t, accuracy);
+					}
+				}, f));
+		Vector<T> initialEvaluation = r.evaluate(f, initialLift);
+		Value initialAccuracy = Value.INFINITY;
+		for (T eval : initialEvaluation.asList()) {
+			initialAccuracy = initialAccuracy.min(valuation(eval));
+		}
+		if (initialAccuracy.isInfinite()) {
+			return initialLift;
+		}
+		int achievedAccuracy = initialAccuracy.value();
+		if (achievedAccuracy <= 0) {
+			throw new ArithmeticException("Initial lift not zero");
+		}
+		int toRound = initialAccuracy.value();
+		Vector<T> a = Vector.mapVector(new MathMap<T, T>() {
+			@Override
+			public T evaluate(T t) {
+				return round(t, toRound);
+			}
+		}, initialLift);
+		FreeModule<T> free = new FreeModule<>(this, f.dimension());
+		while (achievedAccuracy < accuracy) {
+			a = free.subtract(a, free.matrixAlgebra().solve(r.evaluate(derivative, a), r.evaluate(f, a)));
+			achievedAccuracy *= 2;
+			a = Vector.mapVector(new MathMap<T, T>() {
+				@Override
+				public T evaluate(T t) {
+					return round(t, accuracy);
+				}
+			}, a);
 		}
 		return a;
 	}
@@ -1411,17 +1518,9 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 				return LocalRingImplementation.this.valuationOfUnivariatePolynomial(t);
 			}
 			Value prevLevelValue = prevLevel.valuationNextLevel(t, lambda);
-//			if (!prevLevelValue.isInfinite() && this.leaf() && !quality().isInfinite()
-//					&& t.degree() >= representative().degree()) {
-//				int levelZero = LocalRingImplementation.this.valuationOfUnivariatePolynomial(t).value();
-//				if (levelZero >= 0) {
-//					levelZero = 0;
-//				}
-//				if (new Value(prevLevelValue.value() - levelZero * ramificationIndex()).compareTo(quality()) >= 0) {
 			if (prevLevelValue == null) {
 				return doublePrecision().valuation(t);
 			}
-//			}
 			return prevLevelValue;
 		}
 
@@ -1457,7 +1556,11 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 		@Override
 		public RE reduce(UnivariatePolynomial<T> t) {
-			return reductionFieldExtension.fromPolynomial(reduceAsPolynomial(t));
+			RE result = reductionFieldExtension.fromPolynomial(reduceAsPolynomial(t));
+			if (result.equals(reductionFieldExtension.getField().zero())) {
+				return doublePrecision().reduce(t);
+			}
+			return result;
 		}
 
 		private class ReductionValuationResult {
@@ -1859,6 +1962,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	}
 
 	// https://arxiv.org/pdf/1507.04058.pdf
+	// https://arxiv.org/pdf/1005.1156.pdf
 	@Override
 	public <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> List<List<UnivariatePolynomial<T>>> integralBasis(
 			Polynomial<T> minimalPolynomial, TheMontesResult<T, S, R, RE, RFE> theMontes, boolean reduced) {
@@ -1963,7 +2067,12 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	private <R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>> Fraction scaledValue(
 			OkutsuType<T, S, R, RE, RFE> type, UnivariatePolynomial<T> t) {
 		Rationals q = Rationals.q();
-		return q.getFraction(type.valuation(t).value(), type.ramificationIndex());
+		Value v = type.valuation(t);
+		if (v.isInfinite() && !field.isComplete()) {
+			throw new ArithmeticException("Infinite Value!");
+		}
+		int value = v.isInfinite() ? field.getAccuracy() + 1 : v.value();
+		return q.getFraction(value, type.ramificationIndex());
 	}
 
 	private boolean requiresImprovement(int i, int k, Fraction firstValue, Fraction secondValue, boolean reduced) {
@@ -1984,25 +2093,6 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		for (List<UnivariatePolynomial<T>> typeResult : integralBasis) {
 			flattenedBasis.addAll(typeResult);
 		}
-//		UnivariatePolynomialRing<T> polynomials = field.getUnivariatePolynomialRing();
-//		List<UnivariatePolynomial<T>> basis = new ArrayList<>();
-//		Collections.sort(flattenedBasis, new Comparator<>() {
-//			@Override
-//			public int compare(UnivariatePolynomial<T> o1, UnivariatePolynomial<T> o2) {
-//				if (o1.degree() != o2.degree()) {
-//					return o1.degree() - o2.degree();
-//				}
-//				return field.valuation(o1.leadingCoefficient()).compareTo(field.valuation(o2.leadingCoefficient()));
-//			}
-//		});
-//		for (int i = 0; i < minimalPolynomial.degree(); i++) {
-//			UnivariatePolynomial<T> polynomial = flattenedBasis.get(i);
-//			T coeff = polynomial.univariateCoefficient(i);
-//			Value pivotValue = field.valuation(coeff);
-//			T multiplier = field.multiply(field.inverse(coeff), field.power(uniformizer(), pivotValue.value()));
-//			basis.add(roundUnivariatePolynomial(polynomials.scalarMultiply(multiplier, polynomial), 1));
-//		}
-//		return basis;
 		UnivariatePolynomialRing<T> polynomials = field.getUnivariatePolynomialRing();
 		List<UnivariatePolynomial<T>> basis = new ArrayList<>();
 		for (int i = minimalPolynomial.degree() - 1; i >= 0; i--) {
@@ -2031,47 +2121,23 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			basis.add(roundUnivariatePolynomial(polynomials.scalarMultiply(multiplier, pivot), 1));
 		}
 		Collections.reverse(basis);
+		for (int i = 0; i < basis.size(); i++) {
+			if (basis.get(i).degree() != i) {
+				continue;
+			}
+			T pivot = basis.get(i).univariateCoefficient(i);
+			int pivotValue = field.valuation(pivot).value();
+			for (int j = i + 1; j < basis.size(); j++) {
+				if (basis.get(j).degree() <= i) {
+					continue;
+				}
+				T coefficient = basis.get(j).univariateCoefficient(i);
+				T target = field.round(coefficient, pivotValue);
+				T shear = divideChecked(field.subtract(target, coefficient), pivot);
+				basis.set(j, polynomials.add(basis.get(j), polynomials.scalarMultiply(shear, basis.get(i))));
+			}
+		}
 		return basis;
-
-//		FreeModule<T> vectors = new FreeModule<>(this, minimalPolynomial.degree());
-//		Value minValue = Value.INFINITY;
-//		for (int i = 0; i < minimalPolynomial.degree(); i++) {
-//			minValue = minValue.min(valuationOfUnivariatePolynomial(flattenedBasis.get(i)));
-//		}
-//		T power = power(uniformizer(), -minValue.value());
-//		T inversePower = field.inverse(power);
-//		List<Vector<T>> asVectors = new ArrayList<>();
-//		for (int i = 0; i < minimalPolynomial.degree(); i++) {
-//			Vector<T> reverse = polynomials.asVector(
-//					polynomials.scalarMultiply(power, flattenedBasis.get(minimalPolynomial.degree() - i - 1)),
-//					minimalPolynomial.degree() - 1);
-//			List<T> asList = new ArrayList<>();
-//			asList.addAll(reverse.asList());
-//			Collections.reverse(asList);
-//			asVectors.add(new Vector<>(asList));
-//		}
-//		Matrix<T> m = Matrix.fromRows(asVectors);
-//		// MatrixModule<T>.LDUPResult lup = vectors.matrixAlgebra().ldup(m);
-//		// if (!lup.getDeterminant().equals(field.one())) {
-//		// throw new ArithmeticException("Triangulation did not work as expected");
-//		// }
-//		Matrix<T> triangBasis = vectors.matrixAlgebra().lupUpperTriangle(m);
-//		List<UnivariatePolynomial<T>> basis = new ArrayList<>();
-//		for (int i = 0; i < minimalPolynomial.degree(); i++) {
-//			Vector<T> reverse = triangBasis.row(minimalPolynomial.degree() - i);
-//			List<T> asList = new ArrayList<>();
-//			asList.addAll(reverse.asList());
-//			Collections.reverse(asList);
-//			UnivariatePolynomial<T> basisPolynomial = polynomials.multiply(inversePower,
-//					polynomials.getPolynomial(asList));
-//			T lc = basisPolynomial.leadingCoefficient();
-//			int lcValue = valuation(lc).value();
-//			lc = field.multiply(lc, field.power(field.uniformizer(), -lcValue));
-//			T inv = inverse(lc);
-//			basisPolynomial = roundUnivariatePolynomial(polynomials.multiply(inv, basisPolynomial), 1);
-//			basis.add(basisPolynomial);
-//		}
-//		return basis;
 	}
 
 	@Override
@@ -2227,7 +2293,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 		public Ideal<T> annihilator() {
 			return getRing().getZeroIdeal();
 		}
-		
+
 		@Override
 		public List<Vector<T>> getSyzygies() {
 			return Collections.emptyList();

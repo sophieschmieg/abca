@@ -18,13 +18,22 @@ import fields.polynomials.Monomial;
 public class ProjectiveSpace<T extends Element<T>> extends AbstractProjectiveScheme<T> {
 	private Field<T> field;
 	private int dimension;
+	private GenericProjectiveScheme<T> asGenericProjectiveScheme;
 
 	public ProjectiveSpace(Field<T> field, int dimension) {
-		super(new GenericProjectiveScheme<>(field,
-				AbstractPolynomialRing.getPolynomialRing(field, dimension + 1, Monomial.GREVLEX),
-				Collections.emptyList()));
+		super();
 		this.field = field;
 		this.dimension = dimension;
+	}
+
+	@Override
+	public GenericProjectiveScheme<T> asGenericProjectiveScheme() {
+		if (asGenericProjectiveScheme == null) {
+			asGenericProjectiveScheme = new GenericProjectiveScheme<>(field,
+					AbstractPolynomialRing.getPolynomialRing(field, dimension + 1, Monomial.GREVLEX),
+					Collections.emptyList());
+		}
+		return asGenericProjectiveScheme;
 	}
 
 	@Override
@@ -97,12 +106,21 @@ public class ProjectiveSpace<T extends Element<T>> extends AbstractProjectiveSch
 	}
 
 	@Override
-	public List<ProjectiveSpace<T>> irreducibleComponents() {
-		return Collections.singletonList(this);
+	public ProjectiveMorphism<T> identityMorphism() {
+		List<Polynomial<T>> polynomials = new ArrayList<>();
+		for (int i = 0; i <= dimension; i++) {
+			polynomials.add(asGenericProjectiveScheme().homogenousPolynomialRing().getVar(i + 1));
+		}
+		return new ProjectiveMorphism<>(asGenericProjectiveScheme(), asGenericProjectiveScheme(), polynomials);
 	}
 
 	@Override
-	public ProjectiveSpace<T> reduced() {
-		return this;
+	public List<ProjectiveMorphism<T>> irreducibleComponents() {
+		return Collections.singletonList(identityMorphism());
+	}
+
+	@Override
+	public ProjectiveMorphism<T> reduced() {
+		return identityMorphism();
 	}
 }

@@ -36,6 +36,7 @@ import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.TotalOrder;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.PAdicField;
@@ -56,7 +57,7 @@ import util.MiscAlgorithms;
 import util.PeekableReader;
 import util.SingletonSortedMap;
 
-public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, Fraction, PFE> {
+public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, Fraction, PFE>, TotalOrder<IntE> {
 	private static Integers z = new Integers();
 	private Map<IntE, FactorizationResult<IntE, IntE>> factorizatonCache;
 	private Map<Polynomial<IntE>, SquareFreeFactorizationResult> polynomialFactorizationCache;
@@ -880,8 +881,22 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return localize(prime.value);
 	}
 
+	@Override
 	public DiscreteValuationRing<Fraction, PFE> localize(Ideal<IntE> prime) {
 		return localize(prime.generators().get(0));
+	}
+
+	public LocalizedFractions localizeAndQuotient(BigInteger prime) {
+		return Rationals.q().withValuation(prime);
+	}
+
+	public LocalizedFractions localizeAndQuotient(IntE prime) {
+		return localizeAndQuotient(prime.getValue());
+	}
+
+	@Override
+	public LocalizedFractions localizeAndQuotient(Ideal<IntE> maximalIdeal) {
+		return localizeAndQuotient(maximalIdeal.generators().get(0));
 	}
 
 	@Override
@@ -912,6 +927,11 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	public Value valuation(IntE t, Ideal<IntE> maximalIdeal) {
 		return valuation(t, maximalIdeal.generators().get(0).value);
+	}
+
+	@Override
+	public Rationals quotientField() {
+		return Rationals.q();
 	}
 
 	public IntE archimedeanValue(IntE t) {
@@ -969,6 +989,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return intPolynomialRing.contentFree(result);
 	}
 
+	// file:///Users/sophie/Downloads/A_sparse_modular_GCD_algorithm_for_polynomials_ove.pdf
 	public CoordinateRingElement<IntE> gcdCoordinateRingElements(CoordinateRing<IntE> coordinateRing,
 			CoordinateRingElement<IntE> t1, CoordinateRingElement<IntE> t2) {
 		if (coordinateRing.getIdeal().generators().size() > 1) {
@@ -1037,6 +1058,11 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		}
 		if (t.degree() < 0) {
 			throw new ArithmeticException("Cannot factor 0");
+		}
+		if (t.degree() == 1) {
+			return new SquareFreeFactorizationResult(
+					Collections.singletonList(getUnivariatePolynomialRing().contentFree(t)),
+					getUnivariatePolynomialRing().content(t));
 		}
 		if (polynomialFactorizationCache.containsKey(t)) {
 			return polynomialFactorizationCache.get(t);
@@ -1224,7 +1250,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			if (character < 0) {
 				break;
 			}
-			if (!Character.isDigit((char)character) && !(first && (char)character == '-')) {
+			if (!Character.isDigit((char) character) && !(first && (char) character == '-')) {
 				break;
 			}
 			first = false;
@@ -1487,6 +1513,16 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	@Override
 	public IntE asInteger(Fraction t) {
 		return t.asInteger();
+	}
+
+	@Override
+	public IntE getNumerator(Fraction t) {
+		return t.getNumerator();
+	}
+
+	@Override
+	public IntE getDenominator(Fraction t) {
+		return t.getDenominator();
 	}
 
 	public PFE reduce(IntE t, BigInteger prime) {

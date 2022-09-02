@@ -7,17 +7,19 @@ import java.util.List;
 
 import fields.interfaces.Algebra;
 import fields.interfaces.AlgebraicExtensionElement;
+import fields.interfaces.DedekindRingExtension;
+import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationFieldExtension;
+import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Element;
 import fields.interfaces.FieldExtension;
 import fields.interfaces.Ideal;
-import fields.interfaces.DiscreteValuationField;
-import fields.interfaces.DiscreteValuationRing;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.Vector;
 
-public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE> & DiscreteValuationField<E, RE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
-		extends LocalRingImplementation<E, RE> implements Algebra<B, E>, DiscreteValuationRing<E, RE> {
+public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E extends AlgebraicExtensionElement<B, E>, FE extends DiscreteValuationFieldExtension<B, S, E,FE, R, RE, RFE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
+		extends LocalRingImplementation<E, RE> implements Algebra<B, E>, DiscreteValuationRing<E, RE>, DedekindRingExtension<B, B, S, E, E, R, RE, RFE, FE, FE> {
 	private DiscreteValuationField<B, S> base;
 	private FE extension;
 	private RFE reductionExtension;
@@ -182,5 +184,25 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	@Override
 	public List<E> getAlgebraGenerators() {
 		return getModuleGenerators();
+	}
+	
+	@Override
+	public FE localField() {
+		return extension;
+	}
+	
+	@Override
+	public FE quotientField() {
+		return localField();
+	}
+	
+	@Override
+	public LocalRingExtension<B, S, E, FE, R, RE, RFE> localize(Ideal<E> maximalIdeal) {
+		return this;
+	}
+	
+	@Override
+	public FE localizeAndQuotient(Ideal<E> maximalIdeal) {
+		return localField();
 	}
 }

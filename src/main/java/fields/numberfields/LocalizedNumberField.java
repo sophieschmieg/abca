@@ -13,8 +13,11 @@ import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractFieldExtension;
 import fields.integers.Integers.IntE;
+import fields.integers.LocalizedFractions;
+import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationFieldExtension;
 import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.DiscreteValuationRing.OkutsuType;
 import fields.interfaces.UnivariatePolynomial;
@@ -29,7 +32,7 @@ import util.Identity;
 import util.MiscAlgorithms;
 
 public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, LocalizedNumberField>
-		implements DiscreteValuationField<NFE, FFE> {
+		implements DiscreteValuationFieldExtension<Fraction, PFE, NFE, LocalizedNumberField, PFE, FFE, FiniteField> {
 	private NumberField field;
 	private IntE prime;
 	private OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type;
@@ -49,7 +52,7 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 		this.prime = ideal.prime();
 		this.type = ideal.type();
 		this.reduction = type.reduction().extension();
-		this.uniformizer = field.fromPolynomial(type.lift(reduction.one(), 1));
+		this.uniformizer =/* ideal.isPrincipal() ? ideal.principalGenerator() :*/ ideal.uniformizer();// field.fromPolynomial(type.lift(reduction.one(), 1));
 		this.localRing = new LocalRingExtension<>(this, localizedIntegers.localField(), reduction,
 				field.maximalOrder().getModuleGenerators(), field.maximalOrder().toIntegralBasisBaseChange());
 		this.complete = new TreeMap<>();
@@ -68,6 +71,11 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 	@Override
 	public Reals getReals() {
 		return r;
+	}
+	
+	@Override
+	public LocalizedFractions getBaseField() {
+		return Rationals.q().withValuation(prime);
 	}
 
 	@Override
@@ -93,6 +101,18 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 	@Override
 	public Value valuation(NFE t) {
 		return type.valuation(t.asPolynomial());
+	}
+
+	public int ramificationIndex() {
+		return type().ramificationIndex();
+	}
+
+	public int residueDegree() {
+		return type.residueDegree();
+	}
+
+	public int completedDegree() {
+		return ramificationIndex() * residueDegree();
 	}
 
 	@Override
@@ -135,7 +155,7 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 
 	@Override
 	public NFE liftToInteger(FFE s) {
-		return field.fromPolynomial(type.lift(s, 0));
+		return round(field.fromPolynomial(type.lift(s, 0)), 1);
 	}
 
 	@Override
@@ -277,7 +297,7 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 	}
 
 	@Override
-	public DiscreteValuationFieldExtension<NFE, FFE, Fraction, NFE, FFE, LocalizedNumberField> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<NFE, FFE, Fraction, PFE, NFE, LocalizedNumberField,PFE, FFE, FiniteField> getUniqueExtension(
 			UnivariatePolynomial<NFE> minimalPolynomial) {
 		Extension<NFE, Fraction, NFE, NumberField> extension = field.getExtension(minimalPolynomial);
 		NumberFieldIntegers maximalOrder = extension.extension().maximalOrder();
@@ -289,7 +309,7 @@ public class LocalizedNumberField extends AbstractFieldExtension<Fraction, NFE, 
 		if (!newIdeal.isMaximal()) {
 			throw new ArithmeticException("Field extension is split!");
 		}
-		return new DiscreteValuationFieldExtension<>(this, maximalOrder.localizeAndQuotient(newIdeal),
+		return new ExtensionOfDiscreteValuationField<>(this, maximalOrder.localizeAndQuotient(newIdeal),
 				extension.embeddingMap(), extension.asVectorMap());
 	}
 

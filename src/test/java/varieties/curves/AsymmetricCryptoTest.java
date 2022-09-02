@@ -1,7 +1,5 @@
 package varieties.curves;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.KeyPair;

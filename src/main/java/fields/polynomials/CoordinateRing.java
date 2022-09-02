@@ -44,6 +44,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		implements Ring<CoordinateRingElement<T>> {
 	private PolynomialRing<T> ring;
 	private PolynomialIdeal<T> ideal;
+	private PolynomialIdeal<T> homogenous;
 	private int dimension;
 	private int degree;
 	private UnivariatePolynomial<Fraction> hilbertPolynomial;
@@ -197,28 +198,47 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
+	public boolean equals(Object obj) {
+		if (!(obj instanceof CoordinateRing<?>)) {
+			return false;
+		}
+		@SuppressWarnings("unchecked")
+		CoordinateRing<T> other = (CoordinateRing<T>) obj;
+		if (ring.numberOfVariables() != other.getPolynomialRing().numberOfVariables()) {
+			return false;
+		}
+		PolynomialIdeal<T> otherIdeal = ring.getEmbedding(other.getIdeal());
+		return ideal.equals(otherIdeal);
+	}
+
+	@Override
 	public int krullDimension() {
 		return dimension;
 	}
 
 	@Override
-	public List<Ideal<CoordinateRingElement<T>>> maximalPrimeIdealChain(Ideal<CoordinateRingElement<T>> start) {
-		List<Ideal<Polynomial<T>>> polynomialChain = ring
+	public List<CoordinateIdeal<T>> maximalPrimeIdealChain() {
+		return maximalPrimeIdealChain(getNilRadical());
+	}
+
+	@Override
+	public List<CoordinateIdeal<T>> maximalPrimeIdealChain(Ideal<CoordinateRingElement<T>> start) {
+		List<PolynomialIdeal<T>> polynomialChain = ring
 				.maximalPrimeIdealChain(((CoordinateIdeal<T>) start).asPolynomialIdeal());
-		List<Ideal<CoordinateRingElement<T>>> result = new ArrayList<>();
-		for (Ideal<Polynomial<T>> polynomialIdeal : polynomialChain) {
+		List<CoordinateIdeal<T>> result = new ArrayList<>();
+		for (PolynomialIdeal<T> polynomialIdeal : polynomialChain) {
 			result.add(getIdeal(polynomialIdeal));
 		}
 		return result;
 	}
 
 	@Override
-	public List<Ideal<CoordinateRingElement<T>>> maximalPrimeIdealChain(Ideal<CoordinateRingElement<T>> start,
+	public List<CoordinateIdeal<T>> maximalPrimeIdealChain(Ideal<CoordinateRingElement<T>> start,
 			Ideal<CoordinateRingElement<T>> end) {
-		List<Ideal<Polynomial<T>>> polynomialChain = ring.maximalPrimeIdealChain(
+		List<PolynomialIdeal<T>> polynomialChain = ring.maximalPrimeIdealChain(
 				((CoordinateIdeal<T>) start).asPolynomialIdeal(), ((CoordinateIdeal<T>) end).asPolynomialIdeal());
-		List<Ideal<CoordinateRingElement<T>>> result = new ArrayList<>();
-		for (Ideal<Polynomial<T>> polynomialIdeal : polynomialChain) {
+		List<CoordinateIdeal<T>> result = new ArrayList<>();
+		for (PolynomialIdeal<T> polynomialIdeal : polynomialChain) {
 			result.add(getIdeal(polynomialIdeal));
 		}
 		return result;
@@ -403,8 +423,11 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	public IntE hilbertFunction(int degree) {
 		if (!hilbertFunction.containsKey(degree)) {
 			Set<Monomial> monomials = new TreeSet<>();
-			for (Polynomial<T> generator : ideal.generators()) {
-				generator = ring.homogenize(generator);
+			if (homogenous == null) {
+				homogenous = ring.homogenizeIdeal(ideal);
+			}
+			for (Polynomial<T> generator : homogenous.generators()) {
+				// generator = ring.homogenize(generator);
 				if (generator.leadingMonomial().degree() <= degree) {
 					monomials.add(generator.leadingMonomial());
 				}
@@ -486,7 +509,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	public PolynomialIdeal<T> annihilator() {
 		return ideal;
 	}
-	
+
 	@Override
 	public List<Vector<Polynomial<T>>> getSyzygies() {
 		return ring.syzygyProblem(ideal.generators());
@@ -611,12 +634,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 	@Override
 	public boolean isIntegral() {
-		for (Polynomial<T> generator : ideal.generators()) {
-			if (!ring.isIrreducible(generator)) {
-				return false;
-			}
-		}
-		return true;
+		return isReduced() && isIrreducible();
 	}
 
 	@Override

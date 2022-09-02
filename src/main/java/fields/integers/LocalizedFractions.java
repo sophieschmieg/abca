@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
+import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
@@ -214,7 +215,7 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Discr
 	}
 
 	@Override
-	public DiscreteValuationFieldExtension<Fraction, PFE, Fraction, NFE, FFE, LocalizedNumberField> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<Fraction, PFE, Fraction,PFE, NFE, LocalizedNumberField, PFE, FFE, FiniteField> getUniqueExtension(
 			UnivariatePolynomial<Fraction> minimalPolynomial) {
 		Extension<Fraction, Fraction, NFE, NumberField> extension = q.getExtension(minimalPolynomial);
 		List<NumberFieldIdeal> ideals = extension.extension().maximalOrder()
@@ -222,7 +223,7 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Discr
 		if (ideals.size() != 1) {
 			throw new ArithmeticException("No unique extension! Extend numberfield, then localize!");
 		}
-		return new DiscreteValuationFieldExtension<>(this,
+		return new ExtensionOfDiscreteValuationField<>(this,
 				extension.extension().maximalOrder().localizeAndQuotient(ideals.get(0)), extension.embeddingMap(),
 				extension.asVectorMap());
 	}

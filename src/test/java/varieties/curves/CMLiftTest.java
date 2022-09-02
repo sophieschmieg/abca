@@ -3,37 +3,52 @@ package varieties.curves;
 import org.junit.jupiter.api.Test;
 
 import fields.finitefields.FiniteField.FFE;
+import fields.integers.Integers;
+import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
 import fields.numberfields.NumberFieldIntegers;
+import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import varieties.curves.elliptic.EllipticCurve;
-import varieties.curves.elliptic.EllipticCurve.ReductionResult;
+import varieties.curves.elliptic.EllipticCurve.TatesAlgorithmResult;
 import varieties.curves.elliptic.EllipticCurve.WithComplexMultiplication;
 
 class CMLiftTest {
+
 	@Test
 	void testCMCurvesSqrt23() {
 		Rationals q = Rationals.q();
+		Integers z = Integers.z();
 		NumberField nf = NumberField
 				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(23), q.zero(), q.one()));
-		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.maximalOrder().getModuleGenerators().get(1));
-		NumberFieldIntegers order =((NumberField) withComplexMultiplication.getCurve().getField()).maximalOrder();
-		System.out.println(order.idealFactorization(order.getIdeal(withComplexMultiplication.getCurve().jInvariant())));
-		ReductionResult<NFE, FFE> reduction = EllipticCurve.reduce(order.localizeAndQuotient(order.idealsOver(257).get(0)), withComplexMultiplication.getCurve());
-		System.out.println(reduction.getReducedCurve());
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf,
+				nf.maximalOrder().getModuleGenerators().get(1));
 		System.out.println(withComplexMultiplication.getCurve());
+		NumberFieldIntegers order = ((NumberField) withComplexMultiplication.getCurve().getField()).maximalOrder();
+		for (IntE prime : z.setOfPrimes()) {
+			if (prime.compareTo(z.getInteger(40)) > 0) {
+				break;
+			}
+			for (NumberFieldIdeal primeIdeal : order.idealsOver(prime)) {
+				TatesAlgorithmResult<NFE, FFE> reduction = withComplexMultiplication.getCurve()
+						.tatesAlgorithm(order.localizeAndQuotient(primeIdeal));
+				System.out.println(reduction.getReducedScheme());
+				System.out.println(reduction.hasGoodReduction());
+			}
+		}
 	}
-	
+
 	@Test
 	void testCMCurvesSqrt2() {
 		Rationals q = Rationals.q();
 		NumberField nf = NumberField
 				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(2), q.zero(), q.one()));
-		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.maximalOrder().getModuleGenerators().get(1));
-		NumberFieldIntegers order =((NumberField) withComplexMultiplication.getCurve().getField()).maximalOrder();
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf,
+				nf.maximalOrder().getModuleGenerators().get(1));
+		NumberFieldIntegers order = ((NumberField) withComplexMultiplication.getCurve().getField()).maximalOrder();
 		System.out.println(order.idealFactorization(order.getIdeal(withComplexMultiplication.getCurve().jInvariant())));
-		ReductionResult<NFE, FFE> reduction = EllipticCurve.reduce(order.localizeAndQuotient(order.idealsOver(11).get(0)), withComplexMultiplication.getCurve());
+		TatesAlgorithmResult<NFE, FFE> reduction = withComplexMultiplication.getCurve().tatesAlgorithm(order.localizeAndQuotient(order.idealsOver(11).get(0)));
 		System.out.println(reduction.getReducedCurve());
 		System.out.println(withComplexMultiplication.getCurve());
 	}
@@ -43,9 +58,8 @@ class CMLiftTest {
 		Rationals q = Rationals.q();
 		NumberField nf = NumberField
 				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.one(), q.zero(), q.one()));
-		
-				WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf,
-				nf.divide(nf.multiply(nf.getInteger(3), nf.alpha()), nf.getInteger(2)));
+
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.alpha());
 		System.out.println(withComplexMultiplication.getCurve());
 	}
 
@@ -56,7 +70,26 @@ class CMLiftTest {
 				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(5), q.zero(), q.one()));
 		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.alpha());
 		System.out.println(withComplexMultiplication.getCurve());
+	}
 
+	// @Test
+	void testCMCurvesRay() {
+		Rationals q = Rationals.q();
+		NumberField nf = NumberField
+				.getNumberField(q.getUnivariatePolynomialRing().getPolynomial(q.getInteger(36), q.zero(), q.one()));
+		WithComplexMultiplication withComplexMultiplication = EllipticCurve.withComplexMultiplication(nf, nf.alpha());
+		System.out.println(withComplexMultiplication.getCurve());
+		System.out.println(withComplexMultiplication.getRayClassField());
+		System.out.println(withComplexMultiplication.getCurve().getField());
+		NumberField field = (NumberField) withComplexMultiplication.getCurve().getField();
+		System.out.println(field.maximalOrder().idealsOver(5));
+		TatesAlgorithmResult<NFE, FFE> tate = withComplexMultiplication.getCurve().tatesAlgorithm(
+				field.maximalOrder().localizeAndQuotient(field.maximalOrder().idealsOver(5).get(0))
+				);
+		System.out.println(tate.getReducedCurve());
+		System.out.println(tate.getReducedCurve().getField());
+		System.out.println(tate.getReducedCurve().jInvariant());
+	}
 //		FiniteField fq = FiniteField.getFiniteField(83*83);
 //		
 //		EllipticCurve<FFE> curve = EllipticCurve.fromJInvariant(fq, fq.getInteger(8000));
@@ -83,7 +116,7 @@ class CMLiftTest {
 //		} // sqrt(-2) => 8000
 //		//	 sqrt(-5) => 308736+.7i
 //		System.out.println(EllipticCurve.fromTau(c, sqrt2).getCurve().jInvariant());
-	}
+//	}
 
 //	@Test
 //	void testSaturation() {

@@ -17,6 +17,7 @@ public interface Scheme<T extends Element<T>, S extends Element<S>> extends Math
 	public int degree();
 	public AffineCover<T> getAffineCover();
 	public List<Integer> affineCoverIndex(S p);
+	public int recommendAffineCoverIndex(S p);
 	public AffinePoint<T> asAffinePoint(S p, int affineCoverIndex);
 	public S fromAffinePoint(AffinePoint<T> p, int affineCoverIndex);
 	public Morphism<T, AffinePoint<T>, S> embedding(int affineCoverIndex);
@@ -25,8 +26,9 @@ public interface Scheme<T extends Element<T>, S extends Element<S>> extends Math
 	public boolean isIntegral();
 	public boolean isReduced();
 	public boolean isIrreducible();
-	public List<? extends Scheme<T, S>> irreducibleComponents();
-	public Scheme<T, S> reduced();
+	public Morphism<T, S, S> identityMorphism();
+	public List<? extends Morphism<T, S, S>> irreducibleComponents();
+	public Morphism<T, S, S> reduced();
 	public List<S> singularPoints();
 	public Optional<? extends Morphism<T, S, S>> singularLocus();
 }

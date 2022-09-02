@@ -42,7 +42,7 @@ public class DifferentialForms<T extends Element<T>> extends AbstractAlgebra<Pol
 	private PolynomialRing<T> polynomialRing;
 	private ExteriorProduct<Polynomial<T>, Vector<Polynomial<T>>> asExteriorProduct;
 
-	public DifferentialForms(PolynomialRing<T> polynomialRing) {
+	DifferentialForms(PolynomialRing<T> polynomialRing) {
 		this.polynomialRing = polynomialRing;
 		FreeModule<Polynomial<T>> module = new FreeModule<>(polynomialRing, polynomialRing.numberOfVariables());
 		String[] names = new String[polynomialRing.numberOfVariables()];

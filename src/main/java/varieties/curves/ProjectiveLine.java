@@ -13,11 +13,13 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import varieties.FunctionField;
 import varieties.RationalFunction;
 import varieties.projective.AbstractProjectiveScheme;
 import varieties.projective.GenericProjectiveScheme;
+import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 
 public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveScheme<T> implements SmoothCurve<T> {
@@ -26,16 +28,16 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	private ProjectivePoint<T> pointAtZero;
 	private PolynomialRing<T> ring;
 	private CoordinateRing<T> coordRing;
+	private GenericProjectiveScheme<T> asGenericProjectiveScheme;
 
 	public ProjectiveLine(Field<T> field) {
-		super(new GenericProjectiveScheme<>(field, AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX), Collections.emptyList()));
 		this.field = field;
 		this.ring = asGenericProjectiveScheme().homogenousPolynomialRing();
 		PolynomialRing<T> r = field.getUnivariatePolynomialRing();
 		this.coordRing = r.getZeroIdeal().divideOut();
 		this.pointAtInfinity = new ProjectivePoint<T>(this.field, this.field.one(), this.field.zero());
 		this.pointAtZero = new ProjectivePoint<T>(this.field, this.field.zero(), this.field.one());
-		}
+	}
 
 	@Override
 	public Exactness exactness() {
@@ -46,7 +48,16 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	public Field<T> getField() {
 		return this.field;
 	}
-	
+
+	@Override
+	public GenericProjectiveScheme<T> asGenericProjectiveScheme() {
+		if (asGenericProjectiveScheme == null) {
+			asGenericProjectiveScheme = new GenericProjectiveScheme<>(field,
+					AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.GREVLEX), Collections.emptyList());
+		}
+		return asGenericProjectiveScheme;
+	}
+
 	@Override
 	public boolean hasRationalPoint(ProjectivePoint<T> p) {
 		return p.getDim() == 1;
@@ -134,7 +145,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	public int getEmbeddingDimension() {
 		return 1;
 	}
-	
+
 	@Override
 	public List<Polynomial<T>> getCotangentSpace(ProjectivePoint<T> p) {
 		PolynomialRing<T> ring = AbstractPolynomialRing.getPolynomialRing(field, 2, Monomial.LEX);
@@ -166,8 +177,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 			ProjectivePoint<T> zero = zeroes.get(i);
 			ProjectivePoint<T> pole = poles.get(i);
 			f = ff.multiply(f,
-					ff.getFunction(
-							this.ring.getLinear(this.field.negative(zero.getCoord(2)), zero.getCoord(1)),
+					ff.getFunction(this.ring.getLinear(this.field.negative(zero.getCoord(2)), zero.getCoord(1)),
 							this.ring.getLinear(this.field.negative(pole.getCoord(2)), pole.getCoord(1))));
 		}
 		functions.add(f);
@@ -177,8 +187,7 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 			if (pole.equals(this.pointAtZero))
 				zero = this.pointAtInfinity;
 			functions.add(ff.multiply(f,
-					ff.getFunction(
-							this.ring.getLinear(this.field.negative(zero.getCoord(2)), zero.getCoord(1)),
+					ff.getFunction(this.ring.getLinear(this.field.negative(zero.getCoord(2)), zero.getCoord(1)),
 							this.ring.getLinear(this.field.negative(pole.getCoord(2)), pole.getCoord(1)))));
 		}
 		return functions;
@@ -195,13 +204,22 @@ public class ProjectiveLine<T extends Element<T>> extends AbstractProjectiveSche
 	}
 
 	@Override
-	public List<ProjectiveLine<T>> irreducibleComponents() {
-		return Collections.singletonList(this);
+	public ProjectiveMorphism<T> identityMorphism() {
+		List<Polynomial<T>> polynomials = new ArrayList<>();
+		polynomials.add(coordRing.getPolynomialRing().getVar(1));
+		polynomials.add(coordRing.getPolynomialRing().getVar(2));
+		return new ProjectiveMorphism<>(this.asGenericProjectiveScheme(), this.asGenericProjectiveScheme(),
+				polynomials);
 	}
-	
+
 	@Override
-	public ProjectiveLine<T> reduced() {
-		return this;
+	public List<ProjectiveMorphism<T>> irreducibleComponents() {
+		return Collections.singletonList(identityMorphism());
 	}
-	
+
+	@Override
+	public ProjectiveMorphism<T> reduced() {
+		return identityMorphism();
+	}
+
 }

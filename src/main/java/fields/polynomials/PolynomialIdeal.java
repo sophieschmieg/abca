@@ -27,6 +27,11 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 		this.basis = generators;
 	}
 
+	@Override
+	public PolynomialRing<T> getRing() {
+		return polynomialRing;
+	}
+
 	public CoordinateRing<T> divideOut() {
 		if (coordinateRing == null) {
 			coordinateRing = new CoordinateRing<>(polynomialRing, this);
@@ -127,7 +132,14 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 				saturationGenerators.add(polynomialRing.getEmbeddingWithElimination(b, -1));
 		}
 		return new PolynomialIdeal<T>(polynomialRing, saturationGenerators);
+	}
 
+	public PolynomialIdeal<T> saturate(PolynomialIdeal<T> by) {
+		PolynomialIdeal<T> result = this;
+		for (Polynomial<T> generator : by.generators()) {
+			result = result.saturate(generator);
+		}
+		return result;
 	}
 
 	public String toString() {

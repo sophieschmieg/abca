@@ -14,9 +14,11 @@ import fields.exceptions.InfinityException;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.DedekindRing;
+import fields.interfaces.DiscreteValuationField;
 import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.GlobalField;
 import fields.interfaces.Group;
 import fields.interfaces.Ideal;
 import fields.interfaces.LocalRing;
@@ -112,7 +114,7 @@ public abstract class AbstractField<T extends Element<T>>
 
 			@Override
 			public BigInteger getNumberOfElements() throws InfinityException {
-				return this.getNumberOfElements().subtract(BigInteger.ONE);
+				return AbstractField.this.getNumberOfElements().subtract(BigInteger.ONE);
 			}
 
 			@Override
@@ -331,12 +333,7 @@ public abstract class AbstractField<T extends Element<T>>
 	}
 
 	@Override
-	public T numerator(T t) {
-		return t;
-	}
-
-	@Override
-	public T denominator(T t) {
+	public T getDenominator(T t) {
 		return one();
 	}
 
@@ -495,8 +492,18 @@ public abstract class AbstractField<T extends Element<T>>
 	}
 
 	@Override
+	public GlobalField<T, T, T> quotientField() {
+		throw new ArithmeticException("implementation artifact");
+	}
+	
+	@Override
 	public DiscreteValuationRing<T, T> localize(Ideal<T> maximalIdeal) {
 		return new LocalRingImplementation<>(new TrivialDiscreteValuationField<>(this), toString());
+	}
+	
+	@Override
+	public DiscreteValuationField<T, T> localizeAndQuotient(Ideal<T> maximalIdeal) {
+		return new TrivialDiscreteValuationField<>(this);
 	}
 
 	@Override
@@ -524,8 +531,8 @@ public abstract class AbstractField<T extends Element<T>>
 
 	@Override
 	public QuotientAndRemainderResult<T> quotientAndRemainder(T dividend, T divisor) {
-		if (dividend.equals(zero()) && divisor.equals(zero())) {
-			return new QuotientAndRemainderResult<>(zero(), zero());
+		if (divisor.equals(zero())) {
+			return new QuotientAndRemainderResult<>(zero(), dividend);
 		}
 		return new QuotientAndRemainderResult<>(this.divide(dividend, divisor), zero());
 	}

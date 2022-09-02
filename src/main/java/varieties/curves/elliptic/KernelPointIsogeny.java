@@ -27,15 +27,19 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 		this.field = domain.getField();
 		this.domain = domain;
 		if (!domain.multiply(kernelDegree, kernelGenerator).equals(domain.neutral())) {
-			throw new ArithmeticException("kernel degree wrong! [" + kernelDegree + "]" + kernelGenerator +" = " + domain.multiply(kernelDegree, kernelGenerator));
+			throw new ArithmeticException("kernel degree wrong! [" + kernelDegree + "]" + kernelGenerator + " = "
+					+ domain.multiply(kernelDegree, kernelGenerator));
 		}
 		this.kernelGenerator = kernelGenerator;
 		this.kernelDegree = kernelDegree;
 
-		T a = domain.getA();
-		T b = domain.getB();
-		T v = field.zero();
-		T w = field.zero();
+		T a1 = domain.getA1();
+		T a2 = domain.getA2();
+		T a3 = domain.getA3();
+		T a4 = domain.getA4();
+		T a6 = domain.getA6();
+		T t = field.zero();
+		T u = field.zero();
 		for (int i = 1; i < (kernelDegree + 1) / 2; i++) {
 			ProjectivePoint<T> kernelPoint = domain.multiply(i, kernelGenerator);
 			if (kernelPoint.equals(domain.neutral())) {
@@ -43,12 +47,13 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 			}
 			T pointX = kernelPoint.getDehomogenisedCoord(1, 3);
 			T pointY = kernelPoint.getDehomogenisedCoord(2, 3);
-			T gxp = field.add(field.multiply(3, pointX, pointX), a);
-			T vp = field.multiply(2, gxp);
-			T gyp = field.multiply(-2, pointY);
+			T gxp = field.add(field.add(field.multiply(3, pointX, pointX), field.multiply(2, a2, pointX), a4),
+					field.multiply(-1, a1, pointY));
+			T gyp = field.add(field.multiply(-2, pointY), field.multiply(-1, a1, pointX), field.multiply(-1, a3));
+			T tp = field.add(field.multiply(2, gxp), field.multiply(-1, a1, gyp));
 			T up = field.multiply(gyp, gyp);
-			v = field.add(v, vp);
-			w = field.add(w, up, field.multiply(pointX, vp));
+			t = field.add(t, tp);
+			u = field.add(u, up, field.multiply(pointX, tp));
 		}
 		if (kernelDegree % 2 == 0) {
 			ProjectivePoint<T> kernelPoint = domain.multiply(kernelDegree / 2, kernelGenerator);
@@ -56,14 +61,15 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 				throw new ArithmeticException("kernel degree wrong!");
 			}
 			T pointX = kernelPoint.getDehomogenisedCoord(1, 3);
-			T gxp = field.add(field.multiply(3, pointX, pointX), a);
-			v = field.add(v, gxp);
-			w = field.add(w, field.multiply(pointX, gxp));
-
+			T pointY = kernelPoint.getDehomogenisedCoord(2, 3);
+			T gxp = field.add(field.add(field.multiply(3, pointX, pointX), field.multiply(2, a2, pointX), a4),
+					field.multiply(-1, a1, pointY));
+			t = field.add(t, gxp);
+			u = field.add(u, field.multiply(pointX, gxp));
 		}
-		T rangeA = field.subtract(a, field.multiply(5, v));
-		T rangeB = field.subtract(b, field.multiply(7, w));
-		this.range = new EllipticCurve<T>(field, rangeA, rangeB);
+		T rangeA4 = field.subtract(a4, field.multiply(5, t));
+		T rangeA6 = field.subtract(a6, field.add(field.multiply(7, u), field.multiply(domain.getB2(), t)));
+		this.range = new EllipticCurve<T>(field, a1, a2, a3, rangeA4, rangeA6);
 		this.range.setNumberOfPointsFrom(domain, this);
 	}
 
@@ -84,7 +90,7 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 	public String toString() {
 		return "Ker = <" + kernelGenerator.toString() + ">";
 	}
-	
+
 	public EllipticCurve<T> getDomain() {
 		return domain;
 	}
@@ -171,7 +177,7 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 		}
 		return new KernelPointIsogeny<T>(range, dualKernelPoint, kernelDegree);
 	}
-	
+
 //	@Override
 	public List<ProjectivePoint<T>> kernelGenerators() {
 		return Collections.singletonList(kernelGenerator);

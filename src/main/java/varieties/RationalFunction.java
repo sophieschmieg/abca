@@ -15,7 +15,7 @@ import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 import varieties.projective.ProjectiveScheme;
 
-public class RationalFunction<T extends Element<T>>
+public class RationalFunction<T extends Element<T>> extends AbstractMorphism<T, ProjectivePoint<T>, ProjectivePoint<T>>
 		implements Morphism<T, ProjectivePoint<T>, ProjectivePoint<T>>, Element<RationalFunction<T>> {
 	private ProjectiveScheme<T> domain;
 	private ProjectiveLine<T> range;
@@ -60,7 +60,7 @@ public class RationalFunction<T extends Element<T>>
 		this.dehomogenizedDenominator = affinePolynomialRing.getEmbedding(domain.asGenericProjectiveScheme()
 				.homogenousPolynomialRing().dehomogenize(denominator, affineCoverIndex + 1));
 	}
-	
+
 	@Override
 	public String toString() {
 		return numerator + "/" + denominator;
@@ -107,7 +107,8 @@ public class RationalFunction<T extends Element<T>>
 		}
 		PolynomialRing<T> homogenous = domain.asGenericProjectiveScheme().homogenousPolynomialRing();
 		List<Polynomial<T>> infinityPoints = new ArrayList<>();
-		infinityPoints.add(affinePolynomialRing.getEmbedding(homogenous.partiallyEvaluate(asHomogenousPolynomial, eval)));
+		infinityPoints
+				.add(affinePolynomialRing.getEmbedding(homogenous.partiallyEvaluate(asHomogenousPolynomial, eval)));
 		for (Polynomial<T> generator : domain.asGenericProjectiveScheme().generators()) {
 			infinityPoints.add(affinePolynomialRing.getEmbedding(homogenous.partiallyEvaluate(generator, eval)));
 		}
@@ -187,10 +188,10 @@ public class RationalFunction<T extends Element<T>>
 	}
 
 	@Override
-	public RestrictionResult<T> restrict(ProjectivePoint<T> preimage) {
+	public GeneralRationalFunction<T, ProjectivePoint<T>, ProjectivePoint<T>> restrict(ProjectivePoint<T> preimage) {
 		return asProjectiveMorphism.restrict(preimage);
 	}
-
+	
 	public ProjectiveMorphism<T> asProjectiveMorphism() {
 		return asProjectiveMorphism;
 	}
@@ -201,5 +202,39 @@ public class RationalFunction<T extends Element<T>>
 
 	public Polynomial<T> getDenominator() {
 		return denominator;
+	}
+
+	public Polynomial<T> getNumerator(int affineIndex) {
+		CoordinateRing<T> cr = domain.getAffineCover().get(affineIndex).getCoordinateRing();
+		PolynomialRing<T> p = cr.getPolynomialRing();
+		int[] map = new int[p.numberOfVariables() + 1];
+		int index = 0;
+		for (int i = 0; i < p.numberOfVariables() + 1; i++) {
+			if (i == affineIndex) {
+				map[i] = -1;
+				continue;
+			}
+			map[i] = index;
+			index++;
+		}
+		return cr.getEmbedding(p.getEmbedding(domain.asGenericProjectiveScheme().homogenousPolynomialRing()
+				.dehomogenize(asProjectiveMorphism.asPolynomials().get(0), affineIndex + 1), map)).getElement();
+	}
+
+	public Polynomial<T> getDenominator(int affineIndex) {
+		CoordinateRing<T> cr = domain.getAffineCover().get(affineIndex).getCoordinateRing();
+		PolynomialRing<T> p = cr.getPolynomialRing();
+		int[] map = new int[p.numberOfVariables() + 1];
+		int index = 0;
+		for (int i = 0; i < p.numberOfVariables() + 1; i++) {
+			if (i == affineIndex) {
+				map[i] = -1;
+				continue;
+			}
+			map[i] = index;
+			index++;
+		}
+		return cr.getEmbedding(p.getEmbedding(domain.asGenericProjectiveScheme().homogenousPolynomialRing()
+				.dehomogenize(asProjectiveMorphism.asPolynomials().get(1), affineIndex + 1), map)).getElement();
 	}
 }

@@ -278,7 +278,7 @@ class EllipticCurveTest {
 			Map<FFE, Integer> roots = f.roots(hasse);
 			Set<FFE> jInvariants = new TreeSet<>();
 			for (FFE root : roots.keySet()) {
-				EllipticCurve<FFE> curve = EllipticCurve.fromLengendre(f, root);
+				EllipticCurve<FFE> curve = EllipticCurve.fromLegendre(f, root);
 				if (jInvariants.contains(curve.jInvariant())) {
 					continue;
 				}

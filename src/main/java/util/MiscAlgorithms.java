@@ -143,8 +143,8 @@ public class MiscAlgorithms {
 		}
 		List<SortedSet<T>> result = new ArrayList<>();
 		for (T element : t) {
-			if (!subset.isEmpty() && subset.first().compareTo(element) >= 0) {
-				continue;
+			if (!subset.isEmpty() && subset.first().compareTo(element) <= 0) {
+				break;
 			}
 			SortedSet<T> copy = new TreeSet<>();
 			copy.addAll(subset);
@@ -276,7 +276,17 @@ public class MiscAlgorithms {
 	}
 
 	public static BigInteger roundUpToPowerOfTwo(BigInteger n) {
-		return BigInteger.ONE.shiftLeft(n.bitLength() - 1);
+		if (n.compareTo(BigInteger.ZERO) < 0) {
+			return roundUpToPowerOfTwo(n.negate()).negate();
+		}
+		if (n.equals(BigInteger.ZERO)) {
+			return BigInteger.ONE;
+		}
+		BigInteger result = BigInteger.ONE.shiftLeft(n.bitLength() - 1);
+		if (result.compareTo(n) < 0) {
+			result = result.shiftLeft(1);
+		}
+		return result;
 	}
 
 	public static IntE roundUpToPowerOfTwo(IntE n) {

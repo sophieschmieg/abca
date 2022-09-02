@@ -1,6 +1,7 @@
 package varieties.curves.elliptic;
 
 import java.math.BigInteger;
+import java.util.List;
 
 import fields.helper.AbstractElement;
 import fields.interfaces.Element;
@@ -73,6 +74,12 @@ public class AdditionIsogeny<T extends Element<T>> extends AbstractElement<Isoge
 	@Override
 	public Isogeny<T> getDual() {
 		return new AdditionIsogeny<>(firstSummand.getDual(), secondSummand.getDual());
+	}
+
+	@Override
+	public List<ProjectivePoint<T>> kernelGenerators() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

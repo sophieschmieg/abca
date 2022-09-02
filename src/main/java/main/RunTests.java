@@ -303,13 +303,13 @@ public class RunTests {
 		System.out.println("1/4 = " + onequarter + " = " + fiveadic.toRational(onequarter));
 		System.out.println("3/4 = " + threequarter + " = " + fiveadic.toRational(threequarter));
 
-		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> z5roots = fiveadic
-				.getExtension(fiveadic.getUnivariatePolynomialRing().getPolynomial(fiveadic.one(), fiveadic.one(),
-						fiveadic.one(), fiveadic.one(), fiveadic.one()))
-				.extension();
-		System.out.println(z5roots.ramificationIndex());
-		System.out.println(z5roots.residueDegree());
-		System.out.println(z5roots.minimalPolynomial());
+//		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> z5roots = fiveadic
+//				.getExtension(fiveadic.getUnivariatePolynomialRing().getPolynomial(fiveadic.one(), fiveadic.one(),
+//						fiveadic.one(), fiveadic.one(), fiveadic.one()))
+//				.extension();
+//		System.out.println(z5roots.ramificationIndex());
+//		System.out.println(z5roots.residueDegree());
+//		System.out.println(z5roots.minimalPolynomial());
 		/*
 		 * System.out.println(z5roots.ramificationPolynomial());
 		 * System.out.println(z5roots.inertiaPolynomial());

@@ -3,6 +3,7 @@ package fields.numberfields;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.TreeMap;
 
 import fields.finitefields.FiniteField;
@@ -21,7 +22,7 @@ import fields.integers.LocalizedFractions;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.AlgebraicExtensionElement;
-import fields.interfaces.DiscreteValuationField;
+import fields.interfaces.DiscreteValuationFieldExtension;
 import fields.interfaces.DiscreteValuationRing.OkutsuType;
 import fields.interfaces.FieldExtension;
 import fields.interfaces.MathMap;
@@ -38,11 +39,14 @@ import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
+import fields.vectors.pivot.PivotStrategy;
+import fields.vectors.pivot.ValuationPivotStrategy;
 import util.Identity;
 import util.MiscAlgorithms;
 
 public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ext, CompletedNumberField>
-		implements FieldExtension<PAdicNumber, Ext, CompletedNumberField>, DiscreteValuationField<Ext, FFE> {
+		implements FieldExtension<PAdicNumber, Ext, CompletedNumberField>,
+		DiscreteValuationFieldExtension<PAdicNumber, PFE, Ext, CompletedNumberField, PFE, FFE, FiniteField> {
 	public static class Ext extends AbstractElement<Ext> implements AlgebraicExtensionElement<PAdicNumber, Ext> {
 		private UnivariatePolynomial<Fraction> asPolynomial;
 		private UnivariatePolynomial<PAdicNumber> asRoundedPolynomial;
@@ -55,7 +59,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 
 		@Override
 		public String toString() {
-			return asRoundedPolynomial.toString(/*"α",*/ true);
+			return asRoundedPolynomial.toString("x", /* "α", */ true);
 		}
 
 		@Override
@@ -66,6 +70,10 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 		@Override
 		public UnivariatePolynomial<PAdicNumber> asPolynomial() {
 			return asRoundedPolynomial;
+		}
+
+		public UnivariatePolynomial<Fraction> asExactPolynomial() {
+			return asPolynomial;
 		}
 
 	}
@@ -83,7 +91,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 	private MatrixAlgebra<Fraction> exactMatrixAlgebra;
 	private Ext uniformizer;
 	private OtherVersion<Ext, NFE, FFE, LocalizedNumberField> exact;
-	private Map<Integer, CompletedNumberField> withAccuracy;
+	private SortedMap<Integer, CompletedNumberField> withAccuracy;
 	private Map<Integer, SmallestIntegerSolutionPreparation> roundToIntegerPreparation;
 
 	static CompletedNumberField getCompletedNumberField(LocalizedNumberField localized, int accuracy) {
@@ -143,15 +151,24 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 			return getReals().zero();
 		}
 		if (uniformizerValue == null) {
-			uniformizerValue = getReals().power(roundedBase.value(roundedBase.uniformizer()),
-					-type.ramificationIndex());
+			uniformizerValue = getReals().positiveRoot(roundedBase.value(roundedBase.uniformizer()),
+					type.ramificationIndex());
 		}
-		return getReals().power(uniformizerValue, -valuation(t).value());
+		return getReals().power(uniformizerValue, valuation(t).value());
 	}
 
 	@Override
 	public Reals getReals() {
 		return roundedBase.getReals();
+	}
+
+	@Override
+	public PivotStrategy<Ext> preferredPivotStrategy() {
+		return new ValuationPivotStrategy<>(valuation());
+	}
+
+	public NumberFieldIdeal exactIdeal() {
+		return localized.ideal();
 	}
 
 	@Override
@@ -296,14 +313,15 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 
 	@Override
 	public CompletedNumberField withAccuracy(int accuracy) {
-		if (!withAccuracy.containsKey(accuracy)) {
+		accuracy = MiscAlgorithms.roundUpToPowerOfTwo(accuracy);
+		if (!withAccuracy.containsKey( accuracy)) {
 			withAccuracy.put(accuracy, getCompletedNumberField(localized, accuracy));
 		}
 		return withAccuracy.get(accuracy);
 	}
 
 	@Override
-	public DiscreteValuationFieldExtension<Ext, FFE, PAdicNumber, Ext, FFE, CompletedNumberField> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<Ext, FFE, PAdicNumber, PFE, Ext, CompletedNumberField, PFE, FFE, FiniteField> getUniqueExtension(
 			UnivariatePolynomial<Ext> minimalPolynomial) {
 		UnivariatePolynomial<NFE> exactPolynomial = localized.getUnivariatePolynomialRing()
 				.getEmbedding(minimalPolynomial, exact().getRetraction());
@@ -315,7 +333,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 		}
 		CompletedNumberField result = getCompletedNumberField(
 				embedding.getField().maximalOrder().localizeAndQuotient(ideals.get(0)), accuracy);
-		return new DiscreteValuationFieldExtension<>(this, result, new MathMap<>() {
+		return new ExtensionOfDiscreteValuationField<>(this, result, new MathMap<>() {
 			@Override
 			public Ext evaluate(Ext t) {
 				NFE exactElement = exact().getRetraction().evaluate(t);
@@ -526,5 +544,10 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 	@Override
 	protected CompletedNumberField asExtensionType() {
 		return this;
+	}
+
+	@Override
+	public PAdicField getBaseField() {
+		return roundedBase;
 	}
 }

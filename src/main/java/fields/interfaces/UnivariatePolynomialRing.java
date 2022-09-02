@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.SortedSet;
 
 import fields.exceptions.InfinityException;
-import fields.integers.Rationals.Fraction;
 import fields.polynomials.Monomial;
 import fields.vectors.Vector;
 import util.PeekableReader;
@@ -103,6 +102,8 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 	UnivariatePolynomial<T> add(Polynomial<T> s1, Polynomial<T> s2);
 
 	UnivariatePolynomial<T> negative(Polynomial<T> s);
+	
+	UnivariatePolynomial<T> subtract(Polynomial<T> minuend, Polynomial<T> subtrahend);
 
 	UnivariatePolynomial<T> multiply(Polynomial<T> t1, Polynomial<T> t2);
 

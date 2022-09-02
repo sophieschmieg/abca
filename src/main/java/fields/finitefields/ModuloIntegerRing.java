@@ -126,6 +126,20 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 		return Rationals.q().rationalReconstruction(lift(t), new IntE(n));
 	}
 
+	public IntE getOrder(ModuloIntegerRingElement t) {
+		Integers z = Integers.z();
+		IntE order = z.eulerToitent(z.getInteger(n));
+		FactorizationResult<IntE, IntE> toitentFactors = z.uniqueFactorization(order);
+		for (IntE prime : toitentFactors.primeFactors()) {
+			int power = toitentFactors.multiplicity(prime);
+			while (power > 0 && power(t, z.divideChecked(order, prime)).equals(one())) {
+				power--;
+				order = z.divideChecked(order, prime);
+			}
+		}
+		return order;
+	}
+
 	@Override
 	public Iterator<ModuloIntegerRingElement> iterator() {
 		return new Iterator<ModuloIntegerRingElement>() {

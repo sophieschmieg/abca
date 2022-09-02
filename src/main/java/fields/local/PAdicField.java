@@ -29,8 +29,12 @@ import fields.interfaces.Field;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.UnivariatePolynomial;
-import fields.local.CompleteDVRExtension.Ext;
 import fields.local.PAdicField.PAdicNumber;
+import fields.numberfields.CompletedNumberField;
+import fields.numberfields.CompletedNumberField.Ext;
+import fields.numberfields.LocalizedNumberField;
+import fields.numberfields.NumberField;
+import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.vectors.RealLattice;
 import fields.vectors.Vector;
 import fields.vectors.pivot.PivotStrategy;
@@ -147,7 +151,7 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		this.prime = prime;
 		this.modulus = this.prime.pow(accuracy);
 		this.r = Reals
-				.r(Math.max(128, (int) Math.ceil(2 * (accuracy + 10) * Math.log(prime.doubleValue()) / Math.log(2.0))));
+				.r(Math.max(128, (int) Math.ceil(4 * (accuracy + 10) * Math.log(prime.doubleValue()) / Math.log(2.0))));
 		this.reduced = PrimeField.getPrimeField(prime);
 		this.localRing = new LocalRingImplementation<>(this, "Z_" + prime);
 	}
@@ -163,21 +167,33 @@ public class PAdicField extends AbstractField<PAdicNumber>
 	}
 
 	@Override
-	public Extension<PAdicNumber, PAdicNumber, Ext<PAdicNumber>, CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField>> getExtension(
+	public Extension<PAdicNumber, PAdicNumber, Ext, CompletedNumberField> getExtension(
 			UnivariatePolynomial<PAdicNumber> minimalPolynomial) {
-		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension
-				.getCompleteDVRExtension(minimalPolynomial, this,
-						residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
+		UnivariatePolynomial<Fraction> rationalMinimalPolynomial = Rationals.q().getUnivariatePolynomialRing()
+				.getEmbedding(minimalPolynomial, toRationalMap());
+		NumberField nf = NumberField.getNumberField(rationalMinimalPolynomial);
+		List<NumberFieldIdeal> ideals = nf.maximalOrder().idealsOver(prime);
+		if (ideals.size() != 1) {
+			throw new ArithmeticException("Not unramified!");
+		}
+		LocalizedNumberField exact = nf.maximalOrder().localizeAndQuotient(ideals.get(0));
+		CompletedNumberField extension = exact.complete(getAccuracy()).getField();
 		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
 	}
 
 	@Override
-	public DiscreteValuationFieldExtension<PAdicNumber, PFE, PAdicNumber, Ext<PAdicNumber>, FFE, CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField>> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<PAdicNumber, PFE, PAdicNumber, PFE, Ext, CompletedNumberField, PFE, FFE, FiniteField> getUniqueExtension(
 			UnivariatePolynomial<PAdicNumber> minimalPolynomial) {
-		CompleteDVRExtension<PAdicNumber, PFE, PFE, FFE, FiniteField> extension = CompleteDVRExtension
-				.getCompleteDVRExtension(minimalPolynomial, this,
-						residueField().getExtension(residueField().getUnivariatePolynomialRing().getVar()));
-		return new DiscreteValuationFieldExtension<>(this, extension, extension.getEmbeddingMap(),
+		UnivariatePolynomial<Fraction> rationalMinimalPolynomial = Rationals.q().getUnivariatePolynomialRing()
+				.getEmbedding(minimalPolynomial, toRationalMap());
+		NumberField nf = NumberField.getNumberField(rationalMinimalPolynomial);
+		List<NumberFieldIdeal> ideals = nf.maximalOrder().idealsOver(prime);
+		if (ideals.size() != 1) {
+			throw new ArithmeticException("Not unramified!");
+		}
+		LocalizedNumberField exact = nf.maximalOrder().localizeAndQuotient(ideals.get(0));
+		CompletedNumberField extension = exact.complete(getAccuracy()).getField();
+		return new ExtensionOfDiscreteValuationField<>(this, extension, extension.getEmbeddingMap(),
 				extension.asVectorMap());
 	}
 
@@ -260,7 +276,8 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		if (t.equals(zero())) {
 			return r.zero();
 		}
-		return r.exp(r.divide(r.log(r.getInteger(prime)), r.getInteger(valuation(t).value())));
+		Rationals q = Rationals.q();
+		return r.getFraction(q.power(q.getInteger(prime), -valuation(t).value()));
 	}
 
 	@Override
@@ -284,8 +301,8 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		if (t.lowestPower >= accuracy) {
 			return q.zero();
 		}
-		if (t.lowestPower < 0) {
-			return q.divide(withAccuracy(accuracy - t.lowestPower).toRational(new PAdicNumber(0, t.value)),
+		if (t.lowestPower != 0) {
+			return q.divide(withAccuracy(Math.max(accuracy, accuracy - t.lowestPower)).toRational(new PAdicNumber(0, t.value)),
 					q.power(q.getInteger(prime), -t.lowestPower));
 		}
 		Reals r = getReals();

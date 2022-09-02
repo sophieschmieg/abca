@@ -5,6 +5,7 @@ import java.util.List;
 import fields.helper.FieldAutomorphism;
 import fields.helper.FieldEmbedding;
 import fields.helper.GaloisGroup;
+import fields.polynomials.FieldExtensionUnivariatePolynomialRing;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
@@ -34,7 +35,9 @@ public interface FieldExtension<T extends Element<T>, S extends AlgebraicExtensi
 	 * alpha() returns an element such that L = K[alpha].
 	 */
 	S alpha();
-
+	
+	//FieldExtensionUnivariatePolynomialRing<T, S, Ext> getUnivariatePolynomialRing();
+	
 	UnivariatePolynomial<T> minimalPolynomial();
 
 	UnivariatePolynomial<S> minimalPolynomialOver(FieldEmbedding<T, S, Ext> base);
@@ -99,17 +102,17 @@ public interface FieldExtension<T extends Element<T>, S extends AlgebraicExtensi
 	S normOver(S s, FieldEmbedding<T, S, Ext> base);
 
 	S traceOver(S s, FieldEmbedding<T, S, Ext> base);
-	
+
 	T traceForm(S s1, S s2);
-	
+
 	S traceFormOver(S s1, S s2, FieldEmbedding<T, S, Ext> base);
-	
+
 	BilinearMap<S, T> traceForm();
-	
+
 	BilinearMap<S, S> traceFormOver(FieldEmbedding<T, S, Ext> base);
-	
+
 	Matrix<T> traceFormMatrix();
-	
+
 	Matrix<S> traceFormMatrixOver(FieldEmbedding<T, S, Ext> base);
 
 	UnivariatePolynomial<T> minimalPolynomial(S s);
@@ -119,6 +122,34 @@ public interface FieldExtension<T extends Element<T>, S extends AlgebraicExtensi
 	Extension<S, T, S, Ext> getExtension(UnivariatePolynomial<S> minimalPolynomial);
 
 	FieldEmbedding<T, S, Ext> getEmbeddedExtension(UnivariatePolynomial<S> minimalPolynomial);
+
+	public class SplittingFieldResult<T extends Element<T>, S extends AlgebraicExtensionElement<T, S>, Ext extends FieldExtension<T, S, Ext>> {
+		private FieldEmbedding<T, S, Ext> extension;
+		private List<S> conjugates;
+		private Polynomial<S> minimalPolynomial;
+
+		public SplittingFieldResult(FieldEmbedding<T, S, Ext> extension, List<S> conjugates,
+				Polynomial<S> minimalPolynomial) {
+			this.extension = extension;
+			this.conjugates = conjugates;
+			this.minimalPolynomial = minimalPolynomial;
+		}
+
+		public FieldEmbedding<T, S, Ext> getExtension() {
+			return extension;
+		}
+
+		public List<S> getConjugates() {
+			return conjugates;
+		}
+
+		public Polynomial<S> getMinimalPolynomial() {
+			return minimalPolynomial;
+		}
+
+	}
+
+	SplittingFieldResult<T, S, Ext> getSplittingField(UnivariatePolynomial<S> minimalPolynomial);
 
 	Ext makeExtension(UnivariatePolynomial<T> minimalPolynomial);
 }

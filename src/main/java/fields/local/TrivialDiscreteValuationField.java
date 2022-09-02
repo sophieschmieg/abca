@@ -179,7 +179,7 @@ public class TrivialDiscreteValuationField<T extends Element<T>> extends Abstrac
 	}
 
 	@Override
-	public DiscreteValuationFieldExtension<T, T, ?, ?, ?, ?> getUniqueExtension(
+	public ExtensionOfDiscreteValuationField<T, T, ?, ?, ?, ?, ?, ?, ?> getUniqueExtension(
 			UnivariatePolynomial<T> minimalPolynomial) {
 		throw new UnsupportedOperationException("Not implemented!");
 	}

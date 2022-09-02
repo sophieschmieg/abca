@@ -14,6 +14,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
+import fields.finitefields.FiniteField;
+import fields.finitefields.FiniteField.FFE;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
 import fields.helper.AbstractElement;
@@ -21,12 +23,15 @@ import fields.helper.AbstractField;
 import fields.helper.FieldOfFractions;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals.Fraction;
+import fields.interfaces.GlobalField;
 import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.TotalOrder;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.numberfields.LocalizedNumberField;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
 import fields.polynomials.Monomial;
@@ -35,7 +40,8 @@ import fields.vectors.Vector;
 import util.MiscAlgorithms;
 import util.PeekableReader;
 
-public class Rationals extends AbstractField<Fraction> {
+public class Rationals extends AbstractField<Fraction>
+		implements TotalOrder<Fraction>, GlobalField<Fraction, IntE, PFE> {
 	private static Integers z = Integers.z();
 	private static FieldOfFractions<IntE> q = new FieldOfFractions<>(z);
 	private static Rationals rationals = new Rationals();
@@ -91,7 +97,7 @@ public class Rationals extends AbstractField<Fraction> {
 
 		public IntE round() {
 			BigInteger reducedNumerator = getNumerator().getValue().mod(getDenominator().getValue());
-			if (reducedNumerator.shiftLeft(1).compareTo(getDenominator().getValue()) > 0) {
+			if (reducedNumerator.shiftLeft(1).compareTo(getDenominator().getValue()) >= 0) {
 				return roundUp();
 			}
 			return roundDown();
@@ -141,6 +147,14 @@ public class Rationals extends AbstractField<Fraction> {
 			UnivariatePolynomial<Fraction> minimalPolynomial) {
 		NumberField extension = NumberField.getNumberField(minimalPolynomial);
 		return new Extension<>(extension, this, extension.getEmbeddingMap(), extension.asVectorMap());
+	}
+
+	@Override
+	public ExtensionOfGlobalField<Fraction, IntE, PFE, Fraction, IntE, PFE, NFE, NFE, PFE, FFE, FiniteField, LocalizedNumberField, NumberField> getGlobalFieldExtension(
+			UnivariatePolynomial<Fraction> minimalPolynomial) {
+		Extension<Fraction, Fraction, NFE, NumberField> extension = getExtension(minimalPolynomial);
+		return new ExtensionOfGlobalField<>(this, extension.extension(), extension.embeddingMap(),
+				extension.asVectorMap());
 	}
 
 	@Override
@@ -225,6 +239,14 @@ public class Rationals extends AbstractField<Fraction> {
 		return t1;
 	}
 
+	public LocalizedFractions withValuation(int prime) {
+		return withValuation(BigInteger.valueOf(prime));
+	}
+
+	public LocalizedFractions withValuation(IntE prime) {
+		return withValuation(prime.getValue());
+	}
+
 	public LocalizedFractions withValuation(BigInteger prime) {
 		if (!localized.containsKey(prime)) {
 			localized.put(prime, new LocalizedFractions(prime));
@@ -237,6 +259,11 @@ public class Rationals extends AbstractField<Fraction> {
 			infValue = new ValueFractions();
 		}
 		return infValue;
+	}
+
+	@Override
+	public Integers ringOfIntegers() {
+		return Integers.z();
 	}
 
 	@Override

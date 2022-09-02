@@ -31,15 +31,22 @@ public class CompositionMorphism<T extends Element<T>, S extends Element<S>, U e
 	}
 
 	@Override
-	public RestrictionResult<T> restrict(S preimage) {
+	public GeneralRationalFunction<T, S, V> restrict(S preimage) {
 		U intermediate = firstMorphism.evaluate(preimage);
-		RestrictionResult<T> firstRestriction = firstMorphism.restrict(preimage);
-		RestrictionResult<T> secondRestriction = secondMorphism.restrict(intermediate);
-		AffineScheme<T> firstRange = firstMorphism.getRange().getAffineCover().getCover().get(firstRestriction.getRangeCoverIndex());
-		AffineScheme<T> secondDomain = secondMorphism.getDomain().getAffineCover().getCover().get(secondRestriction.getDomainCoverIndex());
+		GeneralRationalFunction<T, S, U> firstRestriction = firstMorphism.restrict(preimage);
+		GeneralRationalFunction<T, U, V> secondRestriction = secondMorphism.restrict(intermediate);
+		AffineScheme<T> firstRange = firstMorphism.getRange().getAffineCover().getCover()
+				.get(firstRestriction.getRangeCoverIndex());
+		AffineScheme<T> secondDomain = secondMorphism.getDomain().getAffineCover().getCover()
+				.get(secondRestriction.getDomainCoverIndex());
 		IntersectionResult<T> intermediateIntersection = AffineScheme.intersect(firstRange, secondDomain);
-		AffineMorphism<T> preimageMorphism = firstRestriction.getRestrictedMorphism().preimage(intermediateIntersection.getFirstEmbedding());
-		AffineMorphism<T> restriction = AffineMorphism.composition(AffineMorphism.composition(preimageMorphism, firstRestriction.getRestrictedMorphism()), secondRestriction.getRestrictedMorphism());
-		return new RestrictionResult<>(firstRestriction.getDomainCoverIndex(), secondRestriction.getRangeCoverIndex(), preimageMorphism, secondRestriction.getRangeEmbedding(), restriction);
+		AffineMorphism<T> preimageMorphism = firstRestriction.getMorphism()
+				.preimage(intermediateIntersection.getFirstEmbedding());
+		AffineMorphism<T> restriction = AffineMorphism.composition(
+				AffineMorphism.composition(preimageMorphism, firstRestriction.getMorphism()),
+				secondRestriction.getMorphism());
+		return new GeneralRationalFunction<>(getDomain(), getRange(), restriction,
+				firstRestriction.getDomainCoverIndex(), preimageMorphism, secondRestriction.getRangeCoverIndex());
 	}
+
 }

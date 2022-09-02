@@ -21,6 +21,7 @@ import fields.interfaces.FloatingPointSet;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.TotalOrder;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.ValueField;
 import fields.vectors.Matrix;
@@ -28,7 +29,7 @@ import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
-public class Reals extends AbstractField<Real> implements ValueField<Real>, FloatingPointSet<Real, Reals> {
+public class Reals extends AbstractField<Real> implements ValueField<Real>, FloatingPointSet<Real, Reals>, TotalOrder<Real> {
 	private final int precision;
 	private Reals highPrecision;
 	private Real pi;
