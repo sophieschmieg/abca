@@ -4,11 +4,20 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import cryptography.interfaces.ExtendedOutputFunction;
+import cryptography.interfaces.HashFunction;
 import cryptography.interfaces.PseudoRandomFunction;
 
 public class Hkdf implements ExtendedOutputFunction {
 	private PseudoRandomFunction prf;
 	private byte[] salt;
+
+	public Hkdf(HashFunction hash) {
+		this(new Hmac(hash));
+	}
+
+	public Hkdf(HashFunction hash, byte[] salt) {
+		this(new Hmac(hash), salt);
+	}
 
 	public Hkdf(PseudoRandomFunction prf) {
 		this(prf, new byte[prf.outputLength()]);

@@ -1,20 +1,21 @@
 package cryptography;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
+import java.security.SecureRandom;
 
 import org.junit.jupiter.api.Test;
 
+import cryptography.SchnorrSignature.Signature;
 import cryptography.encoders.PFEEncoder;
-import cryptography.interfaces.DhScheme.Role;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
-import fields.integers.Integers.IntE;
 import varieties.curves.elliptic.EllipticCurve;
 import varieties.projective.ProjectivePoint;
 
-class EcdhTest {
+class SchnorrSignatureTest {
 	private PrimeField fp256;
 	private PFE p256A;
 	private PFE p256B;
@@ -23,7 +24,7 @@ class EcdhTest {
 	private BigInteger p256Order;
 
 	@Test
-	void test() {
+	void signatureTest() {
 		BigInteger p256Prime = new BigInteger("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff", 16);
 		fp256 = PrimeField.getPrimeField(p256Prime);
 		p256A = fp256.getElement(new BigInteger("-3"));
@@ -37,23 +38,18 @@ class EcdhTest {
 		p256Order = new BigInteger("115792089210356248762697446949407573529996955224135760342422259061068512044369");
 		p256 = new EllipticCurve<>(fp256, p256A, p256B);
 		p256.setNumberOfElements(p256Order);
-		DiffieHellman<ProjectivePoint<PFE>> ecdh = DiffieHellman.ecdh(new Hkdf(Sha2.SHA2_512), new PFEEncoder(fp256),
-				p256, p256Generator);
-		IntE alicePrivateKey = ecdh.createPrivateKey(Role.Alice);
-		System.out.println("Private key Alice: " + alicePrivateKey);
-		ProjectivePoint<PFE> alicePublicKey = ecdh.createPublicKey(alicePrivateKey);
-		System.out.println("Public key Alice: " + alicePublicKey);
-		IntE bobPrivateKey = ecdh.createPrivateKey(Role.Bob);
-		System.out.println("Private key Bob: " + bobPrivateKey);
-		ProjectivePoint<PFE> bobPublicKey = ecdh.createPublicKey(bobPrivateKey);
-		System.out.println("Public key Bob: " + bobPublicKey);
-
-		VariableLengthKey sharedSecretAlice = ecdh.agree(alicePrivateKey, bobPublicKey);
-		VariableLengthKey sharedSecretBob = ecdh.agree(bobPrivateKey, alicePublicKey);
-
-		System.out.println("shared secret Alice: " + new ByteArray(sharedSecretAlice.key(16)));
-		System.out.println("shared secret Bob:   " + new ByteArray(sharedSecretBob.key(16)));
-		assertEquals(sharedSecretAlice, sharedSecretBob);
+		SecureRandom rng = new SecureRandom();
+		byte[] message = new byte[25];
+		rng.nextBytes(message);
+		SchnorrSignature<ProjectivePoint<PFE>> scheme = SchnorrSignature.ecSchnorr(Sha2.SHA2_512,
+				new PFEEncoder(p256Prime), p256, p256Generator);
+		PFE privateKey = scheme.createPrivateKey();
+		ProjectivePoint<PFE> publicKey = scheme.createPublicKey(privateKey);
+		Signature signature = scheme.sign(message, privateKey);
+		assertTrue(scheme.verify(message, signature, publicKey));
+		PFE privateKey2 = scheme.createPrivateKey();
+		Signature signature2 = scheme.sign(message, privateKey2);
+		assertFalse(scheme.verify(message, signature2, publicKey));
 	}
 
 }

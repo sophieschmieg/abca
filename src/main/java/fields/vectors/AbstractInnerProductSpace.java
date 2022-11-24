@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import fields.exceptions.InfinityException;
 import fields.floatingpoint.Complex;
@@ -600,6 +601,27 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 					svd.getLeftUnitaryMatrix());
 		}
 		return t.pseudoInverse;
+	}
+
+	@Override
+	public Optional<Real> conditionNumber(Matrix<T> t) {
+		SingularValueDecompositionResult<T> svd = singularValueDecomposition(t);
+		Real max = null;
+		Real min = null;
+		for (int i = 0; i < Math.min(t.rows(), t.columns()); i++) {
+			Real sigma = getValueField().value(svd.getDiagonalMatrix().entry(i + 1, i + 1));
+			if (max == null || sigma.compareTo(max) > 0) {
+				max = sigma;
+			}
+			if (min == null || sigma.compareTo(min) < 0) {
+				min = sigma;
+			}
+		}
+		Real zero = getValueField().getReals().zero();
+		if (min.equals(zero)) {
+			return Optional.empty();
+		}
+		return Optional.of(getValueField().getReals().divide(max, min));
 	}
 
 	@Override

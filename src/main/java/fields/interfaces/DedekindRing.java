@@ -165,7 +165,12 @@ public interface DedekindRing<T extends Element<T>, U extends Element<U>, S exte
 				OkutsuType<U, S, R, RE, RFE> otherType = theMontes.getTypes().get(i);
 				if (!otherType.valuation(generator).equals(Value.ZERO)) {
 					for (int j = 0; j < integralBasis.get(i).size(); j++) {
-						if (otherType.valuation(integralBasis.get(i).get(j)).equals(Value.ZERO)) {
+						UnivariatePolynomial<U> correction = integralBasis.get(i).get(j);
+						if (otherType.valuation(correction).equals(Value.ZERO)) {
+							Value value = type.valuation(correction);
+							if (value.compareTo(Value.ONE) <= 0) {
+								throw new ArithmeticException("Value not larger than 1!");
+							}
 							generator = polynomials.add(generator, integralBasis.get(i).get(j));
 							break;
 						}

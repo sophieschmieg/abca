@@ -13,13 +13,13 @@ class RsaKemTest {
 
 	@Test
 	void test() {
-		RsaKem rsa = new RsaKem(2048, Sha3.SHA3_256);
+		RsaKem rsa = new RsaKem(2048, Sha3.SHAKE_256);
 		for (int keys = 0; keys < 10; keys++) {
 			RsaPrivateKey privateKey = rsa.createPrivateKey();
 			RsaPublicKey publicKey = rsa.createPublicKey(privateKey);
 			for (int tc = 0; tc < 20; tc++) {
-				Pair<ByteArray, IntE> encapsulated = rsa.encapsulate(publicKey);
-				ByteArray decapsulated = rsa.decapsulate(encapsulated.getSecond(), privateKey);
+				Pair<VariableLengthKey, IntE> encapsulated = rsa.encapsulate(publicKey);
+				VariableLengthKey decapsulated = rsa.decapsulate(encapsulated.getSecond(), privateKey);
 				assertEquals(encapsulated.getFirst(), decapsulated);
 			}
 		}

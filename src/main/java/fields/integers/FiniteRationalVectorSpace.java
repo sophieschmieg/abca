@@ -71,7 +71,7 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 
 	@Override
 	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis,
-			Lattice<R, Fraction, Vector<Fraction>> lattice, double deltaAsDouble) {
+			Lattice<R, Fraction, Vector<Fraction>> lattice) {
 		Reals r = getValueField().getReals();
 		List<Vector<Fraction>> embeddedLatticeBasis = new ArrayList<>();
 		for (R basisVector : sublatticeBasis) {
@@ -79,8 +79,7 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 		}
 		Matrix<Fraction> originalBaseChange = Matrix.fromColumns(embeddedLatticeBasis);
 		MatrixModule<Fraction> matrixModule = originalBaseChange.getModule(q);
-		EmbeddedRationalLattice rationalLattice = new EmbeddedRationalLattice(r, dimension(), embeddedLatticeBasis,
-				deltaAsDouble);
+		EmbeddedRationalLattice rationalLattice = new EmbeddedRationalLattice(r, dimension(), embeddedLatticeBasis);
 		List<R> result = new ArrayList<>();
 		for (Vector<Fraction> reduced : rationalLattice.getModuleGenerators()) {
 			Vector<IntE> asIntegerVector = Vector.mapVector(q.getAsIntegerMap(),
@@ -97,7 +96,7 @@ public class FiniteRationalVectorSpace extends AbstractRealInnerProductSpace<Fra
 
 	@Override
 	public <R extends Element<R>> R closestLatticePoint(Vector<Fraction> t,
-			Lattice<R, Fraction, Vector<Fraction>> lattice, double delta) {
+			Lattice<R, Fraction, Vector<Fraction>> lattice) {
 		Matrix<Fraction> asMatrix = lattice.generatorsAsMatrix();
 		MatrixModule<Fraction> matrixModule = asMatrix.getModule(q);
 		Vector<Fraction> asVector = asVector(t);

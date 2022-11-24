@@ -312,7 +312,7 @@ public class PAdicField extends AbstractField<PAdicNumber>
 		basis.add(
 				new Vector<>(r.multiply(r.getInteger(t.value), r.power(r.getInteger(prime), t.lowestPower)), r.one()));
 		RealLattice lattice = new RealLattice(space, basis, true);
-		Vector<Real> result = space.latticeReduction(lattice, 1.0).get(0);
+		Vector<Real> result = space.latticeReduction(lattice).get(0);
 		if (result.get(2).round().equals(Integers.z().zero())) {
 			throw new ArithmeticException("Smallest vector implied denominator 0 for " + t);
 		}

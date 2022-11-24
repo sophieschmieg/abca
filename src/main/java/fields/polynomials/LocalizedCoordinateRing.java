@@ -207,7 +207,7 @@ public class LocalizedCoordinateRing<T extends Element<T>> extends AbstractField
 		List<CoordinateRingElement<T>> row = new ArrayList<>();
 		row.add(ring.negative(t.getNumerator()));
 		row.add(ring.power(ring.getEmbedding(uniformizerAsPolynomial), value));
-		List<Vector<CoordinateRingElement<T>>> syzygies = ring.syzygyProblem(row);
+		List<Vector<CoordinateRingElement<T>>> syzygies = ring.idealSyzygyProblem(row);
 		boolean syzygyFound = false;
 		for (Vector<CoordinateRingElement<T>> syzygy : syzygies) {
 			if (ideal.contains(syzygy.get(1))) {

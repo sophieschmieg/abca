@@ -226,7 +226,7 @@ public class FractionalIdeal extends AbstractModule<IntE, NFE>
 			for (NFE numeratorGenerator : freeSubModule.getModuleGenerators()) {
 				unreducedBasis.add(field.divide(numeratorGenerator, field.getEmbedding(cleared.getSecond())));
 			}
-			this.basis = field.minkowskiEmbeddingSpace().latticeReduction(unreducedBasis, this, 1.0);
+			this.basis = field.minkowskiEmbeddingSpace().latticeReduction(unreducedBasis, this);
 			List<Vector<Fraction>> basisAsVectors = new ArrayList<>();
 			for (NFE basisVector : basis) {
 				basisAsVectors.add(field.asVector(basisVector));

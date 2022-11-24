@@ -87,6 +87,7 @@ class ClassNumberTest {
 
 	@Test
 	void testHilbertClassFieldClassNumber4() {
+		fail();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		int[] d = new int[] { 39, 14, 17, 21, 30, 33, 34 };

@@ -21,9 +21,7 @@ import fields.finitefields.ModuloIntegerRing;
 import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
-import fields.floatingpoint.FiniteRealVectorSpace;
 import fields.floatingpoint.Reals;
-import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
@@ -50,8 +48,9 @@ import fields.polynomials.Monomial;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
-import fields.vectors.RealLattice;
+import fields.vectors.RealIntegerLattice;
 import fields.vectors.Vector;
+import util.FunctionMathMap;
 import util.Identity;
 import util.MiscAlgorithms;
 import util.PeekableReader;
@@ -727,130 +726,183 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		return getInteger(signum);
 	}
 
+	@Override
+	public List<Vector<IntE>> simplifySubModuleGenerators(MatrixModule<IntE> module, Matrix<IntE> m) {
+		Rationals q = Rationals.q();
+		RealIntegerLattice result = null;
+		for (Vector<IntE> vector : m.asColumnList()) {
+			if (result == null) {
+				result = new RealIntegerLattice(Reals.r(128), vector.dimension(), Collections.singletonList(vector));
+				continue;
+			}
+			if (result.contains(vector)) {
+				continue;
+			}
+			Vector<Fraction> embeddedVector = Vector.mapVector(q.getEmbeddingMap(), vector);
+			if (!q.isSubModuleMember(result.rationalBaseChange(), embeddedVector)) {
+				List<Vector<IntE>> basis = new ArrayList<>();
+				basis.addAll(result.getBasis());
+				basis.add(vector);
+				result = new RealIntegerLattice(result.getVectorSpace(), result.getFreeModule(), basis);
+				continue;
+			}
+			// Mx = v
+			// (d*I, d*x) = R.D.C
+			// (2 3)
+			// (2 -3) . (5/4 5/6) = (5 0)
+			// (12 0), (0 12), (15 10)
+			Vector<Fraction> asFraction = q.asSubModuleMember(result.rationalBaseChange(), embeddedVector);
+			IntE denominator = one();
+			for (Fraction coeff : asFraction.asList()) {
+				denominator = lcm(coeff.getDenominator(), denominator);
+			}
+			FreeModule<IntE> rankModule = new FreeModule<>(this, result.rank());
+			FiniteRationalVectorSpace rankVectorSpace = new FiniteRationalVectorSpace(result.rank());
+			List<Vector<IntE>> generators = new ArrayList<>();
+			for (Vector<IntE> basisVector : result.getBasis()) {
+				generators.add(rankModule.scalarMultiply(denominator,
+						asSubModuleMember(result.integerBaseChange(), basisVector)));
+			}
+			generators.add(Vector.mapVector(q.getAsIntegerMap(),
+					rankVectorSpace.scalarMultiply(denominator.getValue(), asFraction)));
+			Matrix<IntE> generatorMatrix = Matrix.fromColumns(generators);
+			List<Vector<IntE>> newDiagonalBasis = super.simplifySubModuleGenerators(generatorMatrix.getModule(this), generatorMatrix);
+			List<Vector<IntE>> newBasis = new ArrayList<>();
+			for (Vector<IntE> newBasisVector : newDiagonalBasis) {
+				Vector<IntE> inOldBasis = result.fromVector(newBasisVector);
+				List<IntE> divided = new ArrayList<>();
+				for (IntE coeff : inOldBasis.asList()) {
+					divided.add(divideChecked(coeff, denominator));
+				}
+				newBasis.add(new Vector<>(divided));
+			}
+			result = new RealIntegerLattice(result.getVectorSpace(), result.getFreeModule(), newBasis);
+		}
+		return result.getBasis();
+	}
+
 	public static class SmallestIntegerSolutionPreparation {
 		private Matrix<IntE> generatorMatrix;
 		private MatrixModule<IntE> matrixModule;
-		private FiniteRealVectorSpace space;
-		private RealLattice kernelLattice;
+		private RealIntegerLattice kernelLattice;
 		private FreeModule<IntE> solutionSpace;
-		private MathMap<IntE, Real> embeddingMap;
-		private MathMap<Real, IntE> asIntegerMap;
-		private MathMap<IntE, IntE> modMap;
-		private double delta;
+		private MathMap<Vector<IntE>, Vector<IntE>> projectionMap;
 
-		private SmallestIntegerSolutionPreparation(List<Vector<IntE>> generators, IntE modulus, double delta) {
+		private SmallestIntegerSolutionPreparation(List<Vector<IntE>> generators, List<Vector<IntE>> modulus) {
 			Integers z = Integers.z();
 			int accuracy = 128;
-			if (modulus.equals(z.zero())) {
-				for (Vector<IntE> generator : generators) {
-					for (IntE c : generator.asList()) {
-						accuracy = Math.max(4 * c.getValue().bitLength() + 10, accuracy);
-					}
-				}
-			} else {
-				accuracy = Math.max(4 * modulus.getValue().bitLength() + 10, accuracy);
-			}
+			this.projectionMap = new FunctionMathMap<>(
+					(Vector<IntE> t) -> new Vector<>(t.asList().subList(0, generators.size())));
 			this.solutionSpace = new FreeModule<>(z, generators.size());
-			FreeModule<IntE> generatorSpace = new FreeModule<>(z, generators.get(0).dimension());
 			List<Vector<IntE>> actualGenerators = new ArrayList<>();
-			this.modMap = new MathMap<>() {
-				@Override
-				public IntE evaluate(IntE t) {
-					return z.remainder(t, modulus);
-				}
-			};
-			for (Vector<IntE> generator : generators) {
-				actualGenerators.add(Vector.mapVector(modMap, generator));
-			}
-			for (Vector<IntE> unitVector : generatorSpace.getBasis()) {
-				actualGenerators.add(generatorSpace.scalarMultiply(modulus, unitVector));
-			}
+			actualGenerators.addAll(generators);
+			actualGenerators.addAll(modulus);
 			this.generatorMatrix = Matrix.fromColumns(actualGenerators);
 			this.matrixModule = generatorMatrix.getModule(Integers.z());
-			List<Vector<IntE>> kernelBasis = new ArrayList<>();
-			kernelBasis.addAll(matrixModule.kernelBasis(generatorMatrix));
-			FreeModule<IntE> kernelSpace = matrixModule.domain();
-			for (Vector<IntE> unitVector : kernelSpace.getBasis()) {
-				kernelBasis.add(kernelSpace.scalarMultiply(modulus, unitVector));
+			List<Vector<IntE>> kernelBasis = matrixModule.kernelBasis(generatorMatrix);
+			if (kernelBasis.size() == 0) {
+				return;
 			}
-			Matrix<IntE> kernelMatrix = Matrix.fromColumns(kernelBasis);
-			kernelBasis = kernelMatrix.getModule(z).imageBasis(kernelMatrix);
+			List<Vector<IntE>> projectedKernelBasis = new ArrayList<>();
 			for (Vector<IntE> kernelVector : kernelBasis) {
-				for (IntE c : kernelVector.asList()) {
-					accuracy = Math.max(4 * c.getValue().bitLength() + 10, accuracy);
-				}
+				projectedKernelBasis.add(projectionMap.evaluate(kernelVector));
+			}
+			Matrix<IntE> projectedKernelMatrix = Matrix.fromColumns(projectedKernelBasis);
+			projectedKernelBasis = projectedKernelMatrix.getModule(Integers.z()).imageBasis(projectedKernelMatrix);
+			if (projectedKernelBasis.size() == 0) {
+				return;
 			}
 			Reals r = Reals.r(accuracy);
-			this.embeddingMap = new MathMap<>() {
-				@Override
-				public Real evaluate(IntE t) {
-					return r.getInteger(t);
-				}
-			};
-			this.asIntegerMap = new MathMap<>() {
-				@Override
-				public IntE evaluate(Real t) {
-					return t.round();
-				}
-			};
-			this.space = new FiniteRealVectorSpace(r, generatorSpace.dimension() + generators.size());
-			List<Vector<Real>> realKernelBasis = new ArrayList<>();
-			for (Vector<IntE> kernelVector : kernelBasis) {
-				realKernelBasis.add(Vector.mapVector(embeddingMap, kernelVector));
-			}
-			this.kernelLattice = new RealLattice(space, realKernelBasis, delta, true);
-			this.delta = delta;
+			this.kernelLattice = new RealIntegerLattice(r, generators.size(), projectedKernelBasis);
+		}
+
+		private Vector<IntE> smallestKernelVector() {
+			return kernelLattice.getModuleGenerators().get(0);
+		}
+
+		private List<Vector<IntE>> smallestKernelBasis() {
+			return kernelLattice.getModuleGenerators();
 		}
 	}
 
 	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators) {
-		return prepareSmallestIntegerSolution(generators, 0.75);
-	}
-
-	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
-			double delta) {
-		return prepareSmallestIntegerSolution(generators, zero(), delta);
+		return prepareSmallestIntegerSolution(generators, Collections.emptyList());
 	}
 
 	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
 			IntE modulus) {
-		return prepareSmallestIntegerSolution(generators, modulus, 0.75);
+		int dimension = generators.get(0).dimension();
+		FreeModule<IntE> free = new FreeModule<>(this, dimension);
+		List<Vector<IntE>> latticeGenerators = new ArrayList<>();
+		for (Vector<IntE> basisVector : free.getBasis()) {
+			latticeGenerators.add(free.scalarMultiply(modulus, basisVector));
+		}
+		return prepareSmallestIntegerSolution(generators, latticeGenerators);
 	}
 
 	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
-			IntE modulus, double delta) {
-		return new SmallestIntegerSolutionPreparation(generators, modulus, delta);
+			List<Vector<IntE>> modulus) {
+		return new SmallestIntegerSolutionPreparation(generators, modulus);
+	}
+
+	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<IntE>> generators,
+			RealIntegerLattice modulus) {
+		return prepareSmallestIntegerSolution(generators, modulus.getModuleGenerators());
+	}
+
+	public Vector<IntE> smallestKernelVector(SmallestIntegerSolutionPreparation preparation) {
+		return preparation.smallestKernelVector();
+	}
+
+	public Vector<IntE> smallestKernelVector(List<Vector<IntE>> generators) {
+		return smallestKernelVector(prepareSmallestIntegerSolution(generators));
+	}
+
+	public Vector<IntE> smallestKernelVector(List<Vector<IntE>> generators, IntE modulus) {
+		return smallestKernelVector(prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public Vector<IntE> smallestKernelVector(List<Vector<IntE>> generators, List<Vector<IntE>> modulus) {
+		return smallestKernelVector(prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public List<Vector<IntE>> smallestKernelBasis(SmallestIntegerSolutionPreparation preparation) {
+		return preparation.smallestKernelBasis();
+	}
+
+	public List<Vector<IntE>> smallestKernelBasis(List<Vector<IntE>> generators) {
+		return smallestKernelBasis(prepareSmallestIntegerSolution(generators));
+	}
+
+	public List<Vector<IntE>> smallestKernelBasis(List<Vector<IntE>> generators, IntE modulus) {
+		return smallestKernelBasis(prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public List<Vector<IntE>> smallestKernelBasis(List<Vector<IntE>> generators, List<Vector<IntE>> modulus) {
+		return smallestKernelBasis(prepareSmallestIntegerSolution(generators, modulus));
 	}
 
 	public Vector<IntE> smallestIntegerSolution(Vector<IntE> target, SmallestIntegerSolutionPreparation preparation) {
-		target = Vector.mapVector(preparation.modMap, target);
 		Vector<IntE> solution = preparation.matrixModule.solve(preparation.generatorMatrix, target);
 		if (preparation.kernelLattice == null) {
 			return solution;
 		}
-		Vector<Real> closestKernelVector = preparation.space.closestLatticePoint(
-				Vector.mapVector(preparation.embeddingMap, solution), preparation.kernelLattice, preparation.delta);
-		Vector<IntE> closestIntegerKernelVector = new Vector<>(
-				Vector.mapVector(preparation.asIntegerMap, closestKernelVector).asList().subList(0,
-						preparation.solutionSpace.dimension()));
-		return preparation.solutionSpace.subtract(solution, closestIntegerKernelVector);
+		Vector<IntE> projectedSolution = preparation.projectionMap.evaluate(solution);
+		Vector<IntE> closestKernelVector = preparation.kernelLattice.closestLatticePoint(projectedSolution);
+		return preparation.solutionSpace.subtract(solution, closestKernelVector);
 	}
 
 	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target) {
 		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators));
 	}
 
-	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target, double delta) {
-		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, delta));
-	}
-
 	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target, IntE modulus) {
 		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus));
 	}
 
-	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target, IntE modulus,
-			double delta) {
-		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus, delta));
+	public Vector<IntE> smallestIntegerSolution(List<Vector<IntE>> generators, Vector<IntE> target,
+			List<Vector<IntE>> modulus) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus));
 	}
 
 	@Override
@@ -1463,6 +1515,10 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				return centeredLift(t, prime);
 			}
 		});
+	}
+
+	public UnivariatePolynomial<IntE> centeredLiftUnivariatePolynomial(Polynomial<PFE> t, int prime) {
+		return centeredLiftUnivariatePolynomial(t, BigInteger.valueOf(prime));
 	}
 
 	@Override

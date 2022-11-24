@@ -5,7 +5,7 @@ import java.util.List;
 
 import cryptography.RsaKem.RsaPrivateKey;
 import cryptography.RsaKem.RsaPublicKey;
-import cryptography.interfaces.HashFunction;
+import cryptography.interfaces.ExtendedOutputFunction;
 import cryptography.interfaces.KemScheme;
 import fields.finitefields.ModuloIntegerRing;
 import fields.finitefields.PrimeField;
@@ -15,7 +15,7 @@ import fields.integers.Integers.IntE;
 import fields.interfaces.Ring.ChineseRemainderPreparation;
 import util.Pair;
 
-public class RsaKem implements KemScheme<ByteArray, IntE, RsaPublicKey, RsaPrivateKey, RsaKem> {
+public class RsaKem implements KemScheme< IntE, RsaPublicKey, RsaPrivateKey, RsaKem> {
 	public class RsaPublicKey extends AbstractElement<RsaPublicKey> {
 		private IntE modulus;
 		private IntE exponent;
@@ -90,9 +90,9 @@ public class RsaKem implements KemScheme<ByteArray, IntE, RsaPublicKey, RsaPriva
 	private IntE primeMax;
 	private IntE primeMin;
 	private IntE diff;
-	private HashFunction hash;
+	private ExtendedOutputFunction hash;
 
-	public RsaKem(int bitSize, HashFunction hash) {
+	public RsaKem(int bitSize, ExtendedOutputFunction hash) {
 		if (bitSize % 2 != 0) {
 			throw new RuntimeException("Expected even bit size!");
 		}
@@ -130,22 +130,22 @@ public class RsaKem implements KemScheme<ByteArray, IntE, RsaPublicKey, RsaPriva
 	}
 
 	@Override
-	public Pair<ByteArray, IntE> encapsulate(RsaPublicKey publicKey) {
+	public Pair<VariableLengthKey, IntE> encapsulate(RsaPublicKey publicKey) {
 		Integers z = Integers.z();
 		IntE secret = z.getRandomElement(publicKey.modulus);
-		ByteArray key = new ByteArray(hash.evaluate(secret.getValue().toByteArray()));
+		VariableLengthKey key = new VariableLengthKey(secret.getValue().toByteArray(), hash);
 		IntE kem = publicKey.mod.lift(publicKey.mod.power(publicKey.mod.reduce(secret), publicKey.exponent));
 		return new Pair<>(key, kem);
 	}
 
 	@Override
-	public ByteArray decapsulate(IntE kem, RsaPrivateKey privateKey) {
+	public VariableLengthKey decapsulate(IntE kem, RsaPrivateKey privateKey) {
 		List<IntE> powers = new ArrayList<>();
 		powers.add(
 				privateKey.mod1.liftToInteger(privateKey.mod1.power(privateKey.mod1.reduce(kem), privateKey.exponent)));
 		powers.add(
 				privateKey.mod2.liftToInteger(privateKey.mod2.power(privateKey.mod2.reduce(kem), privateKey.exponent)));
 		IntE secret = Integers.z().chineseRemainderTheorem(powers, privateKey.crt);
-		return new ByteArray(hash.evaluate(secret.getValue().toByteArray()));
+		return new VariableLengthKey(secret.getValue().toByteArray(), hash);
 	}
 }

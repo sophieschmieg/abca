@@ -798,6 +798,9 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			return result;
 		}
 		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
+		if (gauss.getRank() == 0) {
+			return Collections.emptyList();
+		}
 		List<List<T>> result = new ArrayList<>();
 		for (int i = 0; i < m.rows(); i++) {
 			List<T> row = new ArrayList<>();

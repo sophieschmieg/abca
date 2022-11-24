@@ -7,7 +7,11 @@ import java.util.List;
 
 import cryptography.Sidh.SidhPrivateKey;
 import cryptography.Sidh.SidhPublicKey;
+import cryptography.encoders.FieldExtensionEncoder;
+import cryptography.encoders.PFEEncoder;
 import cryptography.interfaces.DhScheme;
+import cryptography.interfaces.Encoder;
+import cryptography.interfaces.ExtendedOutputFunction;
 import fields.finitefields.FiniteField;
 import fields.finitefields.FiniteField.FFE;
 import fields.helper.AbstractElement;
@@ -19,7 +23,9 @@ import varieties.curves.elliptic.Isogeny;
 import varieties.curves.elliptic.KernelIsogeny;
 import varieties.projective.ProjectivePoint;
 
-public class Sidh implements DhScheme<FFE, SidhPublicKey, SidhPrivateKey, Sidh> {
+public class Sidh implements DhScheme<SidhPublicKey, SidhPrivateKey, Sidh> {
+	private ExtendedOutputFunction hash;
+	private Encoder<FFE> encoder;
 	private FiniteField field;
 	private EllipticCurve<FFE> publicCurve;
 	private List<ProjectivePoint<FFE>> aliceBasis;
@@ -27,12 +33,14 @@ public class Sidh implements DhScheme<FFE, SidhPublicKey, SidhPrivateKey, Sidh> 
 	private List<ProjectivePoint<FFE>> bobBasis;
 	private BigInteger bobOrder;
 
-	public Sidh(IntE prime) {
+	public Sidh(ExtendedOutputFunction hash, IntE prime) {
+		this.hash = hash;
 		Integers z = Integers.z();
 		if (!z.remainder(prime, z.getInteger(4)).equals(z.getInteger(3)) || !z.isPrime(prime)) {
 			throw new ArithmeticException("Need a prime where -1 is not a square!");
 		}
 		this.field = FiniteField.getFiniteField(prime.getValue(), 2);
+		this.encoder = new FieldExtensionEncoder<>(new PFEEncoder(prime), field);
 		this.publicCurve = EllipticCurve.fromJInvariant(field, field.getInteger(1728));
 		BigInteger one = BigInteger.ONE;
 		BigInteger two = BigInteger.TWO;
@@ -71,17 +79,17 @@ public class Sidh implements DhScheme<FFE, SidhPublicKey, SidhPrivateKey, Sidh> 
 		key.add(usePoint1 ? BigInteger.ONE : privateKey);
 		return new SidhPrivateKey(key, order, basis, partnerBasis);
 	}
-	
+
 	@Override
 	public SidhPublicKey createPublicKey(SidhPrivateKey privateKey) {
 		return privateKey.getPublicKey();
 	}
-	
+
 	@Override
-	public FFE agree(SidhPrivateKey privateKey, SidhPublicKey publicKey) {
-		return privateKey.computeSharedSecret(publicKey);
+	public VariableLengthKey agree(SidhPrivateKey privateKey, SidhPublicKey publicKey) {
+		return new VariableLengthKey(encoder.encode(privateKey.computeSharedSecret(publicKey)), hash);
 	}
-	
+
 	public FiniteField getField() {
 		return field;
 	}

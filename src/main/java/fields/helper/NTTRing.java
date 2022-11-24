@@ -2,7 +2,6 @@ package fields.helper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -161,6 +160,10 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 	@Override
 	public BigInteger characteristic() {
 		return base.characteristic();
+	}
+	
+	public R getBaseRing() {
+		return base;
 	}
 
 	@Override

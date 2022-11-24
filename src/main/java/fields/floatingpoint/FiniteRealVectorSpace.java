@@ -5,7 +5,6 @@ import java.util.List;
 
 import fields.floatingpoint.Reals.Real;
 import fields.integers.Integers.IntE;
-import fields.interfaces.ValueField;
 import fields.vectors.AbstractRealInnerProductSpace;
 import fields.vectors.FiniteVectorSpace;
 import fields.vectors.MatrixAlgebra;

@@ -77,14 +77,14 @@ public class ModuloNumberFieldIdeal extends AbstractRing<ModNFE> implements Ring
 		Rationals q = Rationals.q();
 		this.order = order;
 		this.ideal = ideal;
-		List<NFE> reducedIdealBasis = new SubLattice<>(order, ideal.asSubModule(), 1.0).getModuleGenerators();
+		List<NFE> reducedIdealBasis = new SubLattice<>(order, ideal.asSubModule()).getModuleGenerators();
 		this.orderAsRationalLattice = RationalLattice.fromIntegerLattice(order.numberField().degree(),
-				new FreeModule<>(Integers.z(), order.numberField().degree()).getBasis(), 1.0);
+				new FreeModule<>(Integers.z(), order.numberField().degree()).getBasis());
 		List<Vector<Fraction>> idealGeneratorsIntVectors = new ArrayList<>();
 		for (NFE basis : reducedIdealBasis) {
 			idealGeneratorsIntVectors.add(Vector.mapVector(q.getEmbeddingMap(), order.asVector(basis)));
 		}
-		this.idealAsSubLattice = new SubLattice<>(orderAsRationalLattice, idealGeneratorsIntVectors, 1.0);
+		this.idealAsSubLattice = new SubLattice<>(orderAsRationalLattice, idealGeneratorsIntVectors);
 		List<NFE> reducedBasis = new ArrayList<>();
 		for (Vector<Fraction> basisVector : idealAsSubLattice.getModuleGenerators()) {
 			Vector<IntE> intVector = Vector.mapVector(q.getAsIntegerMap(), basisVector);

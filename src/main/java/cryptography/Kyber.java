@@ -31,7 +31,7 @@ import util.FunctionMathMap;
 import util.MiscAlgorithms;
 import util.Pair;
 
-public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray, ByteArray, Kyber> {
+public class Kyber implements KemScheme<ByteArray, ByteArray, ByteArray, Kyber> {
 	private Integers z;
 	private Rationals q;
 	private int prime;
@@ -88,6 +88,12 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		this.prf = prf;
 		this.xof = xof;
 		this.kdf = kdf;
+		if (h.outputLength() != degreeInBytes) {
+			throw new ArithmeticException("H needs to be a hash function with " + degreeInBytes + " output length");
+		}
+		if (g.outputLength() != 2 * degreeInBytes) {
+			throw new ArithmeticException("G needs to be a hash function with " + 2 * degreeInBytes + " output length");
+		}
 		this.field = PrimeField.getPrimeField(prime);
 		this.intPolynomialRing = z.getUnivariatePolynomialRing();
 		this.polynomialRing = field.getUnivariatePolynomialRing();
@@ -99,7 +105,11 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		this.freePolynomialModule = new FreeModule<>(polynomialRing, k);
 	}
 
-	private NTT<FFE> fromPolynomial(UnivariatePolynomial<PFE> polynomial) {
+	public int getDegree() {
+		return degree;
+	}
+
+	public NTT<FFE> fromPolynomial(UnivariatePolynomial<PFE> polynomial) {
 		return cyclotomic.fromPolynomial(
 				extension.getUnivariatePolynomialRing().getEmbedding(polynomial, extension.getEmbeddingMap()));
 	}
@@ -151,7 +161,7 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		return coeffs;
 	}
 
-	private UnivariatePolynomial<PFE> asPolynomial(NTT<FFE> t) {
+	public UnivariatePolynomial<PFE> asPolynomial(NTT<FFE> t) {
 		return polynomialRing.getEmbedding(cyclotomic.asPolynomial(t), extension.asBaseFieldElementMap());
 	}
 
@@ -278,7 +288,7 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		return encode(intPolynomialAsList(t), l);
 	}
 
-	private ByteArray encodeNTTVector(Vector<NTT<FFE>> t, int l) {
+	public ByteArray encodeNTTVector(Vector<NTT<FFE>> t, int l) {
 		byte[] result = new byte[degreeInBytes * l * t.dimension()];
 		for (int i = 0; i < t.dimension(); i++) {
 			System.arraycopy(encodeNTT(t.get(i + 1), l).array(), 0, result, degreeInBytes * l * i, degreeInBytes * l);
@@ -303,7 +313,7 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		return intPolynomialFromList(decode(t));
 	}
 
-	private Vector<NTT<FFE>> decodeNTTVector(byte[] t, int l) {
+	public Vector<NTT<FFE>> decodeNTTVector(byte[] t, int l) {
 		List<NTT<FFE>> elements = new ArrayList<>();
 		int size = t.length / (degreeInBytes * l);
 		for (int i = 0; i < size; i++) {
@@ -350,10 +360,11 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		return Vector.mapVector(new FunctionMathMap<>((Polynomial<IntE> s) -> decompress(s, exp)), t);
 	}
 
-	private ByteArray encrypt(byte[] publicKey, byte[] random, byte[] message) {
-		byte[] rho = Arrays.copyOfRange(publicKey, log2Prime * degreeInBytes * k, publicKey.length);
-		Vector<NTT<FFE>> t = decodeNTTVector(Arrays.copyOf(publicKey, log2Prime * degreeInBytes * k), log2Prime);
-		byte N = 0;
+	public NTTRing<FFE, FiniteField> getNTTRing() {
+		return cyclotomic;
+	}
+
+	private Matrix<NTT<FFE>> getMatrix(byte[] rho) {
 		List<List<NTT<FFE>>> matrixElements = new ArrayList<>();
 		for (int i = 0; i < k; i++) {
 			List<NTT<FFE>> row = new ArrayList<>();
@@ -368,7 +379,99 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 			}
 			matrixElements.add(row);
 		}
-		Matrix<NTT<FFE>> matrix = new Matrix<>(matrixElements);
+		return new Matrix<>(matrixElements);
+	}
+
+	public class ParsedPrivateKey {
+		private Vector<NTT<FFE>> s;
+		private byte[] z;
+		private byte[] hash;
+		private ParsedPublicKey publicKey;
+
+		private ParsedPrivateKey(byte[] privateKey) {
+			this.s = decodeNTTVector(Arrays.copyOf(privateKey, log2Prime * degreeInBytes * k), log2Prime);
+			this.publicKey = parsePublicKey(Arrays.copyOfRange(privateKey, log2Prime * degreeInBytes * k,
+					log2Prime * degreeInBytes * k + log2Prime * degreeInBytes * k + degreeInBytes));
+			this.hash = Arrays.copyOfRange(privateKey, 2 * log2Prime * degreeInBytes * k + degreeInBytes,
+					2 * log2Prime * degreeInBytes * k + 2 * degreeInBytes);
+			this.z = Arrays.copyOfRange(privateKey, 2 * log2Prime * degreeInBytes * k + 2 * degreeInBytes,
+					2 * log2Prime * degreeInBytes * k + 3 * degreeInBytes);
+		}
+
+		public Vector<NTT<FFE>> getS() {
+			return s;
+		}
+
+		public byte[] getZ() {
+			return z;
+		}
+
+		public byte[] getHash() {
+			return hash;
+		}
+
+		public ParsedPublicKey getPublicKey() {
+			return publicKey;
+		}
+	}
+
+	public ParsedPrivateKey parsePrivateKey(byte[] privateKey) {
+		return new ParsedPrivateKey(privateKey);
+	}
+
+	public class ParsedPublicKey {
+		private Vector<NTT<FFE>> t;
+		private Matrix<NTT<FFE>> matrix;
+
+		private ParsedPublicKey(byte[] publicKey) {
+			byte[] rho = Arrays.copyOfRange(publicKey, log2Prime * degreeInBytes * k, publicKey.length);
+			this.t = decodeNTTVector(Arrays.copyOf(publicKey, log2Prime * degreeInBytes * k), log2Prime);
+			this.matrix = Kyber.this.getMatrix(rho);
+
+		}
+
+		public Vector<NTT<FFE>> getT() {
+			return t;
+		}
+
+		public Matrix<NTT<FFE>> getMatrix() {
+			return matrix;
+		}
+	}
+
+	public ParsedPublicKey parsePublicKey(byte[] publicKey) {
+		return new ParsedPublicKey(publicKey);
+	}
+
+	public class ParsedKem {
+		private Vector<Polynomial<PFE>> u;
+		private Polynomial<PFE> v;
+
+		private ParsedKem(byte[] ciphertext) {
+			this.u = decompress(decodeIntPolynomialVector(Arrays.copyOf(ciphertext, degreeInBytes * du * k), du), du);
+			this.v = decompress(
+					decodeIntPolynomial(Arrays.copyOfRange(ciphertext, degreeInBytes * du * k, ciphertext.length)), dv);
+
+		}
+
+		public Vector<Polynomial<PFE>> getU() {
+			return u;
+		}
+
+		public Polynomial<PFE> getV() {
+			return v;
+		}
+	}
+
+	public ParsedKem parseKem(byte[] kem) {
+		return new ParsedKem(kem);
+	}
+
+	private ByteArray encrypt(byte[] publicKey, byte[] random, byte[] message) {
+		ParsedPublicKey parsed = parsePublicKey(publicKey);
+		Vector<NTT<FFE>> t = parsed.getT();
+		Matrix<NTT<FFE>> matrix = parsed.getMatrix();
+		byte N = 0;
 		List<NTT<FFE>> rVectorElements = new ArrayList<>();
 		for (int i = 0; i < k; i++) {
 			rVectorElements
@@ -392,13 +495,10 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 	}
 
 	private ByteArray decrypt(byte[] privateKey, byte[] ciphertext) {
-		Vector<Polynomial<PFE>> u = decompress(
-				decodeIntPolynomialVector(Arrays.copyOf(ciphertext, degreeInBytes * du * k), du), du);
-		UnivariatePolynomial<PFE> v = decompress(
-				decodeIntPolynomial(Arrays.copyOfRange(ciphertext, degreeInBytes * du * k, ciphertext.length)), dv);
+		ParsedKem parsed = parseKem(ciphertext);
 		Vector<NTT<FFE>> s = decodeNTTVector(Arrays.copyOf(privateKey, log2Prime * degreeInBytes * k), log2Prime);
-		return encodeIntPolynomial(compress(
-				polynomialRing.subtract(v, asPolynomial(freeModule.innerProduct(s, fromPolynomialVector(u)))), 1), 1);
+		return encodeIntPolynomial(compress(polynomialRing.subtract(parsed.getV(),
+				asPolynomial(freeModule.innerProduct(s, fromPolynomialVector(parsed.getU())))), 1), 1);
 	}
 
 	@Override
@@ -438,6 +538,7 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 			N++;
 		}
 		Vector<NTT<FFE>> s = new Vector<>(sVectorElements);
+		System.out.println(asPolynomialVector(s));
 		List<NTT<FFE>> eVectorElements = new ArrayList<>();
 		for (int i = 0; i < k; i++) {
 			eVectorElements
@@ -445,6 +546,7 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 			N++;
 		}
 		Vector<NTT<FFE>> e = new Vector<>(eVectorElements);
+		System.out.println(asPolynomialVector(e));
 		Vector<NTT<FFE>> t = freeModule.add(matrixAlgebra.multiply(matrix, s), e);
 		ByteArray publicKey = ByteArray.concatenate(encodeNTTVector(t, log2Prime), new ByteArray(rho));
 		byte[] z = new byte[degreeInBytes];
@@ -459,7 +561,8 @@ public class Kyber implements KemScheme<VariableLengthKey, ByteArray, ByteArray,
 		SecureRandom random = new SecureRandom();
 		byte[] seed = new byte[degreeInBytes];
 		random.nextBytes(seed);
-		seed = Arrays.copyOf(h.evaluate(seed), degreeInBytes);
+		seed = h.evaluate(seed);
+		System.out.println("Seed: " + new ByteArray(seed));
 		byte[] preKeyAndRandomness = g.evaluate(ByteArray.concatenate(seed, h.evaluate(publicKey.array())).array());
 		byte[] preKey = Arrays.copyOf(preKeyAndRandomness, degreeInBytes);
 		byte[] randomness = Arrays.copyOfRange(preKeyAndRandomness, degreeInBytes, 2 * degreeInBytes);

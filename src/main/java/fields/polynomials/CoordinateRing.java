@@ -512,7 +512,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 	@Override
 	public List<Vector<Polynomial<T>>> getSyzygies() {
-		return ring.syzygyProblem(ideal.generators());
+		return ring.idealSyzygyProblem(ideal.generators());
 	}
 
 	public List<CoordinateRingElement<T>> getGenerators() {

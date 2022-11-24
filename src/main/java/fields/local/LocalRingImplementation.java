@@ -2077,7 +2077,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 	private boolean requiresImprovement(int i, int k, Fraction firstValue, Fraction secondValue, boolean reduced) {
 		if (reduced) {
-			return firstValue.compareTo(secondValue) >= 0;
+			return Rationals.q().add(firstValue, Rationals.q().one()).compareTo(secondValue) >= 0;
 		}
 		int cmp = firstValue.roundDown().compareTo(secondValue.roundDown());
 		if (i < k) {

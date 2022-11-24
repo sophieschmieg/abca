@@ -13,6 +13,7 @@ import fields.helper.AbstractAlgebra;
 import fields.helper.AbstractIdeal;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.integers.Integers.SmallestIntegerSolutionPreparation;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Algebra;
 import fields.interfaces.Ideal;
@@ -62,7 +63,7 @@ public class NumberFieldOrder extends AbstractAlgebra<IntE, NFE>
 			throw new ArithmeticException("Not full rank!");
 		}
 		this.mod = new GenericPIDModule<>(maximalOrder, asSubModule);
-		this.moduleBasis = maximalOrder.sublatticeReduction(asSubModule.getBasis(), 1.0);
+		this.moduleBasis = maximalOrder.sublatticeReduction(asSubModule.getBasis());
 		this.asSubModule = new FreeSubModule<>(field.maximalOrder(), this.moduleBasis);
 		List<Vector<IntE>> latticeReducedInSubModule = new ArrayList<>();
 		List<Vector<Real>> generatorsAsVectors = new ArrayList<>();
@@ -157,7 +158,7 @@ public class NumberFieldOrder extends AbstractAlgebra<IntE, NFE>
 	public Ideal<IntE> annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<IntE>> getSyzygies() {
 		return Collections.emptyList();
@@ -582,6 +583,50 @@ public class NumberFieldOrder extends AbstractAlgebra<IntE, NFE>
 		return maximalOrder.getEmbedding(t);
 	}
 
+//	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators) {
+//		return prepareSmallestIntegerSolution(generators, Collections.emptyList());
+//	}
+//
+//	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators,
+//			NumberFieldOrderIdeal modulo) {
+//		int dimension = generators.get(0).dimension();
+//		FreeModule<NFE> free = new FreeModule<>(this, dimension);
+//		List<Vector<NFE>> latticeGenerators = new ArrayList<>();
+//		for (Vector<NFE> basisVector : free.getBasis()) {
+//			for (NFE generator : modulo.generators()) {
+//				latticeGenerators.add(free.scalarMultiply(generator, basisVector));
+//			}
+//		}
+//		return new Sm(generators, latticeGenerators);
+//	}
+//
+//	private List<Vector<IntE>> asIntegerVectorList(List<Vector<NFE>> generatorList) {
+//		Matrix<IntE> asMatrix = asIntegerMatrix(Matrix.fromColumns(generatorList));
+//		List<Vector<IntE>> result = new ArrayList<>();
+//		for (int i = 0; i < asMatrix.columns(); i++) {
+//			result.add(asMatrix.column(i + 1));
+//		}
+//		return result;
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(Vector<NFE> target, SmallestIntegerSolutionPreparation preparation) {
+//		return fromIntegerVector(Integers.z().smallestIntegerSolution(asIntegerVector(target), preparation));
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target) {
+//		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators));
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target,
+//			NumberFieldOrderIdeal modulo) {
+//		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulo));
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target,
+//			List<Vector<NFE>> modulo) {
+//		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulo));
+//	}
+
 	@Override
 	public boolean isGeneratingAlgebra(List<NFE> s) {
 		List<NFE> asModuleGenerators = new ArrayList<>();
@@ -621,7 +666,7 @@ public class NumberFieldOrder extends AbstractAlgebra<IntE, NFE>
 				this.generators = Collections.emptyList();
 				return;
 			}
-			this.generators = order.getVectorSpace().latticeReduction(asSubModule.getBasis(), order, 1.0);
+			this.generators = order.getVectorSpace().latticeReduction(asSubModule.getBasis(), order);
 			this.asSubModule = new FreeSubModule<>(order, this.generators);
 			List<Vector<IntE>> generatorList = new ArrayList<>();
 			for (NFE generator : this.generators) {
