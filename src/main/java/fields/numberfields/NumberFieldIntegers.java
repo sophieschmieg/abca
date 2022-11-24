@@ -56,7 +56,9 @@ import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Polytope;
 import fields.vectors.RealLattice;
+import fields.vectors.RealNumberFieldIntegerLattice;
 import fields.vectors.Vector;
+import util.FunctionMathMap;
 import util.Identity;
 import util.MiscAlgorithms;
 import util.SingletonSortedMap;
@@ -519,6 +521,194 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			}
 		}
 		return result;
+	}
+
+	private List<Vector<NFE>> simplifiedIntegerModuleGenerators(List<Vector<NFE>> generators) {
+		if (generators.isEmpty()) {
+			return Collections.emptyList();
+		}
+		FreeModule<NFE> free = new FreeModule<>(this, generators.get(0).dimension());
+		List<Vector<IntE>> asIntVectors = new ArrayList<>();
+		for (Vector<NFE> generator : generators) {
+			for (NFE integral : getModuleGenerators()) {
+				asIntVectors.add(asIntegerVector(free.scalarMultiply(integral, generator)));
+			}
+		}
+		List<Vector<IntE>> integerResult = Integers.z().simplifySubModuleGenerators(Matrix.fromColumns(asIntVectors));
+		List<Vector<NFE>> result = new ArrayList<>();
+		for (Vector<IntE> v : integerResult) {
+			result.add(fromIntegerVector(v));
+		}
+		return result;
+	}
+
+//	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators) {
+//		return prepareSmallestIntegerSolution(generators, Collections.emptyList());
+//	}
+//
+//	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators,
+//			NumberFieldIdeal modulo) {
+//		int dimension = generators.get(0).dimension();
+//		FreeModule<NFE> free = new FreeModule<>(this, dimension);
+//		List<Vector<NFE>> latticeGenerators = new ArrayList<>();
+//		for (Vector<NFE> basisVector : free.getBasis()) {
+//			for (NFE generator : modulo.generators()) {
+//				latticeGenerators.add(free.scalarMultiply(generator, basisVector));
+//			}
+//		}
+//		return prepareSmallestIntegerSolution(generators, latticeGenerators);
+//	}
+//
+//
+//	public SmallestIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators,
+//			List<Vector<NFE>> modulo) {
+//		return Integers.z().prepareSmallestIntegerSolution(asIntegerVectorList(generators),
+//				asIntegerVectorList(modulo));
+//	}
+//
+//	public Vector<NFE> smallestKernelVector(SmallestIntegerSolutionPreparation preparation) {
+//		return fromIntegerVector(Integers.z().smallestKernelVector(preparation));
+//	}
+//
+//	public Vector<NFE> smallestKernelVector(List<Vector<NFE>> generators) {
+//		return smallestKernelVector(prepareSmallestIntegerSolution(generators));
+//	}
+//
+//	public Vector<NFE> smallestKernelVector(List<Vector<NFE>> generators, NumberFieldIdeal modulus) {
+//		return smallestKernelVector(prepareSmallestIntegerSolution(generators, modulus));
+//	}
+//
+//	public Vector<NFE> smallestKernelVector(List<Vector<NFE>> generators, List<Vector<NFE>> modulus) {
+//		return smallestKernelVector(prepareSmallestIntegerSolution(generators, modulus));
+//	}
+//	
+//	public Vector<NFE> smallestIntegerSolution(Vector<NFE> target, SmallestIntegerSolutionPreparation preparation) {
+//		return fromIntegerVector(Integers.z().smallestIntegerSolution(asIntegerVector(target), preparation));
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target) {
+//		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators));
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target,
+//			NumberFieldIdeal modulo) {
+//		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulo));
+//	}
+//
+//	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target,
+//			List<Vector<NFE>> modulo) {
+//		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulo));
+//	}
+
+	public static class SmallestNumberFieldIntegerSolutionPreparation {
+		private Matrix<IntE> generatorMatrix;
+		private MatrixModule<IntE> matrixModule;
+		private RealNumberFieldIntegerLattice kernelLattice;
+		private FreeModule<NFE> solutionSpace;
+		private MathMap<Vector<NFE>, Vector<NFE>> projectionMap;
+
+		private SmallestNumberFieldIntegerSolutionPreparation(NumberFieldIntegers order, List<Vector<NFE>> generators,
+				List<Vector<NFE>> modulus) {
+			int accuracy = 128;
+			this.projectionMap = new FunctionMathMap<>(
+					(Vector<NFE> t) -> new Vector<>(t.asList().subList(0, generators.size())));
+			this.solutionSpace = new FreeModule<>(order, generators.size());
+			List<Vector<IntE>> actualGenerators = new ArrayList<>();
+			actualGenerators.addAll(order.asIntegerMatrix(Matrix.fromColumns(generators)).asColumnList());
+			for (Vector<NFE> mod : modulus) {
+				actualGenerators.add(order.asIntegerVector(mod));
+			}
+			this.generatorMatrix = Matrix.fromColumns(actualGenerators);
+			this.matrixModule = generatorMatrix.getModule(Integers.z());
+			List<Vector<IntE>> kernelBasis = matrixModule.kernelBasis(generatorMatrix);
+			if (kernelBasis.size() == 0) {
+				return;
+			}
+			List<Vector<NFE>> projectedKernelBasis = new ArrayList<>();
+			for (Vector<IntE> kernelVector : kernelBasis) {
+				projectedKernelBasis.add(projectionMap.evaluate(order.fromIntegerVector(kernelVector)));
+			}
+			projectedKernelBasis = order.simplifiedIntegerModuleGenerators(projectedKernelBasis);
+			if (projectedKernelBasis.size() == 0) {
+				return;
+			}
+			Reals r = Reals.r(accuracy);
+			this.kernelLattice = new RealNumberFieldIntegerLattice(r, generators.size(), order, projectedKernelBasis);
+		}
+
+		private Vector<NFE> smallestKernelVector() {
+			return kernelLattice.getModuleGenerators().get(0);
+		}
+
+	}
+
+	public SmallestNumberFieldIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators) {
+		return prepareSmallestIntegerSolution(generators, Collections.emptyList());
+	}
+
+	public SmallestNumberFieldIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators,
+			NumberFieldIdeal modulus) {
+		int dimension = generators.get(0).dimension();
+		FreeModule<NFE> free = new FreeModule<>(this, dimension);
+		List<Vector<NFE>> latticeGenerators = new ArrayList<>();
+		for (Vector<NFE> basisVector : free.getBasis()) {
+			for (NFE generator : modulus.asSubModule.getBasis()) {
+				latticeGenerators.add(free.scalarMultiply(generator, basisVector));
+			}
+		}
+		return prepareSmallestIntegerSolution(generators, latticeGenerators);
+	}
+
+	public SmallestNumberFieldIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators,
+			List<Vector<NFE>> modulus) {
+		return new SmallestNumberFieldIntegerSolutionPreparation(this, generators, modulus);
+	}
+
+	public SmallestNumberFieldIntegerSolutionPreparation prepareSmallestIntegerSolution(List<Vector<NFE>> generators,
+			RealNumberFieldIntegerLattice modulus) {
+		return prepareSmallestIntegerSolution(generators, modulus.getModuleGenerators());
+	}
+
+	public Vector<NFE> smallestKernelVector(SmallestNumberFieldIntegerSolutionPreparation preparation) {
+		return preparation.smallestKernelVector();
+	}
+
+	public Vector<NFE> smallestKernelVector(List<Vector<NFE>> generators) {
+		return smallestKernelVector(prepareSmallestIntegerSolution(generators));
+	}
+
+	public Vector<NFE> smallestKernelVector(List<Vector<NFE>> generators, NumberFieldIdeal modulus) {
+		return smallestKernelVector(prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public Vector<NFE> smallestKernelVector(List<Vector<NFE>> generators, List<Vector<NFE>> modulus) {
+		return smallestKernelVector(prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public Vector<NFE> smallestIntegerSolution(Vector<NFE> target,
+			SmallestNumberFieldIntegerSolutionPreparation preparation) {
+		Vector<NFE> solution = fromIntegerVector(
+				preparation.matrixModule.solve(preparation.generatorMatrix, asIntegerVector(target)));
+		if (preparation.kernelLattice == null) {
+			return solution;
+		}
+		Vector<NFE> projectedSolution = preparation.projectionMap.evaluate(solution);
+		Vector<NFE> closestKernelVector = preparation.kernelLattice.closestLatticePoint(projectedSolution);
+		return preparation.solutionSpace.subtract(solution, closestKernelVector);
+	}
+
+	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators));
+	}
+
+	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target,
+			NumberFieldIdeal modulus) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus));
+	}
+
+	public Vector<NFE> smallestIntegerSolution(List<Vector<NFE>> generators, Vector<NFE> target,
+			List<Vector<NFE>> modulus) {
+		return smallestIntegerSolution(target, prepareSmallestIntegerSolution(generators, modulus));
 	}
 
 	@Override
@@ -1276,7 +1466,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 //				}
 				integralBasis.add(element);
 			}
-			this.integralBasis = sublatticeReduction(integralBasis, 1.0);
+			this.integralBasis = sublatticeReduction(integralBasis);
 			List<Vector<Fraction>> asVectors = new ArrayList<>();
 			for (NFE b : integralBasis) {
 				asVectors.add(field.asVector(b));
@@ -1449,10 +1639,6 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 
 	List<NFE> sublatticeReduction(List<NFE> sublatticeBasis) {
 		return getVectorSpace().latticeReduction(sublatticeBasis, this);
-	}
-
-	List<NFE> sublatticeReduction(List<NFE> sublatticeBasis, double delta) {
-		return getVectorSpace().latticeReduction(sublatticeBasis, this, delta);
 	}
 
 	@Override
@@ -2002,14 +2188,21 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			this.idealFactorization = new FactorizationResult<>(this, Collections.emptySortedMap());
 		}
 
-		private NumberFieldIdeal(TwoGeneratorIdeal<IntE,	 Fraction, PFE, PFE, FFE, FiniteField> ideal/*DiscreteValuationRing<Fraction, PFE> localized,
-				List<OkutsuType<Fraction, PFE, PFE, FFE, FiniteField>> types, int index,
-				List<List<UnivariatePolynomial<Fraction>>> integral*/) {
+		private NumberFieldIdeal(
+				TwoGeneratorIdeal<IntE, Fraction, PFE, PFE, FFE, FiniteField> ideal/*
+																					 * DiscreteValuationRing<Fraction,
+																					 * PFE> localized,
+																					 * List<OkutsuType<Fraction, PFE,
+																					 * PFE, FFE, FiniteField>> types,
+																					 * int index,
+																					 * List<List<UnivariatePolynomial<
+																					 * Fraction>>> integral
+																					 */) {
 			super(NumberFieldIntegers.this);
-			this.type = ideal.getType(); //types.get(index);
-			this.allTypes = ideal.getTypes();//types;
-			this.typeIndex = ideal.getIndex();//index;
-			this.integralBases = ideal.getIntegralBases();//  integral;
+			this.type = ideal.getType(); // types.get(index);
+			this.allTypes = ideal.getTypes();// types;
+			this.typeIndex = ideal.getIndex();// index;
+			this.integralBases = ideal.getIntegralBases();// integral;
 			this.uniformizer = field.fromPolynomial(ideal.getUniformizer());
 			this.intGenerator = ideal.getIntGenerator();
 			this.maximal = true;
@@ -2220,17 +2413,17 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			if (!asSubModule.contains(field.getEmbedding(intGenerator))) {
 				throw new ArithmeticException("int generator not in submodule?");
 			}
-			boolean skipLLL = field.degree() > 10;
+			boolean skipLLL = field.degree() > 128;
 			if (isElement(field.divide(uniformizer, field.getEmbedding(intGenerator)))
 					|| isElement(field.divide(field.getEmbedding(intGenerator), uniformizer))) {
 				skipLLL = true;
 			}
-			for (NFE b : asSubModule.getBasis()) {
-				skipLLL = skipLLL || field.norm(b).getNumerator().getValue().bitLength() > 65536;
-			}
+//			for (NFE b : asSubModule.getBasis()) {
+//				skipLLL = skipLLL || field.norm(b).getNumerator().getValue().bitLength() > 65536;
+//			}
 			List<NFE> basis = asSubModule.getBasis();
 			if (!skipLLL) {
-				basis = sublatticeReduction(basis, 1.0);
+				basis = sublatticeReduction(basis);
 			}
 			if (isElement(field.divide(uniformizer, field.getEmbedding(intGenerator)))) {
 				this.uniformizer = field.getEmbedding(intGenerator);
@@ -2293,7 +2486,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		public NFE shortestElement() {
 			if (shortestElement == null) {
 				shortestElement = field.minkowskiEmbeddingSpace()
-						.latticeReduction(field.idealGroup().getEmbedding(this), 1.0).get(0);
+						.latticeReduction(field.idealGroup().getEmbedding(this)).get(0);
 			}
 			return shortestElement;
 		}

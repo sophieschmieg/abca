@@ -24,28 +24,18 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Fraction>>
 	private Matrix<Fraction> baseChangeMatrix;
 	private MatrixModule<Fraction> matrixModule;
 	private FreeModule<IntE> asIntModule;
-	private double delta;
 
 	public static RationalLattice fromIntegerLattice(int dimension, List<Vector<IntE>> generators) {
-		return fromIntegerLattice(dimension, generators, 0.75);
-	}
-
-	public static RationalLattice fromIntegerLattice(int dimension, List<Vector<IntE>> generators, double delta) {
 		FiniteRationalVectorSpace space = new FiniteRationalVectorSpace(dimension);
 		List<Vector<Fraction>> rationalGenerators = new ArrayList<>();
 		for (Vector<IntE> generator : generators) {
 			rationalGenerators.add(Vector.mapVector(Rationals.q().getEmbeddingMap(), generator));
 		}
-		return new RationalLattice(space, rationalGenerators, delta);
+		return new RationalLattice(space, rationalGenerators);
 	}
 
 	public RationalLattice(FiniteRationalVectorSpace space, List<Vector<Fraction>> generators) {
-		this(space, generators, 0.75);
-	}
-
-	public RationalLattice(FiniteRationalVectorSpace space, List<Vector<Fraction>> generators, double delta) {
 		this.space = space;
-		this.delta = delta;
 		Matrix<Fraction> generatorMatrix = Matrix.fromColumns(generators);
 		MatrixModule<Fraction> generatorMatrixModule = new MatrixModule<>(space.getField(), space.dimension(),
 				generators.size());
@@ -82,7 +72,7 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Fraction>>
 		} else {
 			this.basis.addAll(generators);
 		}
-		this.basis = space.latticeReduction(this, delta);
+		this.basis = space.latticeReduction(this);
 		this.baseChangeMatrix = Matrix.fromColumns(basis);
 		this.matrixModule = new MatrixModule<>(space.getField(), space.dimension(), basis.size());
 		this.asIntModule = new FreeModule<>(Integers.z(), basis.size());
@@ -91,10 +81,6 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Fraction>>
 	@Override
 	public String toString() {
 		return basis.toString();
-	}
-	
-	public double delta() {
-		return delta;
 	}
 
 	@Override
@@ -136,7 +122,7 @@ public class RationalLattice extends AbstractModule<IntE, Vector<Fraction>>
 	public IntegerIdeal annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<IntE>> getSyzygies() {
 		return Collections.emptyList();

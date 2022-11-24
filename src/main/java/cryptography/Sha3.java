@@ -50,7 +50,7 @@ public class Sha3 implements ExtendedOutputFunction, PseudoRandomFunction, HashF
 
 	@Override
 	public byte[] evaluate(byte[] input) {
-		InputStream in = keccak(input, 1, 2);
+		InputStream in = keccak(input, 2, 2);
 		byte[] result = new byte[length];
 		for (int i = 0; i < length; i++) {
 			try {
@@ -157,13 +157,11 @@ public class Sha3 implements ExtendedOutputFunction, PseudoRandomFunction, HashF
 	}
 
 	private boolean rc(int t) {
-		if (t % 255 == 0) {
-			return true;
-		}
-		int r = 0x80;
-		for (int i = 1; i < t % 255; i++) {
+		int r = 0x01;
+		t %= 255;
+		for (int i = 0; i < t; i++) {
 			r <<= 1;
-			int mask = -(r >> 8) & 0x39;
+			int mask = -(r >> 8) & 0x71;
 			r ^= mask;
 			r &= 0xff;
 		}
@@ -171,12 +169,9 @@ public class Sha3 implements ExtendedOutputFunction, PseudoRandomFunction, HashF
 	}
 
 	private void iota(byte[] state, int roundIndex) {
-		boolean[] rc = new boolean[w];
 		for (int j = 0; j <= l; j++) {
-			rc[(1 << j) - 1] = rc(j + 7 * roundIndex);
-		}
-		for (int z = 0; z < w; z++) {
-			setMatrix(state, matrix(state, 0, 0, z) ^ rc[z], 0, 0, z);
+			int z = (1 << j) - 1;
+			setMatrix(state, matrix(state, 0, 0, z) ^ rc(j + 7 * roundIndex), 0, 0, z);
 		}
 	}
 
@@ -239,12 +234,12 @@ public class Sha3 implements ExtendedOutputFunction, PseudoRandomFunction, HashF
 			return ((int) state[index - 1]) & 0xff;
 		}
 	}
-	
+
 	@Override
 	public int outputLength() {
 		return length;
 	}
-	
+
 	@Override
 	public int blockSize() {
 		return capacity / 8;

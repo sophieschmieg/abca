@@ -1,6 +1,7 @@
 package fields.numberfields;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -36,6 +37,7 @@ import fields.local.Value;
 import fields.numberfields.CompletedNumberField.Ext;
 import fields.numberfields.NumberField.NFE;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
+import fields.numberfields.NumberFieldIntegers.SmallestNumberFieldIntegerSolutionPreparation;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
 import fields.vectors.Vector;
@@ -43,6 +45,7 @@ import fields.vectors.pivot.PivotStrategy;
 import fields.vectors.pivot.ValuationPivotStrategy;
 import util.Identity;
 import util.MiscAlgorithms;
+import util.Pair;
 
 public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ext, CompletedNumberField>
 		implements FieldExtension<PAdicNumber, Ext, CompletedNumberField>,
@@ -85,14 +88,15 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 	private PAdicField roundedBase;
 	private LocalizedFractions exactBase;
 	private Real uniformizerValue;
-	private List<UnivariatePolynomial<Fraction>> integralBasis;
+	private List<UnivariatePolynomial<Fraction>> integralPolynomialBasis;
+	private List<Ext> integralBasis;
 	private List<Integer> integralBasisValues;
 	private Matrix<Fraction> toIntegralBaseChange;
 	private MatrixAlgebra<Fraction> exactMatrixAlgebra;
 	private Ext uniformizer;
 	private OtherVersion<Ext, NFE, FFE, LocalizedNumberField> exact;
 	private SortedMap<Integer, CompletedNumberField> withAccuracy;
-	private Map<Integer, SmallestIntegerSolutionPreparation> roundToIntegerPreparation;
+	private Map<Integer, SmallestNumberFieldIntegerSolutionPreparation> roundToIntegerPreparation;
 
 	static CompletedNumberField getCompletedNumberField(LocalizedNumberField localized, int accuracy) {
 		OkutsuType<Fraction, PFE, PFE, FFE, FiniteField> type = localized.type().clone();
@@ -117,7 +121,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 		this.roundedBase = roundedBase;
 		int degree = type.representative().degree();
 		UnivariatePolynomialRing<Fraction> baseRing = exactBase.getUnivariatePolynomialRing();
-		this.integralBasis = new ArrayList<>();
+		this.integralPolynomialBasis = new ArrayList<>();
 		this.integralBasisValues = new ArrayList<>();
 		List<Vector<Fraction>> asVectors = new ArrayList<>();
 		for (int i = 0; i < degree; i++) {
@@ -126,7 +130,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 			int adjustedValue = MiscAlgorithms.DivRoundDown(value, type.ramificationIndex());
 			integralPolynomial = baseRing.multiply(exactBase.power(exactBase.uniformizer(), -adjustedValue),
 					integralPolynomial);
-			integralBasis.add(integralPolynomial);
+			integralPolynomialBasis.add(integralPolynomial);
 			integralBasisValues.add(value - adjustedValue * type.ramificationIndex());
 			asVectors.add(baseRing.asVector(integralPolynomial, degree - 1));
 		}
@@ -134,7 +138,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 		this.exactMatrixAlgebra = new FiniteRationalVectorSpace(degree).matrixAlgebra();
 		this.toIntegralBaseChange = exactMatrixAlgebra.inverse(fromIntegralBaseChange);
 		List<Ext> integralBasisElements = new ArrayList<>();
-		for (UnivariatePolynomial<Fraction> element : integralBasis) {
+		for (UnivariatePolynomial<Fraction> element : integralPolynomialBasis) {
 			integralBasisElements.add(fromExactPolynomial(element));
 		}
 		this.ringOfIntegers = new LocalRingExtension<>(this, roundedBase, type.reduction().extension(),
@@ -142,6 +146,10 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 		this.uniformizer = fromExactPolynomial(type.lift(type.reduction().extension().one(), 1));
 		this.withAccuracy = new TreeMap<>();
 		this.roundToIntegerPreparation = new TreeMap<>();
+		this.integralBasis = new ArrayList<>();
+		for (UnivariatePolynomial<Fraction> integralPolynomial : integralPolynomialBasis) {
+			integralBasis.add(fromElement(localized.getNumberField().fromSmallDegreePolynomial(integralPolynomial)));
+		}
 	}
 
 	@Override
@@ -301,7 +309,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 			Fraction coefficient = asIntegralVector.get(i + 1);
 			Fraction rounded = exactBase.round(coefficient,
 					MiscAlgorithms.DivRoundUp(accuracy - integralBasisValues.get(i), type.ramificationIndex()));
-			result = polynomialRing.add(polynomialRing.multiply(rounded, integralBasis.get(i)), result);
+			result = polynomialRing.add(polynomialRing.multiply(rounded, integralPolynomialBasis.get(i)), result);
 		}
 		return result;
 	}
@@ -314,7 +322,7 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 	@Override
 	public CompletedNumberField withAccuracy(int accuracy) {
 		accuracy = MiscAlgorithms.roundUpToPowerOfTwo(accuracy);
-		if (!withAccuracy.containsKey( accuracy)) {
+		if (!withAccuracy.containsKey(accuracy)) {
 			withAccuracy.put(accuracy, getCompletedNumberField(localized, accuracy));
 		}
 		return withAccuracy.get(accuracy);
@@ -420,52 +428,29 @@ public class CompletedNumberField extends AbstractFieldExtension<PAdicNumber, Ex
 	}
 
 	public NFE roundToInteger(Ext t, int accuracy) {
-		Integers z = Integers.z();
-		accuracy = MiscAlgorithms.DivRoundUp(accuracy, type.ramificationIndex()) * type.ramificationIndex();
 		t = round(t, accuracy);
-		IntE primePower = z.power(localized.ideal().prime(), accuracy / type.ramificationIndex());
-		MathMap<Fraction, IntE> asIntegerMap = new MathMap<>() {
-			@Override
-			public IntE evaluate(Fraction t) {
-				return z.getInteger(t.getNumerator().getValue()
-						.multiply(t.getDenominator().getValue().modInverse(primePower.getValue()))
-						.mod(primePower.getValue()));
-			}
-		};
 		NumberField field = localized.getNumberField();
+		NumberFieldIntegers order = field.maximalOrder();
 		if (!roundToIntegerPreparation.containsKey(accuracy)) {
-			List<Vector<IntE>> asIntegerVectors = new ArrayList<>();
-			for (NFE integral : field.maximalOrder().getModuleGenerators()) {
-				Ext embedded = fromElement(integral);
-				Vector<Fraction> asVector = exactMatrixAlgebra.multiply(toIntegralBaseChange,
-						exactBase.getUnivariatePolynomialRing().asVector(embedded.asPolynomial, degree() - 1));
-				asIntegerVectors.add(Vector.mapVector(asIntegerMap, asVector));
-			}
-			roundToIntegerPreparation.put(accuracy, z.prepareSmallestIntegerSolution(asIntegerVectors, primePower));
+			NumberFieldIdeal power = order.power(localized.ideal(), accuracy);
+			roundToIntegerPreparation.put(accuracy, order
+					.prepareSmallestIntegerSolution(Collections.singletonList(new Vector<>(order.one())), power));
 		}
-		Vector<Fraction> asVector = exactMatrixAlgebra.multiply(toIntegralBaseChange,
-				exactBase.getUnivariatePolynomialRing().asVector(t.asPolynomial, degree() - 1));
-		Value valuation = Value.INFINITY;
-		for (Fraction coeff : asVector.asList()) {
-			valuation = valuation.min(exactBase.valuation(coeff));
-		}
-		if (valuation.compareTo(Value.ZERO) < 0) {
-			List<Fraction> integers = new ArrayList<>();
-			Fraction uniformizerPower = exactBase.power(exactBase.uniformizer(), -valuation.value());
-			for (Fraction coeff : asVector.asList()) {
-				integers.add(exactBase.multiply(coeff, uniformizerPower));
-			}
-			asVector = new Vector<>(integers);
-		}
-		Vector<IntE> asIntegerVector = Vector.mapVector(asIntegerMap, asVector);
-		Vector<IntE> inIntegralBasis = z.smallestIntegerSolution(asIntegerVector,
-				roundToIntegerPreparation.get(accuracy));
-		NFE result = field.maximalOrder().fromVector(inIntegralBasis);
-		if (valuation.compareTo(Value.ZERO) < 0) {
-			NFE uniformizerPowerInverse = field.power(field.getEmbedding(localized.ideal().prime()), valuation.value());
-			result = field.multiply(uniformizerPowerInverse, result);
-		}
-		return result;
+		return order.smallestIntegerSolution(new Vector<>(field.fromSmallDegreePolynomial(t.asPolynomial)),
+				roundToIntegerPreparation.get(accuracy)).get(1);
+	}
+
+	public Pair<NFE, NFE> roundToRational(Ext t, int accuracy) {
+		// v(t*b - a) > n
+		t = round(t, accuracy);
+		NumberField field = localized.getNumberField();
+		NumberFieldIntegers order = field.maximalOrder();
+		NumberFieldIdeal power = order.power(localized.ideal(), accuracy);
+		List<Vector<NFE>> generators = new ArrayList<>();
+		generators.add(new Vector<>(order.negative(order.one())));
+		generators.add(new Vector<>(field.fromSmallDegreePolynomial(t.asPolynomial)));
+		Vector<NFE> result = order.smallestKernelVector(generators, power);
+		return new Pair<>(result.get(1), result.get(2));
 	}
 
 	@Override

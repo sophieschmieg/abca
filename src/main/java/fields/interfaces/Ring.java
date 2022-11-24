@@ -744,7 +744,7 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		return asSubModuleMember(Matrix.fromRows(Collections.singletonList(new Vector<>(m))), new Vector<>(b));
 	}
 
-	public default List<Vector<T>> syzygyProblem(List<T> m) {
+	public default List<Vector<T>> idealSyzygyProblem(List<T> m) {
 		return getIdealWithTransforms(m).getSyzygies();
 	}
 
@@ -758,16 +758,32 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		return result;
 	}
 
+	public default boolean isSubModuleMember(List<Vector<T>> generators, Vector<T> b) {
+		return isSubModuleMember(Matrix.fromColumns(generators), b);
+	}
+
 	public default boolean isSubModuleMember(Matrix<T> m, Vector<T> b) {
 		return isSubModuleMember(m.getModule(this), m, b);
+	}
+
+	public default Vector<T> asSubModuleMember(List<Vector<T>> generators, Vector<T> b) {
+		return asSubModuleMember(Matrix.fromColumns(generators), b);
 	}
 
 	public default Vector<T> asSubModuleMember(Matrix<T> m, Vector<T> b) {
 		return asSubModuleMember(m.getModule(this), m, b);
 	}
 
+	public default List<Vector<T>> syzygyProblem(List<Vector<T>> generators) {
+		return syzygyProblem(Matrix.fromColumns(generators));
+	}
+
 	public default List<Vector<T>> syzygyProblem(Matrix<T> m) {
 		return syzygyProblem(m.getModule(this), m);
+	}
+
+	public default List<Vector<T>> simplifySubModuleGenerators(List<Vector<T>> generators) {
+		return simplifySubModuleGenerators(Matrix.fromColumns(generators));
 	}
 
 	public default List<Vector<T>> simplifySubModuleGenerators(Matrix<T> m) {

@@ -18,7 +18,7 @@ import varieties.curves.elliptic.EllipticCurve;
 class SidhTest {
 
 	void doTest(IntE prime) {
-		Sidh sidh = new Sidh(prime);
+		Sidh sidh = new Sidh(Sha3.SHAKE_256, prime);
 		EllipticCurve<FFE> supersingular = sidh.getPublicCurve();
 		System.out.println(supersingular + "; j = " + supersingular.jInvariant());
 		System.out.println("Number of points: " + supersingular.getNumberOfElements());
@@ -32,11 +32,11 @@ class SidhTest {
 		SidhPublicKey bobPublicKey = sidh.createPublicKey(bobPrivateKey);
 		System.out.println("Public key Bob: " + bobPublicKey);
 
-		FFE sharedSecretAlice = sidh.agree(alicePrivateKey, bobPublicKey);
-		FFE sharedSecretBob = sidh.agree(bobPrivateKey, alicePublicKey);
+		VariableLengthKey sharedSecretAlice = sidh.agree(alicePrivateKey, bobPublicKey);
+		VariableLengthKey sharedSecretBob = sidh.agree(bobPrivateKey, alicePublicKey);
 
-		System.out.println("shared secret Alice: " + sharedSecretAlice);
-		System.out.println("shared secret Bob:   " + sharedSecretBob);
+		System.out.println("shared secret Alice: " + new ByteArray(sharedSecretAlice.key(16)));
+		System.out.println("shared secret Bob:   " + new ByteArray(sharedSecretBob.key(16)));
 		assertEquals(sharedSecretAlice, sharedSecretBob);
 	}
 

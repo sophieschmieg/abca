@@ -25,12 +25,8 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 	private Matrix<T> generatorsAsMatrix;
 
 	public SubLattice(Lattice<R, T, S> lattice, List<R> generators) {
-		this(lattice, generators, 0.75);
-	}
-
-	public SubLattice(Lattice<R, T, S> lattice, List<R> generators, double delta) {
 		this.lattice = lattice;
-		this.generators = lattice.getVectorSpace().latticeReduction(generators, lattice, delta);
+		this.generators = lattice.getVectorSpace().latticeReduction(generators, lattice);
 		this.asFreeSubModule = new FreeSubModule<>(lattice, this.generators);
 		List<Vector<T>> asVectors = new ArrayList<>();
 		for (R generator : this.generators) {
@@ -46,13 +42,9 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 	}
 
 	public SubLattice(Lattice<R, T, S> lattice, FreeSubModule<IntE, R> asFreeSubModule) {
-		this(lattice, asFreeSubModule, 0.75);
+		this(lattice, asFreeSubModule.getBasis());
 	}
 
-	public SubLattice(Lattice<R, T, S> lattice, FreeSubModule<IntE, R> asFreeSubModule, double delta) {
-		this(lattice, asFreeSubModule.getBasis(), delta);
-	}
-	
 	@Override
 	public String toString() {
 		return generators.toString();
@@ -92,7 +84,7 @@ public class SubLattice<R extends Element<R>, T extends Element<T>, S extends El
 	public Ideal<IntE> annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<IntE>> getSyzygies() {
 		return Collections.emptyList();

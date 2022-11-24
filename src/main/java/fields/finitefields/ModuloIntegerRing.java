@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -117,12 +116,7 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 		};
 	}
 
-	public Optional<Fraction> rationalReconstruction(ModuloIntegerRingElement t, BigInteger numeratorBound,
-			BigInteger denominatorBound) {
-		return Rationals.q().rationalReconstruction(lift(t), new IntE(n), numeratorBound, denominatorBound);
-	}
-
-	public Optional<Fraction> rationalReconstruction(ModuloIntegerRingElement t) {
+	public Fraction rationalReconstruction(ModuloIntegerRingElement t) {
 		return Rationals.q().rationalReconstruction(lift(t), new IntE(n));
 	}
 

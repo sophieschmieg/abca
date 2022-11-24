@@ -13,6 +13,7 @@ import fields.interfaces.InnerProductSpace.SingularValueDecompositionResult;
 import fields.interfaces.MathMap;
 import fields.interfaces.Module;
 import fields.interfaces.Ring;
+import fields.numberfields.NumberField.NFE;
 
 public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 	private T[][] elements;
@@ -268,5 +269,21 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 			}
 		}
 		return true;
+	}
+
+	public List<Vector<T>> asRowList() {
+		List<Vector<T>> result = new ArrayList<>();
+		for (int i = 0; i < rows(); i++) {
+			result.add(row(i + 1));
+		}
+		return result;
+	}
+
+	public List<Vector<T>> asColumnList() {
+		List<Vector<T>> result = new ArrayList<>();
+		for (int i = 0; i < columns(); i++) {
+			result.add(column(i + 1));
+		}
+		return result;
 	}
 }

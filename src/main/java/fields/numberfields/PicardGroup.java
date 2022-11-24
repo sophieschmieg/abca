@@ -83,7 +83,7 @@ public class PicardGroup extends AbstractModule<IntE, OrderIdealClass>
 	}
 
 	public OrderIdealClass getEmbedding(FractionalOrderIdeal ideal) {
-		NFE minimal = ideal.getVectorSpace().latticeReduction(ideal, 1.0).get(0);
+		NFE minimal = ideal.getVectorSpace().latticeReduction(ideal).get(0);
 		FractionalOrderIdeal representative = idealGroup.operate(ideal,
 				idealGroup.getPrincipalIdeal(order.numberField().inverse(minimal)));
 		if (!reducedMapping.containsKey(representative)) {

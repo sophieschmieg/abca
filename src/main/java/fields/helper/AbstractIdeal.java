@@ -157,12 +157,12 @@ public abstract class AbstractIdeal<T extends Element<T>> extends AbstractModule
 
 	@Override
 	public final List<Vector<T>> nonTrivialCombinations(List<T> s) {
-		return r.syzygyProblem(s);
+		return r.idealSyzygyProblem(s);
 	}
 
 	@Override
 	public final List<Vector<T>> getSyzygies() {
-		return r.syzygyProblem(generators());
+		return r.idealSyzygyProblem(generators());
 	}
 
 	@Override

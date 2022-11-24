@@ -5,30 +5,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
-import fields.finitefields.FiniteField;
-import fields.finitefields.FiniteField.FFE;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractRing;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
-import fields.interfaces.DiscreteValuationField.OtherVersion;
-import fields.interfaces.Group;
 import fields.interfaces.Ideal;
-import fields.interfaces.MathMap;
 import fields.interfaces.Ring;
-import fields.interfaces.UnivariatePolynomial;
-import fields.interfaces.UnivariatePolynomialRing;
-import fields.local.Value;
-import fields.numberfields.CompletedNumberField.Ext;
 import fields.numberfields.ModuloNumberFieldOrderIdeal.ModNFE;
 import fields.numberfields.NumberField.NFE;
-import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.numberfields.NumberFieldOrder.NumberFieldOrderIdeal;
 import fields.vectors.FreeModule;
 import fields.vectors.FreeSubModule;
@@ -71,14 +59,14 @@ public class ModuloNumberFieldOrderIdeal extends AbstractRing<ModNFE> implements
 		Rationals q = Rationals.q();
 		this.order = order;
 		this.ideal = ideal;
-		List<NFE> reducedIdealBasis = new SubLattice<>(order, ideal.asSubModule(), 1.0).getModuleGenerators();
+		List<NFE> reducedIdealBasis = new SubLattice<>(order, ideal.asSubModule()).getModuleGenerators();
 		this.orderAsRationalLattice = RationalLattice.fromIntegerLattice(order.rank(),
-				new FreeModule<>(Integers.z(), order.rank()).getBasis(), 1.0);
+				new FreeModule<>(Integers.z(), order.rank()).getBasis());
 		List<Vector<Fraction>> idealGeneratorsIntVectors = new ArrayList<>();
 		for (NFE basis : reducedIdealBasis) {
 			idealGeneratorsIntVectors.add(Vector.mapVector(q.getEmbeddingMap(), order.asVector(basis)));
 		}
-		this.idealAsSubLattice = new SubLattice<>(orderAsRationalLattice, idealGeneratorsIntVectors, 1.0);
+		this.idealAsSubLattice = new SubLattice<>(orderAsRationalLattice, idealGeneratorsIntVectors);
 		List<NFE> reducedBasis = new ArrayList<>();
 		for (Vector<Fraction> basisVector : idealAsSubLattice.getModuleGenerators()) {
 			Vector<IntE> intVector = Vector.mapVector(q.getAsIntegerMap(), basisVector);

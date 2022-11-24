@@ -50,18 +50,16 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 	}
 
 	@Override
-	public <R extends Element<R>> List<R> latticeReduction(Lattice<R, T, S> lattice, double deltaAsDouble) {
-		return latticeReduction(lattice.getModuleGenerators(), lattice, deltaAsDouble);
-	}
-
-	@Override
 	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice) {
-		return latticeReduction(sublatticeBasis, lattice, 0.75);
+		if (sublatticeBasis.isEmpty()) {
+			return Collections.emptyList();
+		}
+		return latticeReduction(sublatticeBasis, lattice, 0.75, 10);
 	}
 
-	@Override
-	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
-			double deltaAsDouble) {
+	// @Override
+	private <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
+			double deltaAsDouble, boolean isBasis) {
 		if (!lattice.getVectorSpace().equals(this)) {
 			throw new ArithmeticException(lattice + " not in " + this + ", but in " + lattice.getVectorSpace());
 		}
@@ -71,17 +69,85 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		do {
 			counter++;
 			prevResult = currentResult;
-			currentResult = computeLatticeReduction(currentResult, lattice, deltaAsDouble);
+			currentResult = computeLatticeReduction(currentResult, lattice, deltaAsDouble, isBasis);
 		} while (counter < 1000 && (prevResult == null || !prevResult.equals(currentResult)));
 		return currentResult;
 	}
 
+	// @Override
+	private <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
+			double deltaAsDouble, int blockSize) {
+		List<R> basis = latticeReduction(sublatticeBasis, lattice, deltaAsDouble, true);
+		ValueField<T> f = getValueField();
+		List<S> orthogonal = new ArrayList<>();
+		List<T> values = new ArrayList<>();
+		List<List<T>> coefficients = new ArrayList<>();
+		for (int i = 0; i < basis.size(); i++) {
+			coefficients.add(new ArrayList<>());
+			orthogonal.add(lattice.embedding(basis.get(i)));
+			S embedded = orthogonal.get(i);
+			for (int l = 0; l < i; l++) {
+				coefficients.get(i).add(f.divide(innerProduct(embedded, orthogonal.get(l)), values.get(l)));
+				orthogonal.set(i,
+						subtract(orthogonal.get(i), scalarMultiply(coefficients.get(i).get(l), orthogonal.get(l))));
+			}
+			values.add(innerProduct(orthogonal.get(i), orthogonal.get(i)));
+		}
+		int z = 0;
+		int j = 0;
+		T eps = fromReal(f.getReals().getPowerOfTwo(-f.getReals().precision() + 1));
+		while (z < basis.size() - 1) {
+			j++;
+			int k = Math.min(j + blockSize - 1, basis.size());
+			if (j == basis.size()) {
+				j = 1;
+				k = Math.min(blockSize, basis.size());
+			}
+			R min = enumerate(j - 1, k - 1, basis, coefficients, values, lattice);
+			S basisVector = lattice.embedding(basis.get(j - 1));
+			S minVector = lattice.embedding(min);
+			int h = Math.min(k, basis.size());
+			List<R> subBasis;
+			if (f.add(innerProduct(minVector, minVector), eps).compareTo(innerProduct(basisVector, basisVector)) < 0) {
+				subBasis = new ArrayList<>();
+				subBasis.addAll(basis.subList(0, h));
+				subBasis.add(j - 1, min);
+				subBasis = latticeReduction(subBasis, lattice, deltaAsDouble, false);
+				z = 0;
+			} else {
+				z++;
+				subBasis = latticeReduction(basis.subList(0, h), lattice, 1.0, true);
+				if (h == basis.size()) {
+					return subBasis;
+				}
+			}
+			for (int i = 0; i < subBasis.size(); i++) {
+				basis.set(i, subBasis.get(i));
+			}
+			values.clear();
+			orthogonal.clear();
+			coefficients.clear();
+			for (int i = 0; i < basis.size(); i++) {
+				coefficients.add(new ArrayList<>());
+				orthogonal.add(lattice.embedding(basis.get(i)));
+				S embedded = orthogonal.get(i);
+				for (int l = 0; l < i; l++) {
+					coefficients.get(i).add(f.divide(innerProduct(embedded, orthogonal.get(l)), values.get(l)));
+					orthogonal.set(i,
+							subtract(orthogonal.get(i), scalarMultiply(coefficients.get(i).get(l), orthogonal.get(l))));
+				}
+				values.add(innerProduct(orthogonal.get(i), orthogonal.get(i)));
+			}
+		}
+		return latticeReduction(basis, lattice, 1.0, true);
+	}
+
 	private <R extends Element<R>> List<R> computeLatticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
-			double deltaAsDouble) {
+			double deltaAsDouble, boolean isBasis) {
 		ValueField<T> f = getValueField();
 		Reals r = f.getReals();
 		Real delta = r.getDouble(deltaAsDouble);
-		Real eps = r.getPowerOfTwo(-r.precision() + 10 * sublatticeBasis.size());
+		Real eps = r.getPowerOfTwo(-r.precision() + 10);
 		Real half = r.add(r.getDouble(0.5), eps);
 		List<R> basis = new ArrayList<>();
 		basis.addAll(sublatticeBasis);
@@ -103,25 +169,44 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		orthogonal.set(0, lattice.embedding(basis.get(0)));
 		values.set(0, innerProduct(orthogonal.get(0), orthogonal.get(0)));
 		while (k < basis.size()) {
+			if (!isBasis && asReal(values.get(k - 1)).compareTo(eps) < 0) {
+				basis.remove(k - 1);
+				coefficients.remove(coefficients.size() - 1);
+				orthogonal.remove(k - 1);
+				values.remove(k - 1);
+				k = Math.max(1, k - 1);
+				kmax = Math.min(kmax, k - 1);
+				continue;
+			}
 			if (k > kmax) {
 				kmax = k;
 				orthogonal.set(k, lattice.embedding(basis.get(k)));
+				S embedded = orthogonal.get(k);
 				for (int j = 0; j < k; j++) {
-					coefficients.get(k).set(j,
-							f.divide(innerProduct(lattice.embedding(basis.get(k)), orthogonal.get(j)), values.get(j)));
+					coefficients.get(k).set(j, f.divide(innerProduct(embedded, orthogonal.get(j)), values.get(j)));
 					orthogonal.set(k,
 							subtract(orthogonal.get(k), scalarMultiply(coefficients.get(k).get(j), orthogonal.get(j))));
 				}
 				values.set(k, innerProduct(orthogonal.get(k), orthogonal.get(k)));
 			}
 			reduceLLLBasis(k, k - 1, coefficients, basis, lattice, half);
+			if (!isBasis && asReal(values.get(k)).compareTo(eps) < 0) {
+				basis.remove(k);
+				coefficients.remove(coefficients.size() - 1);
+				orthogonal.remove(k);
+				values.remove(k);
+				k = Math.max(1, k - 1);
+				kmax = Math.min(kmax, k - 1);
+				continue;
+			}
 			Real kValue = asReal(values.get(k));
 			Real adjustedValue = r.multiply(
 					r.subtract(delta,
 							asReal(f.multiply(coefficients.get(k).get(k - 1), coefficients.get(k).get(k - 1)))),
 					asReal(values.get(k - 1)));
 			int maxExponent = Math.max(kValue.exponent() - r.precision(), adjustedValue.exponent() - r.precision()) + 2;
-			if (r.abs(r.subtract(kValue, adjustedValue)).compareTo(r.getPowerOfTwo(maxExponent)) > 0 && kValue.compareTo(adjustedValue) < 0) {
+			if (r.abs(r.subtract(kValue, adjustedValue)).compareTo(r.getPowerOfTwo(maxExponent)) > 0
+					&& kValue.compareTo(adjustedValue) < 0) {
 				swapLLLBasis(k, coefficients, basis, orthogonal, values, kmax);
 				k = Math.max(1, k - 1);
 			} else {
@@ -199,6 +284,88 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		}
 	}
 
+	// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.57.3331&rep=rep1&type=pdf
+	private <R extends Element<R>> R enumerate(int j, int k, List<R> basis, List<List<T>> coefficients, List<T> values,
+			Lattice<R, T, S> lattice) {
+		Integers z = Integers.z();
+		ValueField<T> field = getValueField();
+		T minValue = values.get(j);
+		List<T> minValues = new ArrayList<>(); // c
+		minValues.add(field.zero());
+		List<IntE> minParameters = new ArrayList<>(); // u
+		minParameters.add(z.one());
+		List<IntE> parameters = new ArrayList<>(); // tilde u
+		parameters.add(z.one());
+		List<T> minCoefficients = new ArrayList<>(); // y
+		minCoefficients.add(field.zero());
+		List<IntE> delta = new ArrayList<>(); // Delta
+		delta.add(z.zero());
+		List<IntE> sign = new ArrayList<>(); // delta
+		sign.add(z.one());
+		List<IntE> secondary = new ArrayList<>(); // v
+		secondary.add(z.zero());
+		int s = j;
+		int t = j;
+		for (int i = j + 1; i < k + 1; i++) {
+			minValues.add(field.zero());
+			minParameters.add(z.zero());
+			parameters.add(z.zero());
+			minCoefficients.add(field.zero());
+			delta.add(z.zero());
+			sign.add(z.one());
+			secondary.add(z.zero());
+		}
+		minValues.add(field.zero());
+		while (true) {
+			T coeff = field.add(field.getInteger(parameters.get(t - j)), minCoefficients.get(t - j));
+			minValues.set(t - j, field.add(minValues.get(t - j + 1), field.multiply(coeff, coeff, values.get(t - j))));
+			if (minValues.get(t - j).compareTo(minValue) < 0) {
+				if (t > j) {
+					t--;
+					T coefficient = field.zero();
+					for (int i = t + 1; i <= s; i++) {
+						coefficient = field.add(field.multiply(parameters.get(i - j), coefficients.get(i).get(t)),
+								coefficient);
+					}
+					minCoefficients.set(t - j, coefficient);
+					IntE rounded = asReal(field.negative(coefficient)).round();
+					parameters.set(t - j, rounded);
+					secondary.set(t - j, rounded);
+					delta.set(t - j, z.zero());
+					if (field.getInteger(rounded).compareTo(field.negative(coefficient)) > 0) {
+						sign.set(t - j, z.getInteger(-1));
+					} else {
+						sign.set(t - j, z.one());
+					}
+				} else {
+					minValue = minValues.get(0);
+					minParameters.clear();
+					for (IntE parameter : parameters) {
+						minParameters.add(parameter);
+					}
+				}
+			} else {
+				t++;
+				if (t > k) {
+					break;
+				}
+				s = Math.max(s, t);
+				if (t < s) {
+					delta.set(t - j, z.negative(delta.get(t - j)));
+				}
+				if (z.multiply(sign.get(t - j), delta.get(t - j)).compareTo(z.zero()) >= 0) {
+					delta.set(t - j, z.add(delta.get(t - j), sign.get(t - j)));
+				}
+				parameters.set(t - j, z.add(secondary.get(t - j), delta.get(t - j)));
+			}
+		}
+		R min = lattice.zero();
+		for (int i = j; i <= k; i++) {
+			min = lattice.add(lattice.scalarMultiply(minParameters.get(i - j), basis.get(i)), min);
+		}
+		return min;
+	}
+
 //		List<S> orthogonal = gramSchmidt(embedList(basis, lattice));
 //		List<List<T>> coefficients = new ArrayList<>();
 //		for (int i = 0; i < basis.size(); i++) {
@@ -258,11 +425,9 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 
 	@Override
 	public <R extends Element<R>> R closestLatticePoint(S t, Lattice<R, T, S> lattice) {
-		return closestLatticePoint(t, lattice, 0.75);
-	}
-
-	@Override
-	public <R extends Element<R>> R closestLatticePoint(S t, Lattice<R, T, S> lattice, double delta) {
+		if (lattice.getModuleGenerators().isEmpty()) {
+			return lattice.zero();
+		}
 		Matrix<T> asMatrix = lattice.generatorsAsMatrix();
 		Matrix<T> pseudoInverse = pseudoInverse(asMatrix);
 		MatrixModule<T> matrixModule = pseudoInverse.getModule(getField());
@@ -276,11 +441,6 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 
 	@Override
 	public <R extends Element<R>> List<R> latticePointsInParallelotope(S edge, Lattice<R, T, S> lattice) {
-		return latticePointsInParallelotope(edge, lattice, 0.75);
-	}
-
-	@Override
-	public <R extends Element<R>> List<R> latticePointsInParallelotope(S edge, Lattice<R, T, S> lattice, double delta) {
 		Vector<T> asVector = asVector(edge);
 		ValueField<T> field = getValueField();
 		DualVectorSpace<T, S> dualSpace = getDual();
@@ -292,7 +452,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 			constraints.add(dualSpace.getUnitVector(i + 1));
 			rhs.add(asVector.get(i + 1));
 		}
-		return latticePointsInPolytope(new Polytope<>(this, constraints, rhs), lattice, delta);
+		return latticePointsInPolytope(new Polytope<>(this, constraints, rhs), lattice);
 	}
 
 	@Override
@@ -385,12 +545,6 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 	@Override
 	public <R extends Element<R>> List<R> latticeVertexPointsInPolytope(Polytope<T, S> polytope,
 			Lattice<R, T, S> lattice) {
-		return latticeVertexPointsInPolytope(polytope, lattice, 0.75);
-	}
-
-	@Override
-	public <R extends Element<R>> List<R> latticeVertexPointsInPolytope(Polytope<T, S> polytope,
-			Lattice<R, T, S> lattice, double delta) {
 		Set<R> latticeVertexPoints = new TreeSet<>();
 		List<S> vertices = new ArrayList<>();
 		boolean newPointsFound;
@@ -398,7 +552,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		while (true) {
 			newPointsFound = false;
 			for (Dual<T, S> constraint : latticePolytope.getConstraints()) {
-				R extremalPoint = latticeLinearProgram(polytope, constraint, lattice, delta);
+				R extremalPoint = latticeLinearProgram(polytope, constraint, lattice);
 				if (extremalPoint != null && !latticeVertexPoints.contains(extremalPoint)) {
 					latticeVertexPoints.add(extremalPoint);
 					newPointsFound = true;
@@ -422,12 +576,6 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 	@Override
 	public <R extends Element<R>> R latticeLinearProgram(Polytope<T, S> polytope, Dual<T, S> maximize,
 			Lattice<R, T, S> lattice) {
-		return latticeLinearProgram(polytope, maximize, lattice, 0.75);
-	}
-
-	@Override
-	public <R extends Element<R>> R latticeLinearProgram(Polytope<T, S> polytope, Dual<T, S> maximize,
-			Lattice<R, T, S> lattice, double delta) {
 		ValueField<T> field = getValueField();
 		DualVectorSpace<T, S> dualSpace = getDual();
 		Matrix<T> baseChange = lattice.generatorsAsMatrix();

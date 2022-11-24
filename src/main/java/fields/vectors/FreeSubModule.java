@@ -237,6 +237,10 @@ public class FreeSubModule<T extends Element<T>, S extends Element<S>> extends A
 	public int rank() {
 		return this.generators.size();
 	}
+	
+	public Module<T, S> getModule() {
+		return module;
+	}
 
 	@Override
 	public String toString() {

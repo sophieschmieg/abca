@@ -100,7 +100,7 @@ public class FractionalOrderIdeal extends AbstractModule<IntE, NFE>
 			this.basis = Collections.emptyList();
 			return;
 		}
-		clearedGenerators = field.minkowskiEmbeddingSpace().latticeReduction(clearedGenerators, this, 1.0);
+		clearedGenerators = field.minkowskiEmbeddingSpace().latticeReduction(clearedGenerators, this);
 		this.numerator = order.getIdeal(clearedGenerators);
 		this.basis = new ArrayList<>();
 		List<Vector<Fraction>> basisAsVectors = new ArrayList<>();

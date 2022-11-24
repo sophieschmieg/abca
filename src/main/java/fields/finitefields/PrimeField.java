@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -381,11 +380,7 @@ public class PrimeField extends AbstractField<PFE> {
 		return Integers.z().getInteger(t.value);
 	}
 
-	public Optional<Fraction> rationalReconstruction(PFE t, BigInteger numeratorBound, BigInteger denominatorBound) {
-		return Rationals.q().rationalReconstruction(liftToInteger(t), new IntE(p), numeratorBound, denominatorBound);
-	}
-
-	public Optional<Fraction> rationalReconstruction(PFE t) {
+	public Fraction rationalReconstruction(PFE t) {
 		return Rationals.q().rationalReconstruction(liftToInteger(t), new IntE(p));
 	}
 

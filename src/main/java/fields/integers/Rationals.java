@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -35,8 +34,10 @@ import fields.numberfields.LocalizedNumberField;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
 import fields.polynomials.Monomial;
-import fields.vectors.FreeModule;
+import fields.vectors.RationalLattice;
 import fields.vectors.Vector;
+import fields.vectors.pivot.PivotStrategy;
+import fields.vectors.pivot.ValuePivotStrategy;
 import util.MiscAlgorithms;
 import util.PeekableReader;
 
@@ -386,36 +387,17 @@ public class Rationals extends AbstractField<Fraction>
 		});
 	}
 
-	public Optional<Fraction> rationalReconstruction(IntE t, IntE m, BigInteger numeratorBound,
-			BigInteger denominatorBound) {
+	public Fraction rationalReconstruction(IntE t, IntE m) {
 		Integers z = Integers.z();
-		FreeModule<IntE> vectors = new FreeModule<>(z, 2);
-		Vector<IntE> v = new Vector<>(m, z.zero());
-		Vector<IntE> w = new Vector<>(t, z.one());
-		while (w.get(1).getValue().compareTo(numeratorBound) > 0) {
-			IntE q = getFraction(v.get(1), w.get(1)).roundDown();
-			Vector<IntE> next = vectors.subtract(v, vectors.scalarMultiply(q, w));
-			v = w;
-			w = next;
-		}
-		if (w.get(2).compareTo(z.zero()) < 0) {
-			w = vectors.negative(w);
-		}
-		if (w.get(2).getValue().compareTo(denominatorBound) > 0 || !z.gcd(w.get(1), w.get(2)).equals(z.one())) {
-			return Optional.empty();
-		}
-		return Optional.of(getFraction(w.get(1), w.get(2)));
+		List<Vector<IntE>> generators = new ArrayList<>();
+		generators.add(new Vector<>(m, z.zero()));
+		generators.add(new Vector<>(t, z.one()));
+		RationalLattice lattice = RationalLattice.fromIntegerLattice(2, generators);
+		Vector<Fraction> result = lattice.getModuleGenerators().get(0);
+		return getFraction(result.get(1).asInteger(), result.get(2).asInteger());
 	}
 
-	public Optional<Fraction> rationalReconstruction(IntE t, IntE m) {
-		if (m.equals(new IntE(2))) {
-			return rationalReconstruction(t, m, BigInteger.ONE, BigInteger.ONE);
-		}
-		BigInteger sqrt = m.getValue().shiftRight(1).sqrt();
-		return rationalReconstruction(t, m, sqrt.add(BigInteger.ONE), sqrt);
-	}
-
-	public Optional<Polynomial<Fraction>> reconstructPolynomial(PolynomialRing<Fraction> polynomialRing,
+	public Polynomial<Fraction> reconstructPolynomial(PolynomialRing<Fraction> polynomialRing,
 			List<Polynomial<PFE>> perPrime, List<PrimeField> fields) {
 		List<Ideal<IntE>> asIdealList = new ArrayList<>();
 		for (PrimeField fp : fields) {
@@ -435,13 +417,15 @@ public class Rationals extends AbstractField<Fraction>
 				lifts.add(fp.liftToInteger(perPrime.get(i).coefficient(m)));
 			}
 			IntE crt = z.chineseRemainderTheorem(lifts, preparation);
-			Optional<Fraction> reconstruction = rationalReconstruction(crt, modulus);
-			if (reconstruction.isEmpty()) {
-				return Optional.empty();
-			}
-			coefficients.put(m, reconstruction.get());
+			Fraction reconstruction = rationalReconstruction(crt, modulus);
+			coefficients.put(m, reconstruction);
 		}
-		return Optional.of(polynomialRing.getPolynomial(coefficients));
+		return polynomialRing.getPolynomial(coefficients);
+	}
+	
+	@Override
+	public PivotStrategy<Fraction> preferredPivotStrategy() {
+		return new ValuePivotStrategy<>(withInfValue());
 	}
 
 }

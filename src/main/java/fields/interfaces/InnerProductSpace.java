@@ -1,6 +1,7 @@
 package fields.interfaces;
 
 import java.util.List;
+import java.util.Optional;
 
 import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals.Real;
@@ -116,6 +117,8 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 
 	public Matrix<T> pseudoInverse(Matrix<T> t);
 
+	public Optional<Real> conditionNumber(Matrix<T> t);
+	
 	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
 
 	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);

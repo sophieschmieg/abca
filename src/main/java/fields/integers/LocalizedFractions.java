@@ -194,7 +194,7 @@ public class LocalizedFractions extends AbstractField<Fraction> implements Discr
 			denominator = denominator.divide(prime);
 			denominatorValue++;
 		}
-		if (denominatorValue + accuracy == 0) {
+		if (denominatorValue + accuracy <= 0) {
 			return zero();
 		}
 		BigInteger mod = prime.pow(denominatorValue + accuracy);

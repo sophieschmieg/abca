@@ -24,7 +24,6 @@ public class EmbeddedRationalLattice extends AbstractModule<IntE, Vector<Fractio
 		implements Lattice<Vector<Fraction>, Real, Vector<Real>> {
 	private FiniteRealVectorSpace realSpace;
 	private FiniteRationalVectorSpace rationalSpace;
-	private double delta;
 	private List<Vector<Fraction>> basis;
 	private Matrix<Real> realBaseChangeMatrix;
 	private Matrix<Fraction> baseChangeMatrix;
@@ -33,21 +32,16 @@ public class EmbeddedRationalLattice extends AbstractModule<IntE, Vector<Fractio
 	private MathMap<Fraction, Real> embeddingMap;
 
 	public static EmbeddedRationalLattice fromRationalLattice(Reals r, RationalLattice lattice) {
-		return new EmbeddedRationalLattice(r, lattice.getVectorSpace().dimension(), lattice.getModuleGenerators(), lattice.delta());
+		return new EmbeddedRationalLattice(r, lattice.getVectorSpace().dimension(), lattice.getModuleGenerators());
 	}
 
 	public static RationalLattice fromEmbeddedRationalLattice(EmbeddedRationalLattice lattice) {
-		return new RationalLattice(new FiniteRationalVectorSpace(lattice.getVectorSpace().dimension()), lattice.getModuleGenerators(), lattice.delta());
+		return new RationalLattice(new FiniteRationalVectorSpace(lattice.getVectorSpace().dimension()), lattice.getModuleGenerators());
 	}
 
 	public EmbeddedRationalLattice(Reals r, int dimension, List<Vector<Fraction>> generators) {
-		this(r, dimension, generators, 0.75);
-	}
-
-	public EmbeddedRationalLattice(Reals r, int dimension, List<Vector<Fraction>> generators, double delta) {
 		this.rationalSpace = new FiniteRationalVectorSpace(dimension);
 		this.realSpace = new FiniteRealVectorSpace(r, dimension);
-		this.delta = delta;
 		this.embeddingMap = new MathMap<>() {
 			@Override
 			public Real evaluate(Fraction t) {
@@ -89,7 +83,7 @@ public class EmbeddedRationalLattice extends AbstractModule<IntE, Vector<Fractio
 		} else {
 			this.basis.addAll(generators);
 		}
-		this.basis = realSpace.latticeReduction(this, delta);
+		this.basis = realSpace.latticeReduction(this);
 		this.baseChangeMatrix = Matrix.fromColumns(basis);
 		this.realBaseChangeMatrix = Matrix.mapMatrix(embeddingMap, baseChangeMatrix);
 		this.matrixModule = new MatrixModule<>(rationalSpace.getField(), rationalSpace.dimension(), basis.size());
@@ -99,10 +93,6 @@ public class EmbeddedRationalLattice extends AbstractModule<IntE, Vector<Fractio
 	@Override
 	public String toString() {
 		return basis.toString();
-	}
-
-	public double delta() {
-		return delta;
 	}
 	
 	@Override

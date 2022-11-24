@@ -28,38 +28,34 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 	private FreeModule<IntE> asIntModule;
 
 	public static RealLattice fromIntegerLattice(Reals r, int dimension, List<Vector<IntE>> generators) {
-		return fromIntegerLattice(r, dimension, generators, 0.75);
-	}
-
-	public static RealLattice fromIntegerLattice(Reals r, int dimension, List<Vector<IntE>> generators, double delta) {
-		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, dimension);
+		Integers z = Integers.z();
+		generators = z.simplifySubModuleGenerators(Matrix.fromColumns(generators));
+		int accuracy = r.precision();
+		for (Vector<IntE> generator : generators) {
+			for (IntE coefficient : generator.asList()) {
+				accuracy = Math.max(4 * coefficient.getValue().bitLength() + 10, accuracy);
+			}
+		}
+		Reals reals = Reals.r(accuracy);
+		FiniteRealVectorSpace space = new FiniteRealVectorSpace(reals, dimension);
 		List<Vector<Real>> realGenerators = new ArrayList<>();
 		MathMap<IntE, Real> embeddingMap = new MathMap<>() {
 			@Override
 			public Real evaluate(IntE t) {
-				return r.getInteger(t);
+				return reals.getInteger(t);
 			}
 		};
 		for (Vector<IntE> generator : generators) {
 			realGenerators.add(Vector.mapVector(embeddingMap, generator));
 		}
-		return new RealLattice(space, realGenerators);
+		return new RealLattice(space, realGenerators, true);
 	}
 
 	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators) {
 		this(space, generators, false);
 	}
 
-	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, double delta) {
-		this(space, generators, delta, false);
-	}
-
 	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, boolean skipBasisCheck) {
-		this(space, generators, 0.75, skipBasisCheck);
-	}
-
-	public RealLattice(FiniteRealVectorSpace space, List<Vector<Real>> generators, double delta,
-			boolean skipBasisCheck) {
 		this.space = space;
 		Matrix<Real> generatorMatrix = Matrix.fromColumns(generators);
 		MatrixModule<Real> generatorMatrixModule = new MatrixModule<>(space.getField(), space.dimension(),
@@ -145,7 +141,7 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 		} else {
 			this.basis.addAll(generators);
 		}
-		this.basis = space.latticeReduction(this, delta);
+		this.basis = space.latticeReduction(this);
 		this.baseChangeMatrix = Matrix.fromColumns(basis);
 		this.matrixModule = new MatrixModule<>(space.getField(), space.dimension(), basis.size());
 		this.asIntModule = new FreeModule<>(Integers.z(), basis.size());
@@ -195,7 +191,7 @@ public class RealLattice extends AbstractModule<IntE, Vector<Real>>
 	public IntegerIdeal annihilator() {
 		return Integers.z().getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<IntE>> getSyzygies() {
 		return Collections.emptyList();

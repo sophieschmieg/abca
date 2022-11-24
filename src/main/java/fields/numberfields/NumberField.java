@@ -838,7 +838,7 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		}
 		Vector<Real> target = asEmbeddingVector(powerValues);
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(r, 2 * degree);
-		RealLattice lattice = new RealLattice(space, powers, 1.0);
+		RealLattice lattice = new RealLattice(space, powers);
 		Vector<IntE> integerTarget = lattice.asVector(target);
 		List<Vector<IntE>> integerPowers = new ArrayList<>();
 		for (int i = 0; i < 2 * degree; i++) {
