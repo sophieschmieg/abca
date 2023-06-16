@@ -25,7 +25,12 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		extends AbstractInnerProductSpace<T, S> implements RealInnerProductSpace<T, S> {
 
 	@Override
-	public T conjugate(T t) {
+	public T conjugateScalar(T t) {
+		return t;
+	}
+
+	@Override
+	public S conjugateVector(S t) {
 		return t;
 	}
 
@@ -51,10 +56,16 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 
 	@Override
 	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice) {
+		return latticeReduction(sublatticeBasis, lattice, true);
+	}
+
+	@Override
+	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
+			boolean isBasis) {
 		if (sublatticeBasis.isEmpty()) {
 			return Collections.emptyList();
 		}
-		return latticeReduction(sublatticeBasis, lattice, 0.75, 10);
+		return latticeReduction(sublatticeBasis, lattice, 0.75, 10, isBasis);
 	}
 
 	// @Override
@@ -76,8 +87,8 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 
 	// @Override
 	private <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
-			double deltaAsDouble, int blockSize) {
-		List<R> basis = latticeReduction(sublatticeBasis, lattice, deltaAsDouble, true);
+			double deltaAsDouble, int blockSize, boolean isBasis) {
+		List<R> basis = latticeReduction(sublatticeBasis, lattice, deltaAsDouble, isBasis);
 		ValueField<T> f = getValueField();
 		List<S> orthogonal = new ArrayList<>();
 		List<T> values = new ArrayList<>();
@@ -116,7 +127,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 				z = 0;
 			} else {
 				z++;
-				subBasis = latticeReduction(basis.subList(0, h), lattice, 1.0, true);
+				subBasis = latticeReduction(basis.subList(0, h), lattice, 1.0, isBasis);
 				if (h == basis.size()) {
 					return subBasis;
 				}
@@ -139,7 +150,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 				values.add(innerProduct(orthogonal.get(i), orthogonal.get(i)));
 			}
 		}
-		return latticeReduction(basis, lattice, 1.0, true);
+		return latticeReduction(basis, lattice, 1.0, isBasis);
 	}
 
 	private <R extends Element<R>> List<R> computeLatticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
@@ -169,7 +180,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		orthogonal.set(0, lattice.embedding(basis.get(0)));
 		values.set(0, innerProduct(orthogonal.get(0), orthogonal.get(0)));
 		while (k < basis.size()) {
-			if (!isBasis && asReal(values.get(k - 1)).compareTo(eps) < 0) {
+			if ((!isBasis && asReal(values.get(k - 1)).compareTo(eps) < 0) || values.get(k - 1).equals(r.zero())) {
 				basis.remove(k - 1);
 				coefficients.remove(coefficients.size() - 1);
 				orthogonal.remove(k - 1);
@@ -190,7 +201,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 				values.set(k, innerProduct(orthogonal.get(k), orthogonal.get(k)));
 			}
 			reduceLLLBasis(k, k - 1, coefficients, basis, lattice, half);
-			if (!isBasis && asReal(values.get(k)).compareTo(eps) < 0) {
+			if ((!isBasis && asReal(values.get(k)).compareTo(eps) < 0) || values.get(k).equals(r.zero())) {
 				basis.remove(k);
 				coefficients.remove(coefficients.size() - 1);
 				orthogonal.remove(k);

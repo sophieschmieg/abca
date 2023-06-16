@@ -1,5 +1,6 @@
 package fields.floatingpoint;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -31,7 +32,7 @@ public class FiniteComplexVectorSpace extends AbstractInnerProductSpace<ComplexN
 	public ComplexNumber innerProduct(Vector<ComplexNumber> s1, Vector<ComplexNumber> s2) {
 		ComplexNumber result = c.zero();
 		for (int i = 0; i < dimension; i++) {
-			result = c.add(result, c.multiply(s1.get(i + 1), c.conjugate(s2.get(i + 1))));
+			result = c.add(result, c.multiply(c.conjugate(s1.get(i + 1)), s2.get(i + 1)));
 		}
 		return result;
 	}
@@ -57,8 +58,17 @@ public class FiniteComplexVectorSpace extends AbstractInnerProductSpace<ComplexN
 	}
 	
 	@Override
-	public ComplexNumber conjugate(ComplexNumber t) {
+	public ComplexNumber conjugateScalar(ComplexNumber t) {
 		return c.conjugate(t);
+	}
+
+	@Override
+	public Vector<ComplexNumber> conjugateVector(Vector<ComplexNumber> t) {
+		List<ComplexNumber> coeffs =new ArrayList<>();
+		for (ComplexNumber coeff : t.asList()) {
+			coeffs.add(c.conjugate(coeff));
+		}
+		return new Vector<>(coeffs);
 	}
 	
 	@Override

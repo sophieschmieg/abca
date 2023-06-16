@@ -158,6 +158,40 @@ public class MiscAlgorithms {
 		return subsets(t, Collections.emptySortedSet(), size);
 	}
 
+	public static <T> List<List<T>> permutations(List<T> list) {
+		if (list.isEmpty()) {
+			return Collections.singletonList(list);
+		}
+		List<List<T>> result = new ArrayList<>();
+		for (int i = 0; i < list.size(); i++) {
+			T element = list.get(i);
+			List<T> without = new ArrayList<>();
+			without.addAll(list);
+			without.remove(i);
+			for (List<T> permutation : permutations(without)) {
+				List<T> current = new ArrayList<>();
+				current.add(element);
+				current.addAll(permutation);
+				result.add(current);
+			}
+		}
+		return result;
+	}
+	
+	public static <T> List<T> flattenMap(Map<T, Integer> map) {
+		List<T> result = new ArrayList<>();
+		for (T t : map.keySet()) {
+			int count = map.get(t);
+			if (count < 0) {
+				throw new RuntimeException("Count negative!");
+			}
+			for (int i = 0; i < count; i++) {
+				result.add(t);
+			}
+		}
+		return result;
+	}
+	
 	public static int jacobiSymbol(BigInteger a, BigInteger b) {
 		BigInteger zero = BigInteger.ZERO;
 		BigInteger one = BigInteger.ONE;
@@ -168,6 +202,9 @@ public class MiscAlgorithms {
 			throw new RuntimeException("JacobiSymbol (" + a + "/" + b + ") undefined");
 		}
 		a = a.mod(b);
+		if (a.equals(one)) {
+			return 1;
+		}
 		if (a.equals(zero)) {
 			return 0;
 		}

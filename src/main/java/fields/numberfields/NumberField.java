@@ -38,6 +38,7 @@ import fields.interfaces.GlobalFieldExtension;
 import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.PAdicField;
@@ -45,6 +46,7 @@ import fields.numberfields.CompletedNumberField.Ext;
 import fields.numberfields.IdealClassGroup.IdealClass;
 import fields.numberfields.NumberField.NFE;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
+import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
 import fields.vectors.Matrix;
 import fields.vectors.RealLattice;
@@ -77,6 +79,7 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 	private NumberField withIntegerMinimalPolynomial;
 	private IntE multiplier;
 	private static Map<Polynomial<Fraction>, NumberField> numberFields = new TreeMap<>();
+	private GaloisGroup<Fraction, NFE, NumberField> galoisGroup;
 
 	public static class NFE extends AbstractElement<NFE> implements AlgebraicExtensionElement<Fraction, NFE> {
 		private UnivariatePolynomial<Fraction> e;
@@ -103,6 +106,9 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 	}
 
 	public static NumberField getNumberField(UnivariatePolynomial<Fraction> minimalPolynomial) {
+		if (!minimalPolynomial.leadingCoefficient().equals(Rationals.q().one())) {
+			throw new ArithmeticException("Non normal minimal polynomial!");
+		}
 		if (!numberFields.containsKey(minimalPolynomial)) {
 			numberFields.put(minimalPolynomial, new NumberField(minimalPolynomial));
 		}
@@ -119,7 +125,9 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 
 	public static NumberField getNumberFieldFromIntegerPolynomial(UnivariatePolynomial<IntE> minimalPolynomial) {
 		Rationals q = Rationals.q();
-		return getNumberField(q.getUnivariatePolynomialRing().getEmbedding(minimalPolynomial, q.getEmbeddingMap()));
+		UnivariatePolynomialRing<Fraction> polynomialRing = q.getUnivariatePolynomialRing();
+		return getNumberField(
+				polynomialRing.normalize(polynomialRing.getEmbedding(minimalPolynomial, q.getEmbeddingMap())));
 	}
 
 	public static NumberField getRootsOfUnityField(int order) {
@@ -141,6 +149,13 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 			result = result.getEmbeddedExtension(primePowerUnity).getField();
 		}
 		return result;
+	}
+
+	public static NumberField getRealRootsOfUnityField(int order) {
+		NumberField rootsOfUnity = getRootsOfUnityField(order);
+		NFE primitiveRoot = rootsOfUnity.maximalOrder().primitiveRootsOfUnity().get(Integers.z().getInteger(order));
+		NFE real = rootsOfUnity.add(primitiveRoot, rootsOfUnity.inverse(primitiveRoot));
+		return getNumberField(rootsOfUnity.minimalPolynomial(real));
 	}
 
 	private NumberField() {
@@ -1211,8 +1226,82 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 
 	@Override
 	public GaloisGroup<Fraction, NFE, NumberField> galoisGroup() {
-		// TODO Auto-generated method stub
-		return null;
+		if (!hasIntegerMinimalPolynomial) {
+			return withIntegerMinimalPolynomial().galoisGroup();
+		}
+		if (galoisGroup == null) {
+			if (degree() > 7) {
+				throw new ArithmeticException("No. Just no.");
+			}
+			Integers z = Integers.z();
+			UnivariatePolynomialRing<IntE> univariate = z.getUnivariatePolynomialRing();
+			PolynomialRing<IntE> multivariate = AbstractPolynomialRing.getPolynomialRing(z, degree(), Monomial.GREVLEX);
+			List<Polynomial<IntE>> rootPolynomials = new ArrayList<>();
+			if (degree() == 1) {
+				System.out.println("C1");
+				return null;
+			}
+			if (degree() == 2) {
+				System.out.println("C2");
+				return null;
+			}
+			Polynomial<IntE> discriminant = multivariate.one();
+			for (int i = 1; i < degree(); i++) {
+				for (int j = 0; j < i; j++) {
+					discriminant = multivariate.multiply(
+							multivariate.subtract(multivariate.getVar(i + 1), multivariate.getVar(j + 1)),
+							discriminant);
+				}
+			}
+			Set<Polynomial<IntE>> discriminantOrbit = new TreeSet<>();
+			discriminantOrbit.add(discriminant);
+			discriminantOrbit.add(multivariate.negative(discriminant));
+			if (degree() == 4) {
+				rootPolynomials.add(multivariate.add(multivariate.getVar(1), multivariate.getVar(2)));
+				rootPolynomials.add(multivariate.subtract(multivariate.getVar(1), multivariate.getVar(2)));
+			} else if (degree() == 5) {
+				rootPolynomials.add(multivariate.subtract(multivariate.getVar(1), multivariate.getVar(2)));
+				rootPolynomials.add(multivariate
+						.power(multivariate.subtract(multivariate.add(multivariate.getVar(1), multivariate.getVar(2)),
+								multivariate.add(multivariate.getVar(3), multivariate.getVar(4))), 2));
+
+			} else if (degree() == 6) {
+				rootPolynomials.add(multivariate.add(multivariate.getVar(1), multivariate.getVar(2)));
+				rootPolynomials
+						.add(multivariate.add(multivariate.getVar(1), multivariate.getVar(2), multivariate.getVar(3)));
+				rootPolynomials.add(multivariate.subtract(multivariate.getVar(1), multivariate.getVar(2)));
+				rootPolynomials.add(multivariate.add(multivariate.getVar(1), multivariate.getVar(2),
+						multivariate.getVar(3), discriminant));
+			} else if (degree() == 7) {
+				rootPolynomials
+						.add(multivariate.add(multivariate.getVar(1), multivariate.getVar(2), multivariate.getVar(3)));
+			}
+			UnivariatePolynomial<IntE> minimalPolynomial = univariate.getEmbedding(minimalPolynomial(),
+					Rationals.q().getAsIntegerMap());
+			UnivariatePolynomial<IntE> discriminantResolvant = z.tschirnhausenResolvant(minimalPolynomial,
+					discriminantOrbit);
+			System.out.println("Delta = " + z.factorization(discriminantResolvant));
+			for (Polynomial<IntE> roots : rootPolynomials) {
+				UnivariatePolynomial<IntE> resolvant = z.tschirnhausenResolvant(minimalPolynomial, roots);
+				System.out.println(roots + " " + z.factorization(resolvant));
+			}
+//			if (isNormal()) {
+//				List<FieldAutomorphism<Fraction, NFE, NumberField>> result = new ArrayList<>();
+//				UnivariatePolynomialRing<Fraction> basePolynomials = q.getUnivariatePolynomialRing();
+//				List<NFE> conjugates = conjugates(alpha());
+//				for (NFE conjugate : conjugates) {
+//					int[] map = new int[degree()];
+//					for (int i = 0; i < conjugates.size(); i++) {
+//						NFE image = fromPolynomial(basePolynomials.substitute(conjugates.get(i).asPolynomial(),
+//								Collections.singletonList(conjugate.asPolynomial())));
+//					map[i] =	conjugates.indexOf(image);
+//					}
+//					result.add(new FieldAutomorphism<>(this, map));
+//				}
+//				galoisGroup = new GaloisGroup<>(this, result);
+//			}
+		}
+		return galoisGroup;
 	}
 
 	@Override

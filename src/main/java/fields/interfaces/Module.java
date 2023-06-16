@@ -3,6 +3,8 @@ package fields.interfaces;
 import java.math.BigInteger;
 import java.util.List;
 
+import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 
 public interface Module<T extends Element<T>, S extends Element<S>> extends MathSet<S> {
@@ -27,6 +29,14 @@ public interface Module<T extends Element<T>, S extends Element<S>> extends Math
 	public boolean isLinearIndependent(List<S> s);
 	public boolean isGeneratingModule(List<S> s);
 	public List<Vector<T>> nonTrivialCombinations(List<S> s);
+	public boolean isSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
+	public Vector<T> asSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
+	public List<Vector<T>> syzygyProblemModule(MatrixModule<T> module, Matrix<T> m);
+	public List<Vector<T>> simplifySubModuleGeneratorsModule(MatrixModule<T> module, Matrix<T> m);
+	public boolean isSubModuleMemberModule(List<S> m, S b);
+	public S asSubModuleMemberModule(List<S> m, S b);
+	public List<Vector<T>> syzygyProblemModule(List<S> m);
+	public List<S> simplifySubModuleGeneratorsModule(List<S> m);
 	public List<S> getModuleGenerators();
 	public List<Vector<T>> getSyzygies();
 	public Vector<T> asVector(S s);

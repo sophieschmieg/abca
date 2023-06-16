@@ -3,6 +3,7 @@ package fields.interfaces;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import fields.polynomials.DifferentialForms;
 import fields.polynomials.DifferentialForms.DifferentialForm;
@@ -132,6 +133,8 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public DifferentialForms<T> differentialForms();
 	
 	public Polynomial<T> resultant(Polynomial<T> t1, Polynomial<T> t2, int variable);
+	
+	public Set<Polynomial<T>> orbit(Polynomial<T> t);
 	
 	public boolean isHomogeneous(Polynomial<T> t);
 	public Polynomial<T> homogenize(Polynomial<T> t);

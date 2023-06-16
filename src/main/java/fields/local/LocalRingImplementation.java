@@ -2143,7 +2143,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 	@Override
 	public FactorizationResult<Polynomial<T>, T> factorization(UnivariatePolynomial<T> t) {
 		if (isComplete()) {
-			return factorization(t, false, field.getAccuracy());
+			return factorization(t, false, field.getAccuracy() + t.degree());
 		}
 		UnivariatePolynomialRing<T> polynomials = getUnivariatePolynomialRing();
 		T content = polynomials.content(t);

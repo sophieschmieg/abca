@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.interfaces.UnivariatePolynomialRing;
+import fields.numberfields.NumberField;
 import fields.vectors.Vector;
 
 class PellsEquationTest {
@@ -28,6 +30,8 @@ class PellsEquationTest {
 		List<Vector<IntE>> result = MiscAlgorithms.pellsEquation(z.getInteger(5), z.getInteger(-1), false);
 		pell(result.get(0), 5);
 		assertEquals(z.getInteger(2), result.get(0).get(1));
+		result = MiscAlgorithms.pellsEquation(z.getInteger(7), z.getInteger(1), false);
+		pell(result.get(0), 7);
 		result = MiscAlgorithms.pellsEquation(z.getInteger(5), z.getInteger(-4), false);
 		pell(result.get(0), 5);
 		result = MiscAlgorithms.pellsEquation(z.getInteger(5), z.getInteger(-8), true);
@@ -48,4 +52,12 @@ class PellsEquationTest {
 		// assertEquals(-32, result.get());
 	}
 
+	@Test
+	void testNumberField() {
+		Integers z = Integers.z();
+		UnivariatePolynomialRing<IntE> p = z.getUnivariatePolynomialRing();
+		List<Vector<IntE>> result = MiscAlgorithms.pellsEquation(z.getInteger(7), z.getInteger(1), false);
+		NumberField nf = NumberField.getNumberFieldFromIntegerPolynomial(p.subtract(p.getVarPower(2), p.getInteger(7)));
+		System.out.println(nf.classNumber());
+	}
 }

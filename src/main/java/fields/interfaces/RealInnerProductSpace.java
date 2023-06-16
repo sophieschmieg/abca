@@ -75,11 +75,7 @@ public interface RealInnerProductSpace<T extends Element<T>, S extends Element<S
 
 	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice);
 
-//	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
-//			double deltaAsDouble);
-//
-//	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
-//			double deltaAsDouble, int blockSize);
+	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice, boolean isBasis);
 
 	public <R extends Element<R>> R closestLatticePoint(S t, Lattice<R, T, S> lattice);
 

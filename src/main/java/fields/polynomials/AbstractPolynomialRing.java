@@ -49,6 +49,7 @@ import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.ConCatMap;
+import util.MiscAlgorithms;
 import util.PeekableReader;
 import util.SingletonSortedMap;
 import util.Trie;
@@ -340,6 +341,23 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 					.homogenize(homogenousPolynomialRing.getEmbedding(generator), numberOfVariables() + 1));
 		}
 		return homogenousPolynomialRing.getIdeal(homogenousGenerators);
+	}
+	
+	@Override
+	public Set<Polynomial<T>> orbit(Polynomial<T> t) {
+		List<Integer> indeces = new ArrayList<>();
+		for (int i = 0; i < numberOfVariables(); i++) {
+			indeces.add(i);
+		}
+		Set<Polynomial<T>> result = new TreeSet<>();
+		for (List<Integer> permutation : MiscAlgorithms.permutations(indeces) ) {
+			int[] map = new int[numberOfVariables()];
+			for (int i = 0; i < numberOfVariables(); i++) {
+				map[i] = permutation.get(i);
+			}
+			result.add(getEmbedding(t, map));
+		}
+		return result;
 	}
 
 	@SafeVarargs

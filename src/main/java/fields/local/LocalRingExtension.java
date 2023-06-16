@@ -16,6 +16,7 @@ import fields.interfaces.FieldExtension;
 import fields.interfaces.Ideal;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 
 public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E extends AlgebraicExtensionElement<B, E>, FE extends DiscreteValuationFieldExtension<B, S, E,FE, R, RE, RFE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
@@ -204,5 +205,62 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	@Override
 	public FE localizeAndQuotient(Ideal<E> maximalIdeal) {
 		return localField();
+	}
+
+	private Matrix<B> asMatrix(List<E> m) {
+		List<Vector<B>> result = new ArrayList<>();
+		for (E s : m) {
+			result.add(asVector(s));
+		}
+		return Matrix.fromColumns(result);
+	}
+	
+	@Override
+	public boolean isSubModuleMemberModule(List<E> m, E b) {
+		Matrix<B> matrix = asMatrix(m);
+		return isSubModuleMemberModule(matrix.getModule(getRing()), matrix, asVector(b));
+	}
+	
+	@Override
+	public boolean isSubModuleMemberModule(MatrixModule<B> module, Matrix<B> m, Vector<B> b) {
+		return getRing().isSubModuleMember(module, m, b);
+	}
+	
+	@Override
+	public E asSubModuleMemberModule(List<E> m, E b) {
+		Matrix<B> matrix = asMatrix(m);
+		return fromVector(asSubModuleMemberModule(matrix.getModule(getRing()), matrix, asVector(b)));
+	}
+	
+	@Override
+	public Vector<B> asSubModuleMemberModule(MatrixModule<B> module, Matrix<B> m, Vector<B> b) {
+		return getRing().asSubModuleMember(module, m, b);
+	}
+	
+	@Override
+	public List<Vector<B>> syzygyProblemModule(List<E> m) {
+		Matrix<B> matrix = asMatrix(m);
+		return syzygyProblemModule(matrix.getModule(getRing()), matrix);
+	}
+	
+	@Override
+	public List<Vector<B>> syzygyProblemModule(MatrixModule<B> module, Matrix<B> m) {
+		return getRing().syzygyProblem(module, m);
+	}
+	
+	@Override
+	public List<E> simplifySubModuleGeneratorsModule(List<E> m) {
+		Matrix<B> matrix = asMatrix(m);
+		List<Vector<B>> simplified = simplifySubModuleGeneratorsModule(matrix.getModule(getRing()), matrix);
+		List<E> result = new ArrayList<>();
+		for (Vector<B> vector : simplified) {
+			result.add(fromVector(vector));
+		}
+		return result;
+	}
+	
+	@Override
+	public List<Vector<B>> simplifySubModuleGeneratorsModule(MatrixModule<B> module, Matrix<B> m) {
+		return getRing().simplifySubModuleGenerators(module, m);
 	}
 }

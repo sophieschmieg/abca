@@ -512,6 +512,11 @@ public class Kyber implements KemScheme<ByteArray, ByteArray, ByteArray, Kyber> 
 		SecureRandom random = new SecureRandom();
 		byte[] d = new byte[degreeInBytes];
 		random.nextBytes(d);
+		
+		for (int i = 0; i < degreeInBytes; i++) {
+			d[i] = 0;
+		}
+		
 		byte[] rhoAndSigma = g.evaluate(d);
 		byte[] rho = Arrays.copyOf(rhoAndSigma, degreeInBytes);
 		byte[] sigma = Arrays.copyOfRange(rhoAndSigma, degreeInBytes, 2 * degreeInBytes);
@@ -562,6 +567,11 @@ public class Kyber implements KemScheme<ByteArray, ByteArray, ByteArray, Kyber> 
 		byte[] seed = new byte[degreeInBytes];
 		random.nextBytes(seed);
 		seed = h.evaluate(seed);
+		
+		for (int i = 0; i < degreeInBytes; i++) {
+			seed[i] = 0;
+		}
+		
 		System.out.println("Seed: " + new ByteArray(seed));
 		byte[] preKeyAndRandomness = g.evaluate(ByteArray.concatenate(seed, h.evaluate(publicKey.array())).array());
 		byte[] preKey = Arrays.copyOf(preKeyAndRandomness, degreeInBytes);

@@ -7,20 +7,21 @@ import java.util.List;
 import fields.helper.AbstractElement;
 import fields.interfaces.BilinearMap;
 import fields.interfaces.Element;
+import fields.interfaces.InnerProductSpace;
 import fields.interfaces.InnerProductSpace.OrthogonalSimilarResult;
 import fields.interfaces.InnerProductSpace.QRDecompositionResult;
 import fields.interfaces.InnerProductSpace.SingularValueDecompositionResult;
 import fields.interfaces.MathMap;
 import fields.interfaces.Module;
 import fields.interfaces.Ring;
-import fields.numberfields.NumberField.NFE;
+import fields.interfaces.SesquilinearForm;
 
 public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 	private T[][] elements;
 	MatrixModule<T>.SmithNormalFormResult smithNormalFormResult = null;
 	MatrixModule<T>.LDUPResult ldupResult = null;
 	QRDecompositionResult<T> qrResult = null;
-	OrthogonalSimilarResult<T> schurrFormResult = null;
+	OrthogonalSimilarResult<T> schurFormResult = null;
 	SingularValueDecompositionResult<T> svdResult = null;
 	Matrix<T> pseudoInverse;
 
@@ -80,7 +81,20 @@ public class Matrix<T extends Element<T>> extends AbstractElement<Matrix<T>> {
 		}
 		return new Matrix<>(elements);
 	}
-
+	
+	public static <T extends Element<T>, S extends Element<S>> Matrix<T> fromSesquilinearForm(InnerProductSpace<T, S> space,
+			SesquilinearForm<T, S> map) {
+		List<List<T>> elements = new ArrayList<>();
+		for (S s1 : space.getModuleGenerators()) {
+			List<T> row = new ArrayList<>();
+			for (S s2 : space.getModuleGenerators()) {
+				row.add(map.evaluate(s1, s2));
+			}
+			elements.add(row);
+		}
+		return new Matrix<>(elements);
+	}
+	
 	public static <T extends Element<T>, S extends Element<S>> Matrix<S> mapMatrix(MathMap<T, S> map, Matrix<T> t) {
 		List<List<S>> result = new ArrayList<>();
 		for (int i = 0; i < t.rows(); i++) {

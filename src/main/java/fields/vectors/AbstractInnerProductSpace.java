@@ -19,6 +19,7 @@ import fields.interfaces.Field;
 import fields.interfaces.Ideal;
 import fields.interfaces.InnerProductSpace;
 import fields.interfaces.Ring;
+import fields.interfaces.SesquilinearForm;
 import fields.interfaces.ValueField;
 
 public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends Element<S>> extends AbstractModule<T, S>
@@ -172,12 +173,76 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	}
 
 	@Override
+	public SesquilinearForm<T, S> getSesquilinearForm(Matrix<T> t) {
+		if (!isHermitean(t)) {
+			throw new ArithmeticException("Not hermitean");
+		}
+		return new SesquilinearForm<>() {
+			@Override
+			public T evaluate(S t1, S t2) {
+				Vector<T> v2 = asVector(t2);
+				S p = fromVector(matrixAlgebra().multiply(t, v2));
+				return innerProduct(t1, p);
+			}
+		};
+	}
+
+	@Override
+	public SesquilinearFormDiagonalizationResult<T, S> diagonalizeSesquilinearForm(SesquilinearForm<T, S> form) {
+		return diagonalizeSesquilinearForm(form, Matrix.fromSesquilinearForm(this, form));
+	}
+
+	@Override
+	public SesquilinearFormDiagonalizationResult<T, S> diagonalizeSesquilinearForm(Matrix<T> matrix) {
+		return diagonalizeSesquilinearForm(getSesquilinearForm(matrix), matrix);
+	}
+
+	private SesquilinearFormDiagonalizationResult<T, S> diagonalizeSesquilinearForm(SesquilinearForm<T, S> form,
+			Matrix<T> matrix) {
+		ValueField<T> f = getValueField();
+		Reals r = f.getReals();
+		Real eps = r.getPowerOfTwo(-r.precision() + 10);
+		OrthogonalSimilarResult<T> schur = schurForm(matrix);
+		List<Vector<T>> orthonormal = conjugateTranspose(schur.getUnitaryMatrix()).asColumnList();
+		List<S> basisPos = new ArrayList<>();
+		List<S> basisNeg = new ArrayList<>();
+		List<S> basisZero = new ArrayList<>();
+		int positive = 0;
+		int negative = 0;
+		int zero = 0;
+		for (Vector<T> v : orthonormal) {
+			S vector = fromVector(v);
+			T sqr = form.evaluate(vector, vector);
+			Real value = f.value(sqr);
+			if (value.compareTo(eps) < 0) {
+				zero++;
+				basisZero.add(vector);
+				continue;
+			}
+			T multiplier = fromReal(r.inverseSqrt(value));
+			T normalized = f.multiply(sqr, multiplier, multiplier);
+			if (r.value(r.subtract(asComplexNumber(normalized).realPart(), r.one())).compareTo(eps) < 0) {
+				positive++;
+				basisPos.add(scalarMultiply(multiplier, vector));
+			} else {
+				negative++;
+				basisNeg.add(scalarMultiply(multiplier, vector));
+			}
+		}
+		List<S> basis = new ArrayList<>();
+		basis.addAll(basisPos);
+		basis.addAll(basisNeg);
+		basis.addAll(basisZero);
+		return new SesquilinearFormDiagonalizationResult<>(f, basis, positive, negative, zero);
+	}
+
+	@Override
 	public Matrix<T> conjugateTranspose(Matrix<T> t) {
 		List<List<T>> result = new ArrayList<>();
 		for (int j = 0; j < t.columns(); j++) {
 			List<T> row = new ArrayList<>();
 			for (int i = 0; i < t.rows(); i++) {
-				row.add(conjugate(t.entry(i + 1, j + 1)));
+				row.add(conjugateScalar(t.entry(i + 1, j + 1)));
 			}
 			result.add(row);
 		}
@@ -196,13 +261,29 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 		}
 		return true;
 	}
+//
+//	private boolean isHessenberg(Matrix<T> t) {
+//		Reals r = getValueField().getReals();
+//		Real eps = r.power(r.getInteger(2), -r.precision() + 1);
+//		for (int i = 1; i < t.rows(); i++) {
+//			for (int j = 0; j < Math.min(i - 1, t.columns()); j++) {
+//				if (getValueField().value(t.entry(i + 1, j + 1)).compareTo(eps) >= 0) {
+//					return false;
+//				}
+//			}
+//		}
+//		return true;
+//	}
 
-	private boolean isHessenberg(Matrix<T> t) {
+	private boolean isHermitean(Matrix<T> t) {
+		Matrix<T> conjugateTranspose = conjugateTranspose(t);
 		Reals r = getValueField().getReals();
 		Real eps = r.power(r.getInteger(2), -r.precision() + 1);
-		for (int i = 1; i < t.rows(); i++) {
-			for (int j = 0; j < Math.min(i - 1, t.columns()); j++) {
-				if (getValueField().value(t.entry(i + 1, j + 1)).compareTo(eps) >= 0) {
+		for (int i = 0; i < t.rows(); i++) {
+			for (int j = 0; j < t.columns(); j++) {
+				if (getValueField()
+						.value(getValueField().subtract(t.entry(i + 1, j + 1), conjugateTranspose.entry(i + 1, j + 1)))
+						.compareTo(eps) >= 0) {
 					return false;
 				}
 			}
@@ -231,29 +312,46 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 					unitary[i][j] = i == j ? f.one() : f.zero();
 				}
 			}
+			// (c -s* 0)
+			// U* = (s c* 0)
+			// (0 0 1)
+
 			for (int i = 1; i < t.rows(); i++) {
 				T diagonal = upper[i - 1][i - 1];
 				T subDiagonal = upper[i][i - 1];
-				T result = fromReal(r.positiveSqrt(asComplexNumber(f.add(f.multiply(conjugate(diagonal), diagonal),
-						f.multiply(conjugate(subDiagonal), subDiagonal))).realPart()));
+				T result = fromReal(
+						r.positiveSqrt(asComplexNumber(f.add(f.multiply(conjugateScalar(diagonal), diagonal),
+								f.multiply(conjugateScalar(subDiagonal), subDiagonal))).realPart()));
 				if (result.equals(f.zero())) {
 					continue;
 				}
-				T cosine = f.divide(diagonal, result);
-				T sine = f.divide(subDiagonal, result);
+				T cosine = conjugateScalar(f.divide(diagonal, result));
+				T sine = conjugateScalar(f.divide(subDiagonal, result));
+				// ( c s 0)
+				// U = (-s* c* 0)
+				// ( 0 0 1)
+				// U.A = R
+				//
+				// U1.A = R1
+				// U2.R1 = R2
+				// U2.U1.A = R2
+				// A = U1*.U2*.R2
+				// (a b) (c* -s)
+				// (c d) . (s* c)
 				upper[i - 1][i - 1] = result;
 				upper[i][i - 1] = f.zero();
 				for (int j = i; j < t.columns(); j++) {
 					T tmp = upper[i - 1][j];
 					upper[i - 1][j] = f.add(f.multiply(cosine, upper[i - 1][j]), f.multiply(sine, upper[i][j]));
-					upper[i][j] = f.add(f.multiply(f.negative(sine), tmp), f.multiply(cosine, upper[i][j]));
+					upper[i][j] = f.add(f.multiply(conjugateScalar(f.negative(sine)), tmp),
+							f.multiply(conjugateScalar(cosine), upper[i][j]));
 				}
 				for (int j = 0; j < i; j++) {
 					T tmp = unitary[j][i - 1];
-					unitary[j][i - 1] = f.multiply(unitary[j][i - 1], cosine);
+					unitary[j][i - 1] = f.multiply(unitary[j][i - 1], conjugateScalar(cosine));
 					unitary[j][i] = f.multiply(tmp, f.negative(sine));
 				}
-				unitary[i][i - 1] = sine;
+				unitary[i][i - 1] = conjugateScalar(sine);
 				unitary[i][i] = cosine;
 			}
 			t.qrResult = new QRDecompositionResult<>(new Matrix<>(unitary), new Matrix<>(upper));
@@ -261,7 +359,8 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 		return t.qrResult;
 	}
 
-	private S applyHouseholder(S reflectionVector, S input) {
+	// (Id - 2ww*)x = x - 2ww*x = x - 2w(w, x)
+	private S applyHouseholderLeft(S reflectionVector, S input) {
 		T product = innerProduct(reflectionVector, input);
 		return subtract(input, scalarMultiply(2, product, reflectionVector));
 	}
@@ -269,15 +368,21 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	private Matrix<T> multiplyHouseholderLeft(S reflectionVector, Matrix<T> t) {
 		List<Vector<T>> result = new ArrayList<>();
 		for (int i = 0; i < t.columns(); i++) {
-			result.add(asVector(applyHouseholder(reflectionVector, fromVector(t.column(i + 1)))));
+			result.add(asVector(applyHouseholderLeft(reflectionVector, fromVector(t.column(i + 1)))));
 		}
 		return Matrix.fromColumns(result);
+	}
+
+	// x^t(Id - 2ww*) = x^t - 2x^tww* = x - 2(bar(x), w)w^*
+	private S applyHouseholderRight(S reflectionVector, S input) {
+		T product = innerProduct(conjugateVector(input), reflectionVector);
+		return subtract(input, scalarMultiply(2, product, conjugateVector(reflectionVector)));
 	}
 
 	private Matrix<T> multiplyHouseholderRight(Matrix<T> t, S reflectionVector) {
 		List<Vector<T>> result = new ArrayList<>();
 		for (int i = 0; i < t.rows(); i++) {
-			result.add(asVector(applyHouseholder(reflectionVector, fromVector(t.row(i + 1)))));
+			result.add(asVector(applyHouseholderRight(reflectionVector, fromVector(t.row(i + 1)))));
 		}
 		return Matrix.fromRows(result);
 	}
@@ -307,7 +412,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 			}
 			for (int i = j; i < t.rows(); i++) {
 				columnValues.add(t.entry(i + 1, j + 1));
-				sum = f.add(f.multiply(conjugate(t.entry(i + 1, j + 1)), t.entry(i + 1, j + 1)), sum);
+				sum = f.add(f.multiply(conjugateScalar(t.entry(i + 1, j + 1)), t.entry(i + 1, j + 1)), sum);
 			}
 			S column = fromVector(new Vector<>(columnValues));
 			Real norm = r.positiveSqrt(asComplexNumber(sum).realPart());
@@ -327,37 +432,6 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 		original.qrResult = new QRDecompositionResult<>(unitary, forceZero(t));
 		return original.qrResult;
 	}
-
-//	Vector<T> columnVector = t.column(1);
-//	S column = fromVector(columnVector);
-//	Real norm = valueNorm(column);
-//	T pivot = upper[0][0];
-//	ComplexNumber complexPivot = asComplexNumber(pivot);
-//	ComplexNumber pivotValue = c.getEmbedding(c.value(complexPivot));
-//	ComplexNumber normedPivot = pivotValue.equals(c.zero()) ? c.one() : c.divide(complexPivot, pivotValue);
-//	T alpha = f.multiply(-1, fromComplexNumber(normedPivot), fromReal(norm));
-//	S reflectionVector = subtract(column, scalarMultiply(alpha, getUnitVector(1)));
-//	Matrix<T> unitary = algebra.one();if(!reflectionVector.equals(zero())) {
-//			S normed = normedVector(reflectionVector);
-//			Matrix<T> asVector = Matrix.fromColumns(Collections.singletonList(asVector(normed)));
-//			Matrix<T> transpose = conjugateTranspose(asVector);
-//			unitary = algebra.subtract(algebra.one(), algebra.scalarMultiply(2, algebra.multiply(asVector, transpose)));
-//		}
-//		Matrix<T> triangularized = algebra.multiply(conjugateTranspose(unitary), t);
-//		if (isUpperTriangular(triangularized)) {
-//			return new QRDecompositionResult<>(unitary, triangularized);
-//		}
-//		InnerProductSpace<T, S> subSpace = withDimension(dimension() - 1);
-//		QRDecompositionResult<T> decomposition = subSpace
-//				.qrDecomposition(triangularized.subMatrix(2, t.rows(), 2, t.columns()));
-//		List<Matrix<T>> decomposedUnitary = new ArrayList<>();
-//		decomposedUnitary.add(new Matrix<>(Collections.singletonList(Collections.singletonList(f.one()))));
-//		decomposedUnitary.add(decomposition.getUnitaryMatrix());
-//		Matrix<T> lowerUnitary = Matrix.fromBlockDiagonalMatrix(decomposedUnitary, f.zero());
-//		Matrix<T> resultUnitary = algebra.multiply(unitary, lowerUnitary);
-//		Matrix<T> triangular = forceZero(algebra.multiply(conjugateTranspose(resultUnitary), t));
-//		return new QRDecompositionResult<>(resultUnitary, triangular);
-//	}
 
 	@Override
 	public OrthogonalSimilarResult<T> hessenbergForm(Matrix<T> t) {
@@ -380,16 +454,17 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 			}
 			for (int i = j + 1; i < t.rows(); i++) {
 				columnValues.add(t.entry(i + 1, j + 1));
-				sum = f.add(f.multiply(conjugate(t.entry(i + 1, j + 1)), t.entry(i + 1, j + 1)), sum);
+				sum = f.add(f.multiply(conjugateScalar(t.entry(i + 1, j + 1)), t.entry(i + 1, j + 1)), sum);
 			}
 			S column = fromVector(new Vector<>(columnValues));
-			Real norm = r.positiveSqrt(asComplexNumber(sum).realPart());
+			Real norm = r.positiveSqrt(c.asReal(asComplexNumber(sum)));
 			T pivot = t.entry(j + 2, j + 1);
 			ComplexNumber complexPivot = asComplexNumber(pivot);
 			ComplexNumber pivotValue = c.getEmbedding(c.value(complexPivot));
-			ComplexNumber normedPivot = pivotValue.equals(c.zero()) ? c.one() : c.divide(complexPivot, pivotValue);
-			T alpha = f.multiply(-1, fromComplexNumber(normedPivot), fromReal(norm));
-			S reflectionVector = subtract(column, scalarMultiply(alpha, getUnitVector(j + 2)));
+			ComplexNumber normedPivot = pivotValue.equals(c.zero()) ? c.getInteger(-1)
+					: c.divide(c.conjugate(complexPivot), pivotValue);
+			S reflectionVector = add(scalarMultiply(fromComplexNumber(normedPivot), column),
+					scalarMultiply(fromReal(norm), getUnitVector(j + 2)));
 			if (reflectionVector.equals(zero())) {
 				continue;
 			}
@@ -397,6 +472,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 			t = multiplyHouseholderLeft(reflectionVector, multiplyHouseholderRight(t, reflectionVector));
 			unitary = multiplyHouseholderRight(unitary, reflectionVector);
 		}
+		// w - 2ww*w = w - 2w = -w
 //		Matrix<T> hessenberg = algebra.multiply(conjugateTranspose(unitary), t, unitary);
 //		if (isHessenberg(hessenberg)) {
 //			return new OrthogonalSimilarResult<>(unitary, hessenberg);
@@ -432,7 +508,13 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 				if (f.value(entry).compareTo(eps) < 0) {
 					row.add(getValueField().zero());
 				} else {
-					row.add(entry);
+					ComplexNumber asComplex = asComplexNumber(entry);
+					if (r.value(asComplex.complexPart()).compareTo(eps) < 0) {
+						row.add(fromReal(asComplex.realPart()));
+					} else {
+						row.add(entry);
+					}
+
 				}
 			}
 			result.add(row);
@@ -441,8 +523,8 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	}
 
 	@Override
-	public OrthogonalSimilarResult<T> schurrForm(Matrix<T> t) {
-		if (t.schurrFormResult == null) {
+	public OrthogonalSimilarResult<T> schurForm(Matrix<T> t) {
+		if (t.schurFormResult == null) {
 			MatrixAlgebra<T> algebra = matrixAlgebra();
 			if (t.rows() == 1 && dimension() == 1) {
 				return new OrthogonalSimilarResult<>(algebra.one(), t);
@@ -462,6 +544,8 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 				if (counter > 1000) {
 					throw new ArithmeticException("Schurr Form not converging!");
 				}
+				// System.out.println(algebra.multiply(algebra.multiply(unitary,
+				// it),conjugateTranspose( unitary)));
 //				ComplexNumber norm = asComplexNumber(
 //						f.subtract(f.multiply(it.entry(limit - 1, limit - 1), it.entry(limit, limit)),
 //								f.multiply(it.entry(limit - 1, limit), it.entry(limit, limit - 1))));
@@ -484,6 +568,9 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 				T shift = option1Value.compareTo(option2Value) > 0 ? option2 : option1;
 				Matrix<T> shiftDiagonal = algebra.scalarMultiply(shift, algebra.one());
 				QRDecompositionResult<T> qr = qrDecomposition(algebra.subtract(it, shiftDiagonal), true);
+//				System.out.println(algebra.subtract(it, shiftDiagonal));
+//				System.out.println(algebra.multiply(qr.getUnitaryMatrix(), qr.getUpperTriangularMatrix()));
+//				System.out.println(algebra.multiply(conjugateTranspose(qr.getUnitaryMatrix()), qr.getUnitaryMatrix()));
 				// q r = it
 				// q r = u^* t u
 				// it' = r q
@@ -498,9 +585,9 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 					break;
 				}
 			}
-			t.schurrFormResult = new OrthogonalSimilarResult<>(conjugateTranspose(unitary), it);
+			t.schurFormResult = new OrthogonalSimilarResult<>(conjugateTranspose(unitary), it);
 		}
-		return t.schurrFormResult;
+		return t.schurFormResult;
 	}
 
 	private class SVDHelper implements Comparable<SVDHelper> {
@@ -528,7 +615,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 			InnerProductSpace<T, S> rowSpace = withDimension(t.rows());
 			MatrixModule<T> module = t.getModule(getValueField());
 			OrthogonalSimilarResult<T> domainSchurr = columnSpace
-					.schurrForm(module.domainAlgebra().multiply(conjugateTranspose(t), t));
+					.schurForm(module.domainAlgebra().multiply(conjugateTranspose(t), t));
 			List<List<T>> singularValues = new ArrayList<>();
 			List<T> pseudoInverseDiagonal = new ArrayList<>();
 			Real eps = r.power(r.getInteger(2), -r.precision() / 2);
@@ -625,7 +712,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	}
 
 	@Override
-	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+	public boolean isSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
 		ValueField<T> f = getValueField();
 		int precisionDiscount = 0;
 		for (int i = 0; i < m.rows(); i++) {
@@ -654,13 +741,13 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	}
 
 	@Override
-	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+	public Vector<T> asSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
 		Matrix<T> pseudoInverse = pseudoInverse(m);
 		return pseudoInverse.getModule(getField()).multiply(pseudoInverse, b);
 	}
 
 	@Override
-	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m) {
+	public List<Vector<T>> syzygyProblemModule(MatrixModule<T> module, Matrix<T> m) {
 		SingularValueDecompositionResult<T> svd = singularValueDecomposition(m);
 		Matrix<T> inverted = conjugateTranspose(svd.getRightUnitaryMatrix());
 		List<Vector<T>> result = new ArrayList<>();
@@ -671,7 +758,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	}
 
 	@Override
-	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m) {
+	public List<Vector<T>> simplifySubModuleGeneratorsModule(MatrixModule<T> module, Matrix<T> m) {
 		SingularValueDecompositionResult<T> svd = singularValueDecomposition(m);
 		List<Vector<T>> result = new ArrayList<>();
 		Matrix<T> left = conjugateTranspose(svd.getLeftUnitaryMatrix());

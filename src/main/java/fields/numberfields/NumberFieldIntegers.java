@@ -24,7 +24,9 @@ import fields.floatingpoint.FiniteRealVectorSpace;
 import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractAlgebra;
+import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
+import fields.helper.AbstractLattice;
 import fields.helper.FieldEmbedding;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
@@ -55,7 +57,6 @@ import fields.vectors.GenericPIDModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Polytope;
-import fields.vectors.RealLattice;
 import fields.vectors.RealNumberFieldIntegerLattice;
 import fields.vectors.Vector;
 import util.FunctionMathMap;
@@ -75,7 +76,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 	private Matrix<Fraction> fromIntegralBasis;
 	private Set<NFE> units;
 	private SortedMap<IntE, NFE> primitiveRootsOfUnity;
-	private RealLattice unitLattice;
+	private UnitLattice unitLattice;
 	private List<NFE> unitIdealMultipliers;
 	private Map<IntE, List<NumberFieldIdeal>> idealsOverPrime;
 	private Map<FactorizationResult<Ideal<NFE>, Ideal<NFE>>, NumberFieldIdeal> idealsByFactorization;
@@ -234,18 +235,37 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 
 	@Override
 	public NFE projectToUnit(NFE t) {
-		NumberFieldIdeal ideal = getIdeal(Collections.singletonList(t));
-		NFE maxGenerator = ideal.principalGenerator();
+		Vector<Real> logs = field.logRepresentation(t);
+		NFE unit = field.logRepresentationSpace().closestLatticePoint(logs, getUnitLattice()).representative;
+		NFE normalized = divideChecked(t, unit);
 		int max = primitiveRootsOfUnity().lastKey().intValueExact();
 		NFE primitiveRootOfUnity = primitiveRootsOfUnity().get(Integers.z().getInteger(max));
-		NFE generator = maxGenerator;
-		for (int i = 0; i < max - 1; i++) {
-			generator = multiply(primitiveRootOfUnity, generator);
-			if (generator.compareTo(maxGenerator) > 0) {
-				maxGenerator = generator;
+		if (field.complexEmbeddings().size() > 0) {
+			EmbeddedNumberField<ComplexNumber, Complex> embedding = field.complexEmbeddings().get(0);
+			Reals r = embedding.getReals();
+			ComplexNumber embedded = embedding.embedding(normalized);
+			int power = r.divide(r.multiply(max, embedding.embeddingField().arg(embedded)), r.multiply(2, r.pi()))
+					.roundDown().intValueExact();
+			unit = multiply(unit, power(primitiveRootOfUnity, power));
+		} else {
+			EmbeddedNumberField<Real, Reals> embedding = field.realEmbeddings().get(0);
+			if (embedding.embedding(normalized).compareTo(embedding.embeddingField().zero()) < 0) {
+				unit = multiply(-1, unit);
 			}
 		}
-		return divideChecked(t, maxGenerator);
+		return unit;
+		// NumberFieldIdeal ideal = getIdeal(Collections.singletonList(t));
+//		NFE maxGenerator = ideal.principalGenerator();
+//		int max = primitiveRootsOfUnity().lastKey().intValueExact();
+//		NFE primitiveRootOfUnity = primitiveRootsOfUnity().get(Integers.z().getInteger(max));
+//		NFE generator = maxGenerator;
+//		for (int i = 0; i < max - 1; i++) {
+//			generator = multiply(primitiveRootOfUnity, generator);
+//			if (generator.compareTo(maxGenerator) > 0) {
+//				maxGenerator = generator;
+//			}
+//		}
+//		return divideChecked(t, maxGenerator);
 	}
 
 	@Override
@@ -402,8 +422,8 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		NFE rootOfUnity;
 		Vector<IntE> free = new Vector<>();
 		if (numberOfUnitGenerators > 1) {
-			Vector<Real> logs = field.logRepresentation(t);
-			free = unitLattice.asVector(logs);
+			// Vector<Real> logs = field.logRepresentation(t);
+			free = unitLattice.asVector(new UnitNFE(t));
 			List<IntE> freeList = new ArrayList<>();
 			freeList.add(z.one());
 			freeList.addAll(free.asList());
@@ -1706,31 +1726,39 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			List<NFE> unitList = new ArrayList<>();
 			unitList.addAll(units);
 			units.clear();
-			List<Vector<Real>> logarithmList = new ArrayList<>();
-			for (NFE unit : unitList) {
-				logarithmList.add(field.logRepresentation(unit));
-			}
-			unitLattice = new RealLattice(field.logRepresentationSpace(), logarithmList);
+//			List<Vector<Real>> logarithmList = new ArrayList<>();
+//			for (NFE unit : unitList) {
+//				logarithmList.add(field.logRepresentation(unit));
+//			}
+			unitLattice = new UnitLattice(unitList);
 			if (unitLattice.rank() != field.realEmbeddings().size() + field.complexEmbeddings().size() - 1) {
 				throw new ArithmeticException("Unit computation went wrong!");
 			}
-			List<Vector<IntE>> asIntVectors = new ArrayList<>();
-			for (Vector<Real> logVector : logarithmList) {
-				asIntVectors.add(unitLattice.asVector(logVector));
+			for (UnitNFE unit : unitLattice.getModuleGenerators()) {
+				units.add(unit.representative);
 			}
-			Matrix<IntE> asMatrix = Matrix.fromColumns(asIntVectors);
-			MatrixModule<IntE> module = asMatrix.getModule(Integers.z());
-			FreeModule<IntE> free = new FreeModule<>(Integers.z(), unitLattice.rank());
-			for (int i = 0; i < unitLattice.rank(); i++) {
-				Vector<IntE> exponents = module.solve(asMatrix, free.getUnitVector(i + 1));
-				NFE unit = one();
-				for (int j = 0; j < unitList.size(); j++) {
-					unit = multiply(power(unitList.get(j), exponents.get(j + 1)), unit);
-				}
-				units.add(unit);
-			}
+//			List<Vector<IntE>> asIntVectors = new ArrayList<>();
+//			for (NFE logVector : unitList) {
+//				asIntVectors.add(unitLattice.asVector(new UnitNFE(logVector)));
+//			}
+//			Matrix<IntE> asMatrix = Matrix.fromColumns(asIntVectors);
+//			MatrixModule<IntE> module = asMatrix.getModule(Integers.z());
+//			FreeModule<IntE> free = new FreeModule<>(Integers.z(), unitLattice.rank());
+//			for (int i = 0; i < unitLattice.rank(); i++) {
+//				Vector<IntE> exponents = module.solve(asMatrix, free.getUnitVector(i + 1));
+//				NFE unit = one();
+//				for (int j = 0; j < unitList.size(); j++) {
+//					unit = multiply(power(unitList.get(j), exponents.get(j + 1)), unit);
+//				}
+//				units.add(unit);
+//			}
 		}
 		return ideals;
+	}
+
+	public UnitLattice getUnitLattice() {
+		freeUnitGroupGenerators();
+		return unitLattice;
 	}
 
 	private boolean isRootOfUnity(NFE unit) {
@@ -2786,5 +2814,77 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			Real norm = r.getEmbedding(norm());
 			return r.multiply(twoByPiToS, sqrtDiscriminant, norm);
 		}
+	}
+
+	public class UnitNFE extends AbstractElement<UnitNFE> {
+		private NFE representative;
+
+		private UnitNFE(NFE representative) {
+			this.representative = representative;
+		}
+
+		@Override
+		public int compareTo(UnitNFE o) {
+			return numberField().logRepresentation(representative)
+					.compareTo(numberField().logRepresentation(o.representative));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (o instanceof UnitNFE) {
+				return isRootOfUnity(divideChecked(representative, ((UnitNFE) o).representative));
+			}
+			return false;
+		}
+
+		public String toString() {
+			return representative.toString();
+		}
+	}
+
+	private List<UnitNFE> unitNFEList(List<NFE> units) {
+		List<UnitNFE> result = new ArrayList<>();
+		for (NFE t : units) {
+			result.add(new UnitNFE(t));
+		}
+		return result;
+	}
+
+	public class UnitLattice extends AbstractLattice<UnitNFE, Real, Vector<Real>> {
+
+		private UnitLattice(List<NFE> units) {
+			super(NumberFieldIntegers.this.numberField().logRepresentationSpace(), unitNFEList(units), false);
+		}
+
+		@Override
+		public Vector<Real> embedding(UnitNFE t) {
+			return NumberFieldIntegers.this.numberField().logRepresentation(t.representative);
+		}
+
+		@Override
+		public UnitNFE zero() {
+			return new UnitNFE(NumberFieldIntegers.this.one());
+		}
+
+		@Override
+		public UnitNFE add(UnitNFE s1, UnitNFE s2) {
+			return new UnitNFE(NumberFieldIntegers.this.multiply(s1.representative, s2.representative));
+		}
+
+		@Override
+		public UnitNFE negative(UnitNFE s) {
+			return new UnitNFE(NumberFieldIntegers.this.inverse(s.representative));
+		}
+
+		@Override
+		public UnitNFE scalarMultiply(IntE t, UnitNFE s) {
+			return new UnitNFE(NumberFieldIntegers.this.power(s.representative, t));
+		}
+
+		@Override
+		public Exactness exactness() {
+			return Exactness.EXACT;
+		}
+
 	}
 }

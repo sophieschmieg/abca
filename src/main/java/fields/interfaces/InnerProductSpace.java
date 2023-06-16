@@ -1,5 +1,6 @@
 package fields.interfaces;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -7,8 +8,6 @@ import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals.Real;
 import fields.vectors.DualVectorSpace;
 import fields.vectors.Matrix;
-import fields.vectors.MatrixModule;
-import fields.vectors.Vector;
 
 public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> extends NormedVectorSpace<T, S> {
 	public ComplexNumber asComplexNumber(T t);
@@ -17,6 +16,7 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 
 	public T fromReal(Real r);
 
+	// s1*.s2
 	public T innerProduct(S s1, S s2);
 
 	@Override
@@ -28,7 +28,64 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 
 	public List<S> extendToOrthonormalBasis(List<S> s);
 
-	public T conjugate(T s);
+	public T conjugateScalar(T s);
+
+	public S conjugateVector(S t);
+
+	public SesquilinearForm<T, S> getSesquilinearForm(Matrix<T> t);
+
+	public static class SesquilinearFormDiagonalizationResult<T extends Element<T>, S extends Element<S>> {
+		private List<S> basis;
+		private int positive;
+		private int negative;
+		private int zero;
+		private Matrix<T> diagonalMatrix;
+
+		public SesquilinearFormDiagonalizationResult(ValueField<T> field, List<S> basis, int positive, int negative, int zero) {
+			this.basis = basis;
+			if (positive + negative + zero != basis.size()) {
+				throw new ArithmeticException("dimensions mismatch");
+			}
+			List<T> diagonal = new ArrayList<>();
+			for (int i = 0; i < positive; i++) {
+				diagonal.add(field.one());
+			}
+			for (int i = 0; i < negative; i++) {
+				diagonal.add(field.getInteger(-1));
+			}
+			for (int i = 0; i < zero; i++) {
+				diagonal.add(field.zero());
+			}
+			this.diagonalMatrix = Matrix.fromDiagonal(diagonal, field.zero());
+			this.positive = positive;
+			this.negative = negative;
+			this.zero = zero;
+		}
+
+		public List<S> getBasis() {
+			return basis;
+		}
+
+		public Matrix<T> getDiagonalMatrix() {
+			return diagonalMatrix;
+		}
+
+		public int getPositive() {
+			return positive;
+		}
+
+		public int getNegative() {
+			return negative;
+		}
+
+		public int getZero() {
+			return zero;
+		}
+	}
+
+	public SesquilinearFormDiagonalizationResult<T, S> diagonalizeSesquilinearForm(SesquilinearForm<T, S> form);
+
+	public SesquilinearFormDiagonalizationResult<T, S> diagonalizeSesquilinearForm(Matrix<T> matrix);
 
 	public DualVectorSpace<T, S> getDual();
 
@@ -78,7 +135,7 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 
 	}
 
-	public OrthogonalSimilarResult<T> schurrForm(Matrix<T> t);
+	public OrthogonalSimilarResult<T> schurForm(Matrix<T> t);
 
 	public OrthogonalSimilarResult<T> hessenbergForm(Matrix<T> t);
 
@@ -118,12 +175,5 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 	public Matrix<T> pseudoInverse(Matrix<T> t);
 
 	public Optional<Real> conditionNumber(Matrix<T> t);
-	
-	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
 
-	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
-
-	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m);
-
-	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m);
 }
