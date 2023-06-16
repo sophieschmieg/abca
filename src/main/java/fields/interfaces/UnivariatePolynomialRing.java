@@ -102,7 +102,7 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 	UnivariatePolynomial<T> add(Polynomial<T> s1, Polynomial<T> s2);
 
 	UnivariatePolynomial<T> negative(Polynomial<T> s);
-	
+
 	UnivariatePolynomial<T> subtract(Polynomial<T> minuend, Polynomial<T> subtrahend);
 
 	UnivariatePolynomial<T> multiply(Polynomial<T> t1, Polynomial<T> t2);
@@ -158,7 +158,8 @@ public interface UnivariatePolynomialRing<T extends Element<T>> extends Polynomi
 
 	ChineseRemainderPreparation<Polynomial<T>> prepareInterpolation(List<T> interpolationPoints);
 
-	UnivariatePolynomial<T> interpolate(ChineseRemainderPreparation<Polynomial<T>> preparation, List<T> interpolationValues);
+	UnivariatePolynomial<T> interpolate(ChineseRemainderPreparation<Polynomial<T>> preparation,
+			List<T> interpolationValues);
 
 	UnivariatePolynomial<T> interpolate(List<T> interpolationPoints, List<T> interpolationValues);
 

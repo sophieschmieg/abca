@@ -44,8 +44,13 @@ public class SubInnerProductSpace<T extends Element<T>, S extends Element<S>> ex
 	}
 
 	@Override
-	public T conjugate(T s) {
-		return innerProductSpace.conjugate(s);
+	public T conjugateScalar(T s) {
+		return innerProductSpace.conjugateScalar(s);
+	}
+
+	@Override
+	public S conjugateVector(S s) {
+		return innerProductSpace.conjugateVector(s);
 	}
 	
 	@Override

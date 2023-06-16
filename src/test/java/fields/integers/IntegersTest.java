@@ -3,6 +3,7 @@ package fields.integers;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
@@ -12,6 +13,12 @@ import org.junit.jupiter.api.Test;
 
 import fields.integers.Integers.IntE;
 import fields.integers.Integers.SmallestIntegerSolutionPreparation;
+import fields.interfaces.Polynomial;
+import fields.interfaces.PolynomialRing;
+import fields.interfaces.UnivariatePolynomial;
+import fields.interfaces.UnivariatePolynomialRing;
+import fields.polynomials.AbstractPolynomialRing;
+import fields.polynomials.Monomial;
 import fields.vectors.Vector;
 
 class IntegersTest {
@@ -146,5 +153,19 @@ class IntegersTest {
 						+ " + " + solution.get(3) + "*" + c + " + " + solution.get(4) + "*" + d);
 			}
 		}
+	}
+	
+	@Test
+	void testResolvant() throws IOException {
+		Integers z = Integers.z();
+		PolynomialRing<IntE> two = AbstractPolynomialRing.getPolynomialRing(z, 2, Monomial.GREVLEX);
+		Polynomial<IntE> add = two.parse("X + Y");
+		UnivariatePolynomialRing<IntE> polynomials = z.getUnivariatePolynomialRing();
+		UnivariatePolynomial<IntE> p1 = polynomials.parse("X^3 + -2");
+		System.out.println(z.resolvant(p1, add));
+		UnivariatePolynomial<IntE> p2 = polynomials.parse("X^4 + 1");
+		System.out.println(z.resolvant(p2, add));
+		UnivariatePolynomial<IntE> p3 = polynomials.parse("X^4 + X^3 + X^2 + X + 1");
+		System.out.println(z.resolvant(p3, add));
 	}
 }

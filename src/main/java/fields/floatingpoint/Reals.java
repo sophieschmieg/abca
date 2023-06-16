@@ -742,26 +742,26 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	public boolean isSubModuleMember(MatrixModule<Real> module, Matrix<Real> m,
 			Vector<Real> b) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, b.dimension());
-		return space.isSubModuleMember(module, m, b);
+		return space.isSubModuleMemberModule(module, m, b);
 	}
 
 	@Override
 	public Vector<Real> asSubModuleMember(MatrixModule<Real> module, Matrix<Real> m,
 			Vector<Real> b) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, b.dimension());
-		return space.asSubModuleMember(module, m, b);
+		return space.asSubModuleMemberModule(module, m, b);
 	}
 
 	@Override
 	public List<Vector<Real>> syzygyProblem(MatrixModule<Real> module, Matrix<Real> m) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, m.columns());
-		return space.syzygyProblem(module, m);
+		return space.syzygyProblemModule(module, m);
 	}
 
 	@Override
 	public List<Vector<Real>> simplifySubModuleGenerators(MatrixModule<Real> module,
 			Matrix<Real> m) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, m.rows());
-		return space.simplifySubModuleGenerators(module, m);
+		return space.simplifySubModuleGeneratorsModule(module, m);
 	}
 }

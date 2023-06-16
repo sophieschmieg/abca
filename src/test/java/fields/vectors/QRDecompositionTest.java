@@ -60,12 +60,12 @@ class QRDecompositionTest {
 				algebra.multiply(space.conjugateTranspose(qrHessen.getUnitaryMatrix()), qrHessen.getUnitaryMatrix()));
 		printMatrix(hessenberg.getOrthogonallySimilarMatrix());
 		printMatrix(algebra.multiply(qrHessen.getUnitaryMatrix(), qrHessen.getUpperTriangularMatrix()));
-		OrthogonalSimilarResult<Real> hermiteanSchurr = space.schurrForm(hermitean);
+		OrthogonalSimilarResult<Real> hermiteanSchurr = space.schurForm(hermitean);
 		printMatrix(hermiteanSchurr.getOrthogonallySimilarMatrix());
 		QRDecompositionResult<Real> qr = space.qrDecomposition(hermitean);
 		printMatrix(algebra.multiply(space.conjugateTranspose(qr.getUnitaryMatrix()), hermitean));
 		printMatrix(qr.getUpperTriangularMatrix());
-		OrthogonalSimilarResult<Real> schurr = space.schurrForm(t);
+		OrthogonalSimilarResult<Real> schurr = space.schurForm(t);
 		printMatrix(schurr.getUnitaryMatrix());
 		printMatrix(schurr.getOrthogonallySimilarMatrix());
 		printMatrix(algebra.multiply(space.conjugateTranspose(schurr.getUnitaryMatrix()), schurr.getUnitaryMatrix()));
@@ -100,7 +100,7 @@ class QRDecompositionTest {
 		QRDecompositionResult<Real> qr = space.qrDecomposition(hermitean);
 		printMatrix(algebra.multiply(space.conjugateTranspose(qr.getUnitaryMatrix()), hermitean));
 		printMatrix(qr.getUpperTriangularMatrix());
-		OrthogonalSimilarResult<Real> schurr = space.schurrForm(t);
+		OrthogonalSimilarResult<Real> schurr = space.schurForm(t);
 		printMatrix(schurr.getUnitaryMatrix());
 		printMatrix(schurr.getOrthogonallySimilarMatrix());
 		printMatrix(algebra.multiply(space.conjugateTranspose(schurr.getUnitaryMatrix()), schurr.getUnitaryMatrix()));
@@ -230,7 +230,7 @@ class QRDecompositionTest {
 		testVector.add(row2);
 		InnerProductSpace<Real, Vector<Real>> space = new FiniteRealVectorSpace(r, 2);
 		Matrix<Real> t = new Matrix<>(testVector);
-		OrthogonalSimilarResult<Real> schurr = space.schurrForm(t);
+		OrthogonalSimilarResult<Real> schurr = space.schurForm(t);
 		printMatrix(t);
 		printMatrix(schurr.getOrthogonallySimilarMatrix());
 		printMatrix(space.matrixAlgebra().multiply(space.conjugateTranspose(schurr.getUnitaryMatrix()),

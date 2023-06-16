@@ -24,7 +24,9 @@ import fields.interfaces.UnivariatePolynomialRing;
 import fields.interfaces.VectorSpace;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.Monomial;
+import fields.vectors.Matrix;
 import fields.vectors.MatrixAlgebra;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.PeekableReader;
 import varieties.SimpleFunctionField;
@@ -433,4 +435,60 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		return divide(substitute(t.getNumerator(), substitutes), substitute(t.getDenominator(), substitutes));
 	}
 
+	private Matrix<T> asMatrix(List<TExt<T>> m) {
+		List<Vector<T>> result = new ArrayList<>();
+		for (TExt<T> s : m) {
+			result.add(asVector(s));
+		}
+		return Matrix.fromColumns(result);
+	}
+	
+	@Override
+	public boolean isSubModuleMemberModule(List<TExt<T>> m, TExt<T> b) {
+		Matrix<T> matrix = asMatrix(m);
+		return isSubModuleMemberModule(matrix.getModule(getRing()), matrix, asVector(b));
+	}
+	
+	@Override
+	public boolean isSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		return getRing().isSubModuleMember(module, m, b);
+	}
+	
+	@Override
+	public TExt<T> asSubModuleMemberModule(List<TExt<T>> m, TExt<T> b) {
+		Matrix<T> matrix = asMatrix(m);
+		return fromVector(asSubModuleMemberModule(matrix.getModule(getRing()), matrix, asVector(b)));
+	}
+	
+	@Override
+	public Vector<T> asSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		return getRing().asSubModuleMember(module, m, b);
+	}
+	
+	@Override
+	public List<Vector<T>> syzygyProblemModule(List<TExt<T>> m) {
+		Matrix<T> matrix = asMatrix(m);
+		return syzygyProblemModule(matrix.getModule(getRing()), matrix);
+	}
+	
+	@Override
+	public List<Vector<T>> syzygyProblemModule(MatrixModule<T> module, Matrix<T> m) {
+		return getRing().syzygyProblem(module, m);
+	}
+	
+	@Override
+	public List<TExt<T>> simplifySubModuleGeneratorsModule(List<TExt<T>> m) {
+		Matrix<T> matrix = asMatrix(m);
+		List<Vector<T>> simplified = simplifySubModuleGeneratorsModule(matrix.getModule(getRing()), matrix);
+		List<TExt<T>> result = new ArrayList<>();
+		for (Vector<T> vector : simplified) {
+			result.add(fromVector(vector));
+		}
+		return result;
+	}
+	
+	@Override
+	public List<Vector<T>> simplifySubModuleGeneratorsModule(MatrixModule<T> module, Matrix<T> m) {
+		return getRing().simplifySubModuleGenerators(module, m);
+	}
 }

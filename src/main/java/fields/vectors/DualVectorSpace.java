@@ -100,8 +100,13 @@ public class DualVectorSpace<T extends Element<T>, S extends Element<S>>
 	}
 
 	@Override
-	public T conjugate(T s) {
-		return space.conjugate(s);
+	public T conjugateScalar(T s) {
+		return space.conjugateScalar(s);
+	}
+
+	@Override
+	public Dual<T, S> conjugateVector(Dual<T, S> s) {
+		return canonicalIsomorphism(space.conjugateVector(s.dual));
 	}
 
 	@Override

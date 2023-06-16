@@ -16,36 +16,51 @@ import fields.integers.Integers.IntE;
 import fields.integers.Integers.IntegerIdeal;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
+import fields.interfaces.Element;
 import fields.interfaces.Lattice;
 import fields.interfaces.RealInnerProductSpace;
+import fields.interfaces.ValueField;
 
-public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
-		implements Lattice<Vector<IntE>, Real, Vector<Real>> {
+public class RealIntegerLattice<T extends Element<T>, S extends Element<S>> extends AbstractModule<IntE, Vector<IntE>>
+		implements Lattice<Vector<IntE>, T, S> {
 	private FreeModule<IntE> freeModule;
 	private FreeModule<IntE> rankModule;
-	private FiniteRealVectorSpace space;
+	private RealInnerProductSpace<T, S> space;
 	private List<Vector<IntE>> basis;
-	private Matrix<Real> baseChange;
+	private Matrix<T> baseChange;
 	private Matrix<IntE> integerBaseChange;
 	private MatrixModule<IntE> integerMatrixModule;
 	private Matrix<Fraction> rationalBaseChange;
 	private MatrixModule<Fraction> rationalMatrixModule;
 
-	public RealIntegerLattice(Reals r, int dimension, List<Vector<IntE>> basis) {
-		this(new FiniteRealVectorSpace(r, dimension), new FreeModule<>(Integers.z(), dimension), basis);
+	static public RealIntegerLattice<Real, Vector<Real>> getIntegerLattice(Reals r, int dimension,
+			List<Vector<IntE>> basis) {
+		return getIntegerLattice(r, dimension, basis, true);
 	}
 
-	public RealIntegerLattice(FiniteRealVectorSpace space, FreeModule<IntE> freeModule, List<Vector<IntE>> basis) {
+	static public RealIntegerLattice<Real, Vector<Real>> getIntegerLattice(Reals r, int dimension,
+			List<Vector<IntE>> basis, boolean isBasis) {
+		return new RealIntegerLattice<>(new FiniteRealVectorSpace(r, dimension),
+				new FreeModule<>(Integers.z(), dimension), basis, isBasis);
+	}
+
+	public RealIntegerLattice(RealInnerProductSpace<T, S> space, FreeModule<IntE> freeModule,
+			List<Vector<IntE>> basis) {
+		this(space, freeModule, basis, true);
+	}
+
+	public RealIntegerLattice(RealInnerProductSpace<T, S> space, FreeModule<IntE> freeModule, List<Vector<IntE>> basis,
+			boolean isBasis) {
 		this.space = space;
 		this.freeModule = freeModule;
 		this.rankModule = new FreeModule<>(Integers.z(), basis.size());
-		this.basis = space.latticeReduction(basis, this);
+		this.basis = space.latticeReduction(basis, this, isBasis);
 		if (basis.isEmpty()) {
 			return;
 		}
-		List<Vector<Real>> embedded = new ArrayList<>();
+		List<Vector<T>> embedded = new ArrayList<>();
 		for (Vector<IntE> basisVector : this.basis) {
-			embedded.add(embedding(basisVector));
+			embedded.add(space.asVector(embedding(basisVector)));
 		}
 		this.baseChange = Matrix.fromColumns(embedded);
 		this.integerBaseChange = Matrix.fromColumns(this.basis);
@@ -100,7 +115,7 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 	public boolean isFree() {
 		return true;
 	}
-	
+
 	public FreeModule<IntE> getFreeModule() {
 		return freeModule;
 	}
@@ -118,7 +133,7 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 		return true;
 	}
 
-	public boolean contains(RealIntegerLattice other) {
+	public boolean contains(RealIntegerLattice<T, S> other) {
 		for (Vector<IntE> otherBasisElement : other.getBasis()) {
 			if (!contains(otherBasisElement)) {
 				return false;
@@ -131,7 +146,7 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 		return new FreeSubModule<>(freeModule, basis);
 	}
 
-	public RealIntegerLattice intersection(RealIntegerLattice other) {
+	public RealIntegerLattice<T, S> intersection(RealIntegerLattice<T, S> other) {
 		List<Vector<IntE>> generators = new ArrayList<>();
 		generators.addAll(this.basis);
 		generators.addAll(other.basis);
@@ -144,15 +159,14 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 			}
 			intersectionGenerators.add(generator);
 		}
-		return new RealIntegerLattice(space, freeModule, intersectionGenerators);
+		return new RealIntegerLattice<>(space, freeModule, intersectionGenerators);
 	}
 
-	public RealIntegerLattice add(RealIntegerLattice other) {
+	public RealIntegerLattice<T, S> add(RealIntegerLattice<T, S> other) {
 		List<Vector<IntE>> generators = new ArrayList<>();
 		generators.addAll(this.basis);
 		generators.addAll(other.basis);
-		return new RealIntegerLattice(space, freeModule,
-				Integers.z().simplifySubModuleGenerators(generators));
+		return new RealIntegerLattice<>(space, freeModule, Integers.z().simplifySubModuleGenerators(generators));
 	}
 
 	@Override
@@ -269,18 +283,18 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 	}
 
 	@Override
-	public FiniteRealVectorSpace getVectorSpace() {
+	public RealInnerProductSpace<T, S> getVectorSpace() {
 		return space;
 	}
 
 	@Override
-	public Vector<Real> embedding(Vector<IntE> t) {
-		Reals r = space.getValueField();
-		List<Real> result = new ArrayList<>();
+	public S embedding(Vector<IntE> t) {
+		ValueField<T> r = space.getValueField();
+		List<T> result = new ArrayList<>();
 		for (IntE coeff : t.asList()) {
 			result.add(r.getInteger(coeff));
 		}
-		return new Vector<>(result);
+		return space.fromVector(new Vector<>(result));
 	}
 
 	@Override
@@ -289,12 +303,12 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 	}
 
 	@Override
-	public Matrix<Real> generatorsAsMatrix() {
+	public Matrix<T> generatorsAsMatrix() {
 		return baseChange;
 	}
 
 	public Vector<IntE> residue(Vector<IntE> t) {
-		Vector<Real> embedded = embedding(t);
+		S embedded = embedding(t);
 		Vector<IntE> closest = space.closestLatticePoint(embedded, this);
 		return freeModule.subtract(t, closest);
 	}
@@ -302,7 +316,7 @@ public class RealIntegerLattice extends AbstractModule<IntE, Vector<IntE>>
 	public Matrix<IntE> integerBaseChange() {
 		return integerBaseChange;
 	}
-	
+
 	public Matrix<Fraction> rationalBaseChange() {
 		return rationalBaseChange;
 	}

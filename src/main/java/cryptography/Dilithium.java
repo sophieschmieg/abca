@@ -1,5 +1,6 @@
 package cryptography;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
@@ -20,6 +21,8 @@ import fields.helper.NTTRing;
 import fields.helper.NTTRing.NTT;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.interfaces.UnivariatePolynomial;
+import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
@@ -64,10 +67,10 @@ public class Dilithium
 		private byte[] tr;
 		private Vector<NTT<PFE>> s;
 		private Vector<NTT<PFE>> e;
-		private Vector<IntE> t0;
+		private Vector<NTT<PFE>> t0;
 
 		public DilithiumPrivateKey(DilithiumPublicKey publicKey, byte[] k, byte[] tr, Vector<NTT<PFE>> s,
-				Vector<NTT<PFE>> e, Vector<IntE> t0) {
+				Vector<NTT<PFE>> e, Vector<NTT<PFE>> t0) {
 			this.publicKey = publicKey;
 			this.rho = publicKey.getRho();
 			this.k = k;
@@ -101,7 +104,7 @@ public class Dilithium
 			return e;
 		}
 
-		public Vector<IntE> getT0() {
+		public Vector<NTT<PFE>> getT0() {
 			return t0;
 		}
 
@@ -114,25 +117,25 @@ public class Dilithium
 
 	public static class DilithiumSignature extends AbstractElement<DilithiumSignature> {
 		private Vector<NTT<PFE>> z;
-		private Vector<NTT<PFE>> h;
-		private NTT<PFE> c;
+		private List<Boolean> hints;
+		private byte[] cSeed;
 
-		private DilithiumSignature(Vector<NTT<PFE>> z, Vector<NTT<PFE>> h, NTT<PFE> c) {
+		private DilithiumSignature(Vector<NTT<PFE>> z, List<Boolean> hints, byte[] cSeed) {
 			this.z = z;
-			this.h = h;
-			this.c = c;
+			this.hints = hints;
+			this.cSeed = cSeed;
 		}
 
 		public Vector<NTT<PFE>> getZ() {
 			return z;
 		}
 
-		public Vector<NTT<PFE>> getH() {
-			return h;
+		public List<Boolean> getHints() {
+			return hints;
 		}
 
-		public NTT<PFE> getC() {
-			return c;
+		public byte[] getCSeed() {
+			return cSeed;
 		}
 
 		@Override
@@ -141,11 +144,15 @@ public class Dilithium
 			if (cmp != 0) {
 				return cmp;
 			}
-			cmp = h.compareTo(o.h);
-			if (cmp != 0) {
-				return cmp;
+			for (int i = 0; i < hints.size(); i++) {
+				if (hints.get(i) && !o.hints.get(i)) {
+					return 1;
+				}
+				if (!hints.get(i) && hints.get(i)) {
+					return -1;
+				}
 			}
-			return c.compareTo(o.c);
+			return Arrays.compare(cSeed, o.cSeed);
 		}
 
 	}
@@ -156,20 +163,35 @@ public class Dilithium
 	private int degree;
 	private int rows;
 	private int cols;
-	private int eta;
-	private NTTRing<PFE, PrimeField> cylcotomic;
-	private MatrixModule<NTT<PFE>> matrixModule;
 	private int d;
+	private int tau;
+	private int eta;
+	private int gamma1;
+	private int log2Gamma1;
+	private int gamma2;
+	private int omega;
+	private int w1bits;
+	private NTTRing<PFE, PrimeField> cylcotomic;
+	private FreeModule<NTT<PFE>> freeModule;
+	private MatrixModule<NTT<PFE>> matrixModule;
 	private ExtendedOutputFunction xof;
 	private ExtendedOutputFunction hash;
 	private ExtendedOutputFunction crh;
 
-	public Dilithium(int k, int l, int eta, int d) {
-		this((1 << 23) - (1 << 13) + 1, 256, 1753, k, l, eta, d, Sha3.SHAKE_128, Sha3.SHAKE_256, Sha3.SHAKE_256);
+	private final static int PRIME = (1 << 23) - (1 << 13) + 1;
+
+	public final static Dilithium DILITHIUM2 = new Dilithium(4, 4, 2, 13, 39, 17, (PRIME - 1) / 88, 80, 4);
+	public final static Dilithium DILITHIUM3 = new Dilithium(6, 5, 4, 13, 49, 19, (PRIME - 1) / 32, 55, 6);
+	public final static Dilithium DILITHIUM5 = new Dilithium(8, 7, 2, 13, 60, 19, (PRIME - 1) / 32, 75, 6);
+
+	public Dilithium(int k, int l, int eta, int d, int tau, int log2Gamma1, int gamma2, int omega, int w1bits) {
+		this(PRIME, 256, 1753, k, l, eta, d, tau, log2Gamma1, gamma2, omega, w1bits, Sha3.SHAKE_128, Sha3.SHAKE_256,
+				Sha3.SHAKE_256);
 	}
 
-	public Dilithium(int q, int degree, int r, int k, int l, int eta, int d, ExtendedOutputFunction xof,
-			ExtendedOutputFunction hash, ExtendedOutputFunction crh) {
+	public Dilithium(int q, int degree, int r, int k, int l, int eta, int d, int tau, int log2Gamma1, int gamma2,
+			int omega, int w1bits, ExtendedOutputFunction xof, ExtendedOutputFunction hash,
+			ExtendedOutputFunction crh) {
 		Integers z = Integers.z();
 		this.q = z.getInteger(q);
 		this.degree = degree;
@@ -185,58 +207,31 @@ public class Dilithium
 		}
 		this.cylcotomic = new NTTRing<PrimeField.PFE, PrimeField>(field, degree, field.getInteger(r));
 		this.matrixModule = new MatrixModule<>(cylcotomic, rows, cols);
+		this.freeModule = matrixModule.codomain();
 		this.d = d;
+		this.tau = tau;
+		this.log2Gamma1 = log2Gamma1;
+		this.gamma1 = 1 << log2Gamma1;
+		this.gamma2 = gamma2;
+		this.omega = omega;
+		this.w1bits = w1bits;
 		this.xof = xof;
 		this.hash = hash;
 		this.crh = crh;
 	}
 
-	private Vector<IntE> toIntVector(NTT<PFE> ntt) {
-		List<PFE> asList = cylcotomic.asList(ntt);
-		List<IntE> result = new ArrayList<>();
-		for (PFE t : asList) {
-			result.add(field.liftToInteger(t));
-		}
-		return new Vector<>(result);
-	}
-
-	private Vector<IntE> toIntVector(Vector<NTT<PFE>> ntt) {
-		List<IntE> result = new ArrayList<>();
-		for (int i = 0; i < ntt.dimension(); i++) {
-			result.addAll(toIntVector(ntt.get(i + 1)).asList());
-		}
-		return new Vector<IntE>(result);
-	}
-
-	private NTT<PFE> toNTT(Vector<IntE> t) {
-		return toNTT(t.asList());
-	}
-
-	private NTT<PFE> toNTT(List<IntE> t) {
-		List<PFE> asCoeffList = new ArrayList<>();
-		for (IntE c : t) {
-			asCoeffList.add(field.getInteger(c));
-		}
-		return cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(asCoeffList));
-	}
-
-	private Vector<NTT<PFE>> toNTTVector(Vector<IntE> t) {
-		int dim = t.dimension() / degree;
-		List<IntE> asList = t.asList();
-		List<NTT<PFE>> result = new ArrayList<>();
-		for (int i = 0; i < dim; i++) {
-			result.add(toNTT(asList.subList(i * degree, (i + 1) * degree)));
-		}
-		return new Vector<>(result);
-	}
-
-	private Pair<Vector<IntE>, Vector<IntE>> power2Round(Vector<IntE> t, int exp) {
+	private Pair<Vector<IntE>, Vector<NTT<PFE>>> power2Round(Vector<NTT<PFE>> t, int exp) {
 		List<IntE> result1 = new ArrayList<>();
-		List<IntE> result2 = new ArrayList<>();
+		List<NTT<PFE>> result2 = new ArrayList<>();
 		for (int i = 0; i < t.dimension(); i++) {
-			Pair<IntE, IntE> power2Round = power2Round(t.get(i + 1), exp);
-			result1.add(power2Round.getFirst());
-			result2.add(power2Round.getSecond());
+			UnivariatePolynomial<PFE> coeff = cylcotomic.asPolynomial(t.get(i + 1));
+			List<PFE> coeff2 = new ArrayList<>();
+			for (int j = 0; j < degree; j++) {
+				Pair<IntE, IntE> power2Round = power2Round(field.liftToInteger(coeff.univariateCoefficient(j)), exp);
+				result1.add(power2Round.getFirst());
+				coeff2.add(field.reduce(power2Round.getSecond()));
+			}
+			result2.add(cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(coeff2)));
 		}
 		return new Pair<>(new Vector<>(result1), new Vector<>(result2));
 	}
@@ -254,45 +249,189 @@ public class Dilithium
 		return new Pair<>(quotient, r0);
 	}
 
-	private Pair<IntE, IntE> decompose(IntE t, IntE alpha) {
+	private Vector<NTT<PFE>> power2Inflate(Vector<IntE> t, int exp) {
 		Integers z = Integers.z();
-		t = z.remainder(t, q);
-		IntE remainder = z.remainder(t, alpha);
-		if (z.multiply(2, remainder).compareTo(alpha) > 0) {
-			remainder = z.subtract(remainder, alpha);
+		List<NTT<PFE>> result = new ArrayList<>();
+		for (int i = 0; i < t.dimension() / degree; i++) {
+			List<PFE> coeff = new ArrayList<>();
+			for (int j = 0; j < degree; j++) {
+				coeff.add(field.getInteger(z.multiply(t.get((degree * i) + j + 1), z.power(z.getInteger(2), exp))));
+			}
+			result.add(cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(coeff)));
 		}
-		if (z.subtract(t, remainder).equals(z.subtract(q, z.one()))) {
-			return new Pair<>(z.zero(), z.subtract(remainder, z.one()));
-		}
-		IntE quotient = z.divideChecked(z.subtract(t, remainder), alpha);
-		return new Pair<>(quotient, remainder);
+		return new Vector<>(result);
 	}
 
-	private IntE highBits(IntE t, IntE alpha) {
+	private Pair<Integer, Integer> decompose(int t, int alpha) {
+		t %= q.intValueExact();
+		int remainder = t % alpha;
+		if (2 * remainder > alpha) {
+			remainder -= alpha;
+		}
+		if (t - remainder == q.intValueExact() - 1) {
+			return new Pair<>(0, remainder - 1);
+		}
+		return new Pair<>((t - remainder) / alpha, remainder);
+	}
+
+	private Pair<Vector<IntE>, Vector<NTT<PFE>>> decompose(Vector<NTT<PFE>> t, int alpha) {
+		Integers z = Integers.z();
+		List<IntE> result1 = new ArrayList<>();
+		List<NTT<PFE>> result2 = new ArrayList<>();
+		for (int i = 0; i < t.dimension(); i++) {
+			UnivariatePolynomial<PFE> coeff = cylcotomic.asPolynomial(t.get(i + 1));
+			List<PFE> resultCoeff = new ArrayList<>();
+			for (int j = 0; j < degree; j++) {
+				Pair<Integer, Integer> decomposed = decompose(coeff.univariateCoefficient(j).getValue().intValueExact(),
+						alpha);
+				result1.add(z.getInteger(decomposed.getFirst()));
+				resultCoeff.add(field.getInteger(decomposed.getSecond()));
+			}
+			result2.add(cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(resultCoeff)));
+		}
+		return new Pair<>(new Vector<>(result1), new Vector<>(result2));
+	}
+
+	private int highBits(int t, int alpha) {
 		return decompose(t, alpha).getFirst();
 	}
 
-	private IntE lowBits(IntE t, IntE alpha) {
+	private Vector<IntE> highBits(Vector<NTT<PFE>> t, int alpha) {
+		return decompose(t, alpha).getFirst();
+	}
+
+	private Vector<NTT<PFE>> lowBits(Vector<NTT<PFE>> t, int alpha) {
 		return decompose(t, alpha).getSecond();
 	}
 
-	private boolean makeHint(IntE z, IntE r, IntE alpha) {
-		IntE highR = highBits(r, alpha);
-		IntE highV = highBits(Integers.z().add(z, r), alpha);
-		return !highR.equals(highV);
+	private static class IntPacker {
+		private ByteArrayOutputStream result;
+		private int current;
+		private int currentOffset;
+		private int log;
+		private boolean closed;
+
+		public IntPacker(int log) {
+			this.log = log;
+			this.current = 0;
+			this.currentOffset = 0;
+			this.result = new ByteArrayOutputStream();
+			this.closed = false;
+		}
+
+		public void write(int t) {
+			if (closed) {
+				throw new RuntimeException("IntPacker closed!");
+			}
+			int logToWrite = log;
+			while (logToWrite > 0) {
+				int bits = Math.min(logToWrite, 8 - currentOffset);
+				int mod = t % (1 << bits);
+				current |= mod << currentOffset;
+				currentOffset += bits;
+				logToWrite -= bits;
+				if (currentOffset == 8) {
+					result.write(current);
+					currentOffset = 0;
+					current = 0;
+				}
+			}
+		}
+
+		public byte[] close() {
+			if (currentOffset != 0) {
+				throw new RuntimeException("Dangling bits in IntPacker!");
+			}
+			closed = true;
+			try {
+				result.close();
+			} catch (IOException e) {
+				throw new RuntimeException("ByteArrayOutputStream could not close!", e);
+			}
+			return result.toByteArray();
+
+		}
 	}
 
-	private IntE useHint(boolean hint, IntE r, IntE alpha) {
-		Integers z = Integers.z();
-		IntE m = z.divideChecked(z.subtract(q, z.one()), alpha);
-		Pair<IntE, IntE> decomposed = decompose(r, alpha);
-		if (hint && decomposed.getSecond().compareTo(z.zero()) > 0) {
-			return z.remainder(z.add(decomposed.getFirst(), z.one()), m);
+	private byte[] packVector(Vector<IntE> t, int bits) {
+		IntPacker result = new IntPacker(bits);
+		for (int i = 0; i < t.dimension(); i++) {
+			result.write(t.get(i + 1).intValueExact());
 		}
-		if (hint && decomposed.getSecond().compareTo(z.zero()) <= 0) {
-			return z.remainder(z.subtract(decomposed.getFirst(), z.one()), m);
+		return result.close();
+	}
+
+	private int infinityNorm(Vector<NTT<PFE>> t) {
+		int result = 0;
+		for (int i = 0; i < t.dimension(); i++) {
+			UnivariatePolynomial<PFE> coeff = cylcotomic.asPolynomial(t.get(i + 1));
+			for (int j = 0; j < degree; j++) {
+				int value = coeff.univariateCoefficient(j).getValue().intValueExact();
+				if (PRIME - value < value) {
+					value = PRIME - value;
+				}
+				if (value > result) {
+					result = value;
+				}
+			}
+		}
+		return result;
+	}
+
+	private int oneNorm(List<Boolean> t) {
+		int result = 0;
+		for (boolean c : t) {
+			if (c) {
+				result++;
+			}
+		}
+		return result;
+	}
+
+	private boolean makeHint(int z, int r, int alpha) {
+		int highR = highBits(r, alpha);
+		int highV = highBits(z + r, alpha);
+		return highR != highV;
+	}
+
+	private List<Boolean> makeHints(Vector<NTT<PFE>> z, Vector<NTT<PFE>> r, int alpha) {
+		List<Boolean> result = new ArrayList<>();
+		for (int i = 0; i < z.dimension(); i++) {
+			UnivariatePolynomial<PFE> zCoeff = cylcotomic.asPolynomial(z.get(i + 1));
+			UnivariatePolynomial<PFE> rCoeff = cylcotomic.asPolynomial(r.get(i + 1));
+			for (int j = 0; j < degree; j++) {
+				result.add(makeHint(zCoeff.univariateCoefficient(j).getValue().intValueExact(),
+						rCoeff.univariateCoefficient(j).getValue().intValueExact(), alpha));
+			}
+		}
+		return result;
+	}
+
+	private int useHint(boolean hint, int r, int alpha) {
+		int m = (q.intValueExact() - 1) / alpha;
+		Pair<Integer, Integer> decomposed = decompose(r, alpha);
+		if (hint && decomposed.getSecond() > 0) {
+			return (decomposed.getFirst() + 1) % m;
+		}
+		if (hint && decomposed.getSecond() <= 0) {
+			return (decomposed.getFirst() + m - 1) % m;
 		}
 		return decomposed.getFirst();
+	}
+
+	private Vector<IntE> useHints(List<Boolean> hints, Vector<NTT<PFE>> r, int alpha) {
+		Integers z = Integers.z();
+		List<IntE> result = new ArrayList<>();
+		int index = 0;
+		for (int i = 0; i < r.dimension(); i++) {
+			UnivariatePolynomial<PFE> coeff = cylcotomic.asPolynomial(r.get(i + 1));
+			for (int j = 0; j < degree; j++) {
+				result.add(z.getInteger(
+						useHint(hints.get(index), coeff.univariateCoefficient(j).getValue().intValueExact(), alpha)));
+				index++;
+			}
+		}
+		return new Vector<>(result);
 	}
 
 	private Iterator<IntE> reinterpretStream(int log, InputStream stream) {
@@ -410,30 +549,61 @@ public class Dilithium
 		return new Matrix<>(result);
 	}
 
-	private byte[] crhInput(byte[] prefix, Vector<IntE> t1) {
-		Integers z = Integers.z();
-		byte[] input = new byte[MiscAlgorithms.DivRoundUp(8 * prefix.length + t1.dimension() * logQ, 8)];
-		System.arraycopy(prefix, 0, input, 0, prefix.length);
-		int byteIndex = prefix.length;
-		int bitIndex = 0;
-		for (int i = 0; i < t1.dimension(); i++) {
-			IntE number = t1.get(i + 1);
-			int bits = logQ;
-			while (bits > 0) {
-				int write = Math.min(8 - bitIndex, bits);
-				int mod = 1 << write;
-				int littleEndian = z.remainder(number, z.getInteger(mod)).intValueExact();
-				input[byteIndex] = (byte) (littleEndian << bitIndex);
-				bitIndex += write;
-				if (bitIndex == 8) {
-					bitIndex = 0;
-					byteIndex++;
-				}
-				bits -= write;
-				number = z.divideChecked(z.subtract(number, z.getInteger(littleEndian)), z.getInteger(mod));
+	private Vector<NTT<PFE>> expandMask(byte[] seed, int kappa) {
+		List<NTT<PFE>> result = new ArrayList<>();
+		for (int i = 0; i < cols; i++) {
+			byte[] input = Arrays.copyOf(seed, seed.length + 2);
+			input[seed.length] = (byte) ((kappa + i) % 256);
+			input[seed.length + 1] = (byte) ((kappa + i) / 256);
+			Iterator<IntE> mask = reinterpretStream(log2Gamma1, crh.stream(input));
+			List<PFE> coeffs = new ArrayList<>();
+			for (int j = 0; j < degree; j++) {
+				coeffs.add(field.getInteger(mask.next()));
 			}
+			result.add(cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(coeffs)));
 		}
-		return input;
+		return new Vector<>(result);
+	}
+
+	private NTT<PFE> sampleInBall(byte[] seed) {
+		InputStream stream = crh.stream(seed);
+		byte[] signs = new byte[8];
+		try {
+			stream.read(signs);
+		} catch (IOException e) {
+			throw new RuntimeException("Stream ended unexpectedly!", e);
+		}
+		List<PFE> result = new ArrayList<>();
+		for (int i = 0; i < degree; i++) {
+			result.add(field.zero());
+		}
+		for (int i = degree - tau; i < degree; i++) {
+			int bitIndex = i - degree + tau;
+			boolean sign = (signs[bitIndex / 8] & (1 << (bitIndex % 8))) != 0;
+			int j;
+			do {
+				try {
+					j = stream.read();
+				} catch (IOException e) {
+					throw new RuntimeException("Stream ended unexpectedly!", e);
+				}
+				if (j < 0) {
+					throw new RuntimeException("Stream ended unexpectedly!");
+				}
+			} while (j > i);
+			PFE tmp = result.get(j);
+			result.set(j, sign ? field.getInteger(-1) : field.one());
+			result.set(i, tmp);
+		}
+		return cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(result));
+	}
+
+	private byte[] crhInput(byte[] prefix, Vector<IntE> t1) {
+		IntPacker packer = new IntPacker(logQ - d);
+		for (IntE c : t1.asList()) {
+			packer.write(c.intValueExact());
+		}
+		return ByteArray.concatenate(prefix, packer.close()).array();
 	}
 
 	@Override
@@ -448,9 +618,8 @@ public class Dilithium
 		Matrix<NTT<PFE>> matrix = expandMatrix(rho);
 		Vector<NTT<PFE>> s = sampleUniformVector(z.getInteger(eta), cols, sigma, 0);
 		Vector<NTT<PFE>> e = sampleUniformVector(z.getInteger(eta), rows, sigma, cols);
-		Vector<NTT<PFE>> t = matrixModule.codomain().add(matrixModule.multiply(matrix, s), e);
-		Vector<IntE> asIntVector = toIntVector(t);
-		Pair<Vector<IntE>, Vector<IntE>> power2Round = power2Round(asIntVector, d);
+		Vector<NTT<PFE>> t = freeModule.add(matrixModule.multiply(matrix, s), e);
+		Pair<Vector<IntE>, Vector<NTT<PFE>>> power2Round = power2Round(t, d);
 		byte[] tr = crh.evaluate(crhInput(rho, power2Round.getFirst()), 48);
 		return new DilithiumPrivateKey(new DilithiumPublicKey(rho, power2Round.getFirst()), k, tr, s, e,
 				power2Round.getSecond());
@@ -467,19 +636,52 @@ public class Dilithium
 		byte[] input = ByteArray.concatenate(privateKey.getTr(), message).array();
 		byte[] mu = crh.evaluate(input, 48);
 		int kappa = 0;
-		Vector<IntE> z = null;
-		Vector<IntE> hints = null;
+		Vector<NTT<PFE>> z = null;
+		List<Boolean> hints = null;
+		byte[] cSeed = null;
 		byte[] rhoPrime = new byte[48];
 		new SecureRandom().nextBytes(rhoPrime);
 		while (z == null) {
-			
+			Vector<NTT<PFE>> y = expandMask(rhoPrime, kappa);
+			Vector<NTT<PFE>> w = matrixModule.multiply(matrix, y);
+			Vector<IntE> w1 = highBits(w, 2 * gamma2);
+			byte[] w1Packed = packVector(w1, w1bits);
+			cSeed = hash.evaluate(ByteArray.concatenate(mu, w1Packed).array(), 32);
+			NTT<PFE> c = sampleInBall(cSeed);
+			z = matrixModule.domain().add(y, matrixModule.domain().scalarMultiply(c, privateKey.getS()));
+			Vector<NTT<PFE>> wcs2 = freeModule.subtract(w, freeModule.scalarMultiply(c, privateKey.getE()));
+			Vector<NTT<PFE>> r0 = lowBits(wcs2, 2 * gamma2);
+			if (infinityNorm(z) >= gamma1 - tau * eta || infinityNorm(r0) >= gamma2 - tau * eta) {
+				z = null;
+				cSeed = null;
+			} else {
+				Vector<NTT<PFE>> ct0 = freeModule.scalarMultiply(c, privateKey.getT0());
+				hints = makeHints(freeModule.negative(ct0), freeModule.add(wcs2, ct0), 2 * gamma2);
+				if (infinityNorm(ct0) >= gamma2 || oneNorm(hints) > omega) {
+					z = null;
+					hints = null;
+					cSeed = null;
+				}
+			}
+			kappa += cols;
 		}
-		return null;
+		return new DilithiumSignature(z, hints, cSeed);
 	}
 
 	@Override
 	public boolean verify(byte[] message, DilithiumSignature signature, DilithiumPublicKey publicKey) {
-		// TODO Auto-generated method stub
-		return false;
+		Matrix<NTT<PFE>> matrix = expandMatrix(publicKey.getRho());
+		byte[] tr = crh.evaluate(crhInput(publicKey.getRho(), publicKey.getT1()), 48);
+		byte[] input = ByteArray.concatenate(tr, message).array();
+		byte[] mu = crh.evaluate(input, 48);
+		NTT<PFE> c = sampleInBall(signature.getCSeed());
+		Vector<IntE> w1 = useHints(signature.getHints(),
+				freeModule.subtract(matrixModule.multiply(matrix, signature.getZ()),
+						freeModule.scalarMultiply(c, power2Inflate(publicKey.getT1(), d))),
+				2 * gamma2);
+		byte[] w1Packed = packVector(w1, w1bits);
+		byte[] recoveredCSeed = hash.evaluate(ByteArray.concatenate(mu, w1Packed).array(), 32);
+		return infinityNorm(signature.getZ()) < gamma1 - tau * eta && Arrays.equals(recoveredCSeed, signature.cSeed)
+				&& oneNorm(signature.getHints()) <= omega;
 	}
 }

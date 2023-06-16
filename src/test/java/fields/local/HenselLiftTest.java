@@ -20,10 +20,11 @@ class HenselLiftTest {
 		FactorizationResult<Polynomial<PAdicNumber>, PAdicNumber> factorization = z2.factorization(f);
 		System.out.println(factorization);
 		for (Polynomial<PAdicNumber> factor : factorization.primeFactors()) {
-		int root = z2.roundToInteger(z2.negative(r.toUnivariate(factor).univariateCoefficient(0)), 32).intValueExact();
+			int root = z2.roundToInteger(z2.negative(r.toUnivariate(factor).univariateCoefficient(0)), 32)
+					.intValueExact();
 			System.out.println(root);
 			System.out.println(root + "^2 = " + (root * root));
-				}
+		}
 		f = r.getPolynomial(z2.getInteger(2), z2.one(), z2.one());
 		System.out.println(z2.factorization(f));
 		UnivariatePolynomial<PAdicNumber> g1 = r.getPolynomial(z2.getInteger(3), z2.zero(), z2.one());

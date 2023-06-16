@@ -324,6 +324,8 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		List<S> conjugates = new ArrayList<>();
 		conjugates.addAll(
 				roots(getUnivariatePolynomialRing().getEmbedding(minimalPolynomial(s), getEmbeddingMap())).keySet());
+		conjugates.remove(s);
+		conjugates.add(0, s);
 		return conjugates;
 	}
 
@@ -466,6 +468,11 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		conjugates.add(remainingSplittingField.getExtension().getEmbedding(firstConjugate));
 		conjugates.addAll(remainingSplittingField.getConjugates());
 		return new SplittingFieldResult<>(new FieldEmbedding<>(firstEmbedding, remainingSplittingField.getExtension()), conjugates, minimalPolynomial);
+	}
+	
+	@Override
+	public SplittingFieldResult<T, S, Ext> getSplittingField() {
+		return getSplittingField(getUnivariatePolynomialRing().getEmbedding(minimalPolynomial(), getEmbeddingMap()));
 	}
 
 	@Override

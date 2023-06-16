@@ -21,7 +21,10 @@ import fields.finitefields.ModuloIntegerRing;
 import fields.finitefields.ModuloIntegerRing.ModuloIntegerRingElement;
 import fields.finitefields.PrimeField;
 import fields.finitefields.PrimeField.PFE;
+import fields.floatingpoint.Complex;
+import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals;
+import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
 import fields.helper.AbstractIdeal;
 import fields.helper.AbstractRing;
@@ -728,63 +731,66 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	@Override
 	public List<Vector<IntE>> simplifySubModuleGenerators(MatrixModule<IntE> module, Matrix<IntE> m) {
-		Rationals q = Rationals.q();
-		RealIntegerLattice result = null;
-		for (Vector<IntE> vector : m.asColumnList()) {
-			if (result == null) {
-				result = new RealIntegerLattice(Reals.r(128), vector.dimension(), Collections.singletonList(vector));
-				continue;
-			}
-			if (result.contains(vector)) {
-				continue;
-			}
-			Vector<Fraction> embeddedVector = Vector.mapVector(q.getEmbeddingMap(), vector);
-			if (!q.isSubModuleMember(result.rationalBaseChange(), embeddedVector)) {
-				List<Vector<IntE>> basis = new ArrayList<>();
-				basis.addAll(result.getBasis());
-				basis.add(vector);
-				result = new RealIntegerLattice(result.getVectorSpace(), result.getFreeModule(), basis);
-				continue;
-			}
-			// Mx = v
-			// (d*I, d*x) = R.D.C
-			// (2 3)
-			// (2 -3) . (5/4 5/6) = (5 0)
-			// (12 0), (0 12), (15 10)
-			Vector<Fraction> asFraction = q.asSubModuleMember(result.rationalBaseChange(), embeddedVector);
-			IntE denominator = one();
-			for (Fraction coeff : asFraction.asList()) {
-				denominator = lcm(coeff.getDenominator(), denominator);
-			}
-			FreeModule<IntE> rankModule = new FreeModule<>(this, result.rank());
-			FiniteRationalVectorSpace rankVectorSpace = new FiniteRationalVectorSpace(result.rank());
-			List<Vector<IntE>> generators = new ArrayList<>();
-			for (Vector<IntE> basisVector : result.getBasis()) {
-				generators.add(rankModule.scalarMultiply(denominator,
-						asSubModuleMember(result.integerBaseChange(), basisVector)));
-			}
-			generators.add(Vector.mapVector(q.getAsIntegerMap(),
-					rankVectorSpace.scalarMultiply(denominator.getValue(), asFraction)));
-			Matrix<IntE> generatorMatrix = Matrix.fromColumns(generators);
-			List<Vector<IntE>> newDiagonalBasis = super.simplifySubModuleGenerators(generatorMatrix.getModule(this), generatorMatrix);
-			List<Vector<IntE>> newBasis = new ArrayList<>();
-			for (Vector<IntE> newBasisVector : newDiagonalBasis) {
-				Vector<IntE> inOldBasis = result.fromVector(newBasisVector);
-				List<IntE> divided = new ArrayList<>();
-				for (IntE coeff : inOldBasis.asList()) {
-					divided.add(divideChecked(coeff, denominator));
-				}
-				newBasis.add(new Vector<>(divided));
-			}
-			result = new RealIntegerLattice(result.getVectorSpace(), result.getFreeModule(), newBasis);
-		}
-		return result.getBasis();
+		return RealIntegerLattice
+				.getIntegerLattice(Reals.r(128), m.rows(), super.simplifySubModuleGenerators(module, m), true)
+				.getModuleGenerators();
+//		Rationals q = Rationals.q();
+//		RealIntegerLattice result = null;
+//		for (Vector<IntE> vector : m.asColumnList()) {
+//			if (result == null) {
+//				result = new RealIntegerLattice(Reals.r(128), vector.dimension(), Collections.singletonList(vector));
+//				continue;
+//			}
+//			if (result.contains(vector)) {
+//				continue;
+//			}
+//			Vector<Fraction> embeddedVector = Vector.mapVector(q.getEmbeddingMap(), vector);
+//			if (!q.isSubModuleMember(result.rationalBaseChange(), embeddedVector)) {
+//				List<Vector<IntE>> basis = new ArrayList<>();
+//				basis.addAll(result.getBasis());
+//				basis.add(vector);
+//				result = new RealIntegerLattice(result.getVectorSpace(), result.getFreeModule(), basis);
+//				continue;
+//			}
+//			// Mx = v
+//			// (d*I, d*x) = R.D.C
+//			// (2 3)
+//			// (2 -3) . (5/4 5/6) = (5 0)
+//			// (12 0), (0 12), (15 10)
+//			Vector<Fraction> asFraction = q.asSubModuleMember(result.rationalBaseChange(), embeddedVector);
+//			IntE denominator = one();
+//			for (Fraction coeff : asFraction.asList()) {
+//				denominator = lcm(coeff.getDenominator(), denominator);
+//			}
+//			FreeModule<IntE> rankModule = new FreeModule<>(this, result.rank());
+//			FiniteRationalVectorSpace rankVectorSpace = new FiniteRationalVectorSpace(result.rank());
+//			List<Vector<IntE>> generators = new ArrayList<>();
+//			for (Vector<IntE> basisVector : result.getBasis()) {
+//				generators.add(rankModule.scalarMultiply(denominator,
+//						asSubModuleMember(result.integerBaseChange(), basisVector)));
+//			}
+//			generators.add(Vector.mapVector(q.getAsIntegerMap(),
+//					rankVectorSpace.scalarMultiply(denominator.getValue(), asFraction)));
+//			Matrix<IntE> generatorMatrix = Matrix.fromColumns(generators);
+//			List<Vector<IntE>> newDiagonalBasis = super.simplifySubModuleGenerators(generatorMatrix.getModule(this), generatorMatrix);
+//			List<Vector<IntE>> newBasis = new ArrayList<>();
+//			for (Vector<IntE> newBasisVector : newDiagonalBasis) {
+//				Vector<IntE> inOldBasis = result.fromVector(newBasisVector);
+//				List<IntE> divided = new ArrayList<>();
+//				for (IntE coeff : inOldBasis.asList()) {
+//					divided.add(divideChecked(coeff, denominator));
+//				}
+//				newBasis.add(new Vector<>(divided));
+//			}
+//			result = new RealIntegerLattice(result.getVectorSpace(), result.getFreeModule(), newBasis);
+//		}
+//		return result.getBasis();
 	}
 
 	public static class SmallestIntegerSolutionPreparation {
 		private Matrix<IntE> generatorMatrix;
 		private MatrixModule<IntE> matrixModule;
-		private RealIntegerLattice kernelLattice;
+		private RealIntegerLattice<Real, Vector<Real>> kernelLattice;
 		private FreeModule<IntE> solutionSpace;
 		private MathMap<Vector<IntE>, Vector<IntE>> projectionMap;
 
@@ -813,7 +819,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				return;
 			}
 			Reals r = Reals.r(accuracy);
-			this.kernelLattice = new RealIntegerLattice(r, generators.size(), projectedKernelBasis);
+			this.kernelLattice = RealIntegerLattice.getIntegerLattice(r, generators.size(), projectedKernelBasis);
 		}
 
 		private Vector<IntE> smallestKernelVector() {
@@ -1129,12 +1135,13 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			}
 		}
 		limit = limit.add(BigInteger.ONE);
-		limit = limit.shiftLeft(1);
+		limit = limit.shiftLeft(2);
 		for (IntE prime : setOfPrimes()) {
 			if (BigInteger.valueOf(t.degree()).mod(prime.value).equals(BigInteger.ZERO)) {
 				continue;
 			}
-			int requiredAccuracy = (int) (Math.log(limit.doubleValue()) / Math.log(prime.value.doubleValue())) + 2;
+			int requiredAccuracy = (int) (Math.log(limit.doubleValue()) / Math.log(prime.value.doubleValue()))
+					+ t.degree();
 			PAdicField qp = new PAdicField(prime.value, requiredAccuracy);
 			DiscreteValuationRing<PAdicNumber, PFE> zp = qp.ringOfIntegers();
 			UnivariatePolynomialRing<PAdicNumber> zpr = zp.getUnivariatePolynomialRing();
@@ -1286,6 +1293,65 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 			result.cofactor = ring.toUnivariate(qr.getQuotient());
 		}
 		return result;
+	}
+
+	public UnivariatePolynomial<IntE> resolvant(UnivariatePolynomial<IntE> t, Polynomial<IntE> roots) {
+		PolynomialRing<IntE> multivariate = AbstractPolynomialRing.getPolynomialRing(this, t.degree(),
+				Monomial.GREVLEX);
+		return resolvant(t, multivariate.orbit(multivariate.getEmbedding(roots)));
+	}
+
+	public UnivariatePolynomial<IntE> resolvant(UnivariatePolynomial<IntE> t, Set<Polynomial<IntE>> orbit) {
+		Complex c = Complex.c(128);
+		MathMap<IntE, ComplexNumber> embedding = new FunctionMathMap<>((IntE s) -> c.getInteger(s));
+		UnivariatePolynomialRing<IntE> polynomialRing = getUnivariatePolynomialRing();
+		UnivariatePolynomialRing<ComplexNumber> complexPolynomialRing = c.getUnivariatePolynomialRing();
+		PolynomialRing<ComplexNumber> complexMultivariate = AbstractPolynomialRing.getPolynomialRing(c, t.degree(),
+				Monomial.GREVLEX);
+		Map<ComplexNumber, Integer> complexRoots = c.roots(complexPolynomialRing.getEmbedding(t, embedding));
+		List<ComplexNumber> flattened = MiscAlgorithms.flattenMap(complexRoots);
+		UnivariatePolynomial<ComplexNumber> complexResult = complexPolynomialRing.one();
+		for (Polynomial<IntE> orbitPolynomial : orbit) {
+			Polynomial<ComplexNumber> complex = complexMultivariate.getEmbedding(orbitPolynomial, embedding);
+			ComplexNumber eval = complexMultivariate.evaluate(complex, flattened);
+			complexResult = complexPolynomialRing
+					.multiply(complexPolynomialRing.getPolynomial(c.negative(eval), c.one()), complexResult);
+		}
+		List<IntE> result = new ArrayList<>();
+		for (int i = 0; i <= complexResult.degree(); i++) {
+			result.add(complexResult.univariateCoefficient(i).realPart().round());
+		}
+		return polynomialRing.getPolynomial(result);
+	}
+
+	public UnivariatePolynomial<IntE> tschirnhausenResolvant(UnivariatePolynomial<IntE> t, Polynomial<IntE> roots) {
+		PolynomialRing<IntE> multivariate = AbstractPolynomialRing.getPolynomialRing(this, t.degree(),
+				Monomial.GREVLEX);
+		return tschirnhausenResolvant(t, multivariate.orbit(multivariate.getEmbedding(roots)));
+	}
+
+	public UnivariatePolynomial<IntE> tschirnhausenResolvant(UnivariatePolynomial<IntE> t,
+			Set<Polynomial<IntE>> orbit) {
+
+		UnivariatePolynomialRing<IntE> polynomialRing = getUnivariatePolynomialRing();
+		UnivariatePolynomial<IntE> resolvant = resolvant(t, orbit);
+		if (polynomialRing.isSquareFree(resolvant)) {
+			return resolvant;
+		}
+		for (UnivariatePolynomial<IntE> other : polynomialRing.polynomialSet(t.degree() - 1)) {
+			if (other.degree() < 2) {
+				continue;
+			}
+			PolynomialRing<IntE> two = AbstractPolynomialRing.getPolynomialRing(this, 2, Monomial.GREVLEX);
+			Polynomial<IntE> t1 = two.getEmbedding(t);
+			Polynomial<IntE> t2 = two.subtract(two.getVar(2), two.getEmbedding(other));
+			UnivariatePolynomial<IntE> result = polynomialRing.toUnivariate(two.resultant(t1, t2, 1));
+			resolvant = resolvant(result, orbit);
+			if (polynomialRing.isSquareFree(resolvant)) {
+				return resolvant;
+			}
+		}
+		throw new ArithmeticException("Reached end of infinite loop!");
 	}
 
 	@Override

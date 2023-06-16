@@ -67,7 +67,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		public Real complexPart() {
 			return complexPart;
 		}
-
+		
 		public String toString() {
 			return realPart.toString() + " + " + complexPart.toString() + "i";
 		}
@@ -411,27 +411,27 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	public boolean isSubModuleMember(MatrixModule<ComplexNumber> module, Matrix<ComplexNumber> m,
 			Vector<ComplexNumber> b) {
 		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, b.dimension());
-		return space.isSubModuleMember(module, m, b);
+		return space.isSubModuleMemberModule(module, m, b);
 	}
 
 	@Override
 	public Vector<ComplexNumber> asSubModuleMember(MatrixModule<ComplexNumber> module, Matrix<ComplexNumber> m,
 			Vector<ComplexNumber> b) {
 		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, b.dimension());
-		return space.asSubModuleMember(module, m, b);
+		return space.asSubModuleMemberModule(module, m, b);
 	}
 
 	@Override
 	public List<Vector<ComplexNumber>> syzygyProblem(MatrixModule<ComplexNumber> module, Matrix<ComplexNumber> m) {
 		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, m.rows());
-		return space.syzygyProblem(module, m);
+		return space.syzygyProblemModule(module, m);
 	}
 
 	@Override
 	public List<Vector<ComplexNumber>> simplifySubModuleGenerators(MatrixModule<ComplexNumber> module,
 			Matrix<ComplexNumber> m) {
 		FiniteComplexVectorSpace space = new FiniteComplexVectorSpace(this, m.columns());
-		return space.simplifySubModuleGenerators(module, m);
+		return space.simplifySubModuleGeneratorsModule(module, m);
 	}
 
 	@Override

@@ -150,6 +150,8 @@ public interface FieldExtension<T extends Element<T>, S extends AlgebraicExtensi
 	}
 
 	SplittingFieldResult<T, S, Ext> getSplittingField(UnivariatePolynomial<S> minimalPolynomial);
-
+	
+	SplittingFieldResult<T, S, Ext> getSplittingField();
+	
 	Ext makeExtension(UnivariatePolynomial<T> minimalPolynomial);
 }
