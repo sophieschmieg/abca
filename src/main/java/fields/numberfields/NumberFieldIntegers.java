@@ -45,7 +45,10 @@ import fields.interfaces.Lattice;
 import fields.interfaces.MathMap;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.interfaces.UnivariatePolynomialRing.ExtendedResultantResult;
 import fields.local.LocalRingExtension;
+import fields.local.PAdicField;
+import fields.local.PAdicField.PAdicNumber;
 import fields.local.Value;
 import fields.numberfields.ModuloNumberFieldIdeal.ModNFE;
 import fields.numberfields.NumberField.NFE;
@@ -62,6 +65,7 @@ import fields.vectors.Vector;
 import util.FunctionMathMap;
 import util.Identity;
 import util.MiscAlgorithms;
+import util.Pair;
 import util.SingletonSortedMap;
 
 public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements Algebra<IntE, NFE>,
@@ -885,12 +889,12 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		Set<Ideal<NFE>> primeFactors = new TreeSet<>();
 		primeFactors.addAll(ideal1.idealFactorization.primeFactors());
 		primeFactors.addAll(ideal2.idealFactorization.primeFactors());
-		Map<NumberFieldIdeal, Integer> result = new TreeMap<>();
+		Map<Ideal<NFE>, Integer> result = new TreeMap<>();
 		for (Ideal<NFE> ideal : primeFactors) {
-			result.put((NumberFieldIdeal) ideal,
+			result.put( ideal,
 					ideal1.idealFactorization.multiplicity(ideal) + ideal2.idealFactorization.multiplicity(ideal));
 		}
-		return fromFactorization(result);
+		return getIdealFromFactorization(result);
 	}
 
 	@Override
@@ -903,12 +907,12 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		Set<Ideal<NFE>> primeFactors = new TreeSet<>();
 		primeFactors.addAll(ideal1.idealFactorization.primeFactors());
 		primeFactors.addAll(ideal2.idealFactorization.primeFactors());
-		Map<NumberFieldIdeal, Integer> result = new TreeMap<>();
+		Map<Ideal<NFE>, Integer> result = new TreeMap<>();
 		for (Ideal<NFE> ideal : primeFactors) {
-			result.put((NumberFieldIdeal) ideal, Math.max(ideal1.idealFactorization.multiplicity(ideal),
+			result.put( ideal, Math.max(ideal1.idealFactorization.multiplicity(ideal),
 					ideal2.idealFactorization.multiplicity(ideal)));
 		}
-		return fromFactorization(result);
+		return getIdealFromFactorization(result);
 	}
 
 	@Override
@@ -917,26 +921,27 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		if (ideal.zeroIdeal) {
 			return getZeroIdeal();
 		}
-		Map<NumberFieldIdeal, Integer> result = new TreeMap<>();
+		Map<Ideal<NFE>, Integer> result = new TreeMap<>();
 		for (Ideal<NFE> idealFactor : ideal.idealFactorization.primeFactors()) {
-			result.put((NumberFieldIdeal) idealFactor, 1);
+			result.put( idealFactor, 1);
 		}
-		return fromFactorization(result);
+		return getIdealFromFactorization(result);
 	}
 
 	@Override
 	public NumberFieldIdeal power(Ideal<NFE> t, int power) {
-		Map<NumberFieldIdeal, Integer> factors = new TreeMap<>();
+		Map<Ideal<NFE>, Integer> factors = new TreeMap<>();
 		FactorizationResult<Ideal<NFE>, Ideal<NFE>> originalFactors = idealFactorization(t);
 		for (Ideal<NFE> prime : originalFactors.primeFactors()) {
-			factors.put((NumberFieldIdeal) prime, power * originalFactors.multiplicity(prime));
+			factors.put(prime, power * originalFactors.multiplicity(prime));
 		}
-		return fromFactorization(factors);
+		return getIdealFromFactorization(factors);
 	}
 
-	NumberFieldIdeal fromFactorization(Map<NumberFieldIdeal, Integer> factors) {
-		Map<NumberFieldIdeal, Integer> newFactors = new TreeMap<>();
-		for (NumberFieldIdeal ideal : factors.keySet()) {
+	@Override
+	public NumberFieldIdeal getIdealFromFactorization(Map<Ideal<NFE>, Integer> factors) {
+		Map<Ideal<NFE>, Integer> newFactors = new TreeMap<>();
+		for (Ideal<NFE> ideal : factors.keySet()) {
 			int multiplicity = factors.get(ideal);
 			if (multiplicity != 0) {
 				newFactors.put(ideal, multiplicity);
@@ -947,7 +952,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			return getUnitIdeal();
 		}
 		if (factors.size() == 1 && factors.get(factors.keySet().iterator().next()) == 1) {
-			return factors.keySet().iterator().next();
+			return (NumberFieldIdeal)factors.keySet().iterator().next();
 		}
 		SortedMap<Ideal<NFE>, Integer> cast = new TreeMap<>();
 		Map<IntE, SortedMap<Ideal<NFE>, Integer>> perPrimeFactorization = new TreeMap<>();
@@ -1426,27 +1431,59 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			Map<IntE, List<UnivariatePolynomial<Fraction>>> integralBasisPerPrime = new TreeMap<>();
 			Map<IntE, List<Integer>> valuesPerPrime = new TreeMap<>();
 			BigInteger allPrimes = BigInteger.ONE;
-			UnivariatePolynomial<Fraction> zpMinimalPolynomial = q.getUnivariatePolynomialRing()
-					.getEmbedding(minimalPolynomial(), new MathMap<>() {
-						@Override
-						public Fraction evaluate(IntE t) {
-							return q.getInteger(t);
-						}
-					});
+			IntE max = z.getInteger(0);
+			for (int i = 0; i <= minimalPolynomial().degree(); i++) {
+				if (z.archimedeanValue(minimalPolynomial().univariateCoefficient(i)).compareTo(max) > 0) {
+					max = z.archimedeanValue(minimalPolynomial().univariateCoefficient(i));
+				}
+			}
+//			UnivariatePolynomial<Fraction> zpMinimalPolynomial = q.getUnivariatePolynomialRing()
+//					.getEmbedding(minimalPolynomial(), new MathMap<>() {
+//						@Override
+//						public Fraction evaluate(IntE t) {
+//							return q.getInteger(t);
+//						}
+//					});
 			for (IntE prime : primes) {
 				allPrimes = allPrimes.multiply(prime.getValue());
 				PrimeField fp = PrimeField.getPrimeField(prime.getValue());
-				DiscreteValuationRing<Fraction, PFE> zp = z.localize(prime.getValue());
-				TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = zp.theMontesAlgorithm(
+				PAdicField qp = new PAdicField(prime.getValue(),
+						4 * (int) Math.ceil(Math.log(minimalPolynomial().degree() * max.getValue().doubleValue())
+								/ Math.log(prime.getValue().doubleValue())));
+				DiscreteValuationRing<PAdicNumber, PFE> zp = qp.ringOfIntegers();
+				UnivariatePolynomial<PAdicNumber> zpMinimalPolynomial = zp.getUnivariatePolynomialRing()
+						.getEmbedding(minimalPolynomial(), new MathMap<>() {
+							@Override
+							public PAdicNumber evaluate(IntE t) {
+								return zp.getInteger(t);
+							}
+						});
+				TheMontesResult<PAdicNumber, PFE, PFE, FFE, FiniteField> theMontes = zp.theMontesAlgorithm(
 						zpMinimalPolynomial, fp.getExtension(fp.getUnivariatePolynomialRing().getVar()));
-				List<UnivariatePolynomial<Fraction>> integral = zp.triagonalizeIntegralBasis(zpMinimalPolynomial,
+				List<UnivariatePolynomial<PAdicNumber>> integral = zp.triagonalizeIntegralBasis(zpMinimalPolynomial,
 						zp.integralBasis(zpMinimalPolynomial, theMontes, false));
 				List<Integer> valueList = new ArrayList<>();
+				List<UnivariatePolynomial<Fraction>> integralFractions = new ArrayList<>();
 				for (int i = 0; i < minimalPolynomial().degree(); i++) {
 					valueList.add(-zp.localField().valuation(integral.get(i).leadingCoefficient()).value());
+					integralFractions
+							.add(q.getUnivariatePolynomialRing().getEmbedding(integral.get(i), qp.toRationalMap()));
 				}
-				integralBasisPerPrime.put(prime, integral);
+				integralBasisPerPrime.put(prime, integralFractions);
 				valuesPerPrime.put(prime, valueList);
+//				allPrimes = allPrimes.multiply(prime.getValue());
+//				PrimeField fp = PrimeField.getPrimeField(prime.getValue());
+//				DiscreteValuationRing<Fraction, PFE> zp = z.localize(prime.getValue());
+//				TheMontesResult<Fraction, PFE, PFE, FFE, FiniteField> theMontes = zp.theMontesAlgorithm(
+//						zpMinimalPolynomial, fp.getExtension(fp.getUnivariatePolynomialRing().getVar()));
+//				List<UnivariatePolynomial<Fraction>> integral = zp.triagonalizeIntegralBasis(zpMinimalPolynomial,
+//						zp.integralBasis(zpMinimalPolynomial, theMontes, false));
+//				List<Integer> valueList = new ArrayList<>();
+//				for (int i = 0; i < minimalPolynomial().degree(); i++) {
+//					valueList.add(-zp.localField().valuation(integral.get(i).leadingCoefficient()).value());
+//				}
+//				integralBasisPerPrime.put(prime, integral);
+//				valuesPerPrime.put(prime, valueList);
 			}
 			this.integralBasis = new ArrayList<>();
 			for (int i = 0; i < minimalPolynomial().degree(); i++) {
@@ -2794,13 +2831,13 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		}
 
 		public NumberFieldIdeal normOver(FieldEmbedding<Fraction, NFE, NumberField> fieldEmbedding) {
-			SortedMap<NumberFieldIdeal, Integer> factorization = new TreeMap<>();
+			SortedMap<Ideal<NFE>, Integer> factorization = new TreeMap<>();
 			for (Ideal<NFE> primeFactor : idealFactorization(this).primeFactors()) {
 				NumberFieldIdeal lowerPrimeIdeal = intersectToLowerField(primeFactor, fieldEmbedding);
 				factorization.put(lowerPrimeIdeal, ((NumberFieldIdeal) primeFactor).type().residueDegree()
 						/ lowerPrimeIdeal.type().residueDegree() * idealFactorization(this).multiplicity(primeFactor));
 			}
-			return fieldEmbedding.getEmbeddedField().maximalOrder().fromFactorization(factorization);
+			return fieldEmbedding.getEmbeddedField().maximalOrder().getIdealFromFactorization(factorization);
 		}
 
 		public IntE discriminant() {

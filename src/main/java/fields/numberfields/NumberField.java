@@ -33,6 +33,7 @@ import fields.integers.Rationals.Fraction;
 import fields.integers.ValueFractions;
 import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.DiscreteValuationField.OtherVersion;
+import fields.interfaces.UnivariatePolynomialRing.ExtendedResultantResult;
 import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.GlobalFieldExtension;
 import fields.interfaces.Ideal;
@@ -42,6 +43,7 @@ import fields.interfaces.PolynomialRing;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.local.PAdicField;
+import fields.local.Value;
 import fields.numberfields.CompletedNumberField.Ext;
 import fields.numberfields.IdealClassGroup.IdealClass;
 import fields.numberfields.NumberField.NFE;
@@ -487,12 +489,106 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		return new Vector<>(result);
 	}
 
+	public ExtendedResultantResult<NFE> extendedResultant(UnivariatePolynomial<NFE> t1, UnivariatePolynomial<NFE> t2) {
+		UnivariatePolynomialRing<NFE> polynomials = getUnivariatePolynomialRing();
+		if (t2.degree() == 0) {
+			if (t1.degree() == 0) {
+				Pair<NFE, NFE> bezout = bezoutIdentity(t1.leadingCoefficient(), t2.leadingCoefficient());
+				return new ExtendedResultantResult<>(one(), polynomials.getEmbedding(bezout.getFirst()),
+						polynomials.getEmbedding(bezout.getSecond()), polynomials.one(),
+						polynomials.getEmbedding(bezout.getFirst()), polynomials.getEmbedding(bezout.getSecond()));
+			}
+			NFE power = power(t2.leadingCoefficient(), t1.degree() - 1);
+			NFE resultant = multiply(power, t2.leadingCoefficient());
+			ExtendedResultantResult<NFE> result = new ExtendedResultantResult<>(resultant, polynomials.zero(),
+					polynomials.getEmbedding(power), polynomials.getEmbedding(resultant), polynomials.zero(),
+					polynomials.getEmbedding(power));
+			return result;
+		}
+		NFE unit1 = t1.leadingCoefficient();
+		t1 = polynomials.normalize(t1);
+		NFE unit2 = t2.leadingCoefficient();
+		t2 = polynomials.normalize(t2);
+		Integers z = Integers.z();
+		IntE max = z.one();
+		for (int i = 0; i <= Math.max(t1.degree(), t2.degree()); i++) {
+			Fraction norm = norm(t1.univariateCoefficient(i));
+			IntE limit = z.archimedeanValue(z.multiply(norm.getNumerator(), norm.getDenominator()));
+			if (limit.compareTo(max) > 0) {
+				max = limit;
+			}
+			norm = norm(t2.univariateCoefficient(i));
+			limit = z.archimedeanValue(z.multiply(norm.getNumerator(), norm.getDenominator()));
+			if (limit.compareTo(max) > 0) {
+				max = limit;
+			}
+		}
+		max = z.multiply(2, max);
+		NumberFieldIntegers order = maximalOrder();
+		Map<NumberFieldIdeal, ExtendedResultantResult<FFE>> perPrime = new TreeMap<>();
+		int minGcdDegree = Math.max(t1.degree(), t2.degree());
+		IntE currentNorm = z.one();
+		for (IntE prime : z.setOfPrimes()) {
+			if (currentNorm.compareTo(max) > 0) {
+				break;
+			}
+			for (NumberFieldIdeal ideal : order.idealsOver(prime)) {
+				LocalizedNumberField localized = order.localizeAndQuotient(ideal);
+				if (localized.ramificationIndex() != 1) {
+					continue;
+				}
+				if (!localized.ringOfIntegers().valuationOfUnivariatePolynomial(t1).equals(Value.ZERO)
+						|| !localized.ringOfIntegers().valuationOfUnivariatePolynomial(t1).equals(Value.ZERO)) {
+					continue;
+				}
+				UnivariatePolynomial<FFE> reduced1 = localized.ringOfIntegers().reduceUnivariatePolynomial(t1);
+				UnivariatePolynomial<FFE> reduced2 = localized.ringOfIntegers().reduceUnivariatePolynomial(t2);
+				ExtendedResultantResult<FFE> resultant = localized.ringOfIntegers().reduction()
+						.getUnivariatePolynomialRing().extendedResultant(reduced1, reduced2);
+				if (resultant.getGcd().degree() < minGcdDegree) {
+					minGcdDegree = resultant.getGcd().degree();
+					currentNorm = z.one();
+					perPrime.clear();
+				}
+				if (resultant.getGcd().degree() > minGcdDegree) {
+					continue;
+				}
+				currentNorm = z.multiply(prime, currentNorm);
+				perPrime.put(ideal, resultant);
+			}
+		}
+		List<NumberFieldIdeal> ideals = new ArrayList<>();
+		ideals.addAll(perPrime.keySet());
+		ChineseRemainderPreparation<NFE> preparation = order.prepareChineseRemainderTheorem(ideals);
+		List<NFE> resultantMod = new ArrayList<>();
+		for (NumberFieldIdeal ideal : ideals) {
+			LocalizedNumberField localized = order.localizeAndQuotient(ideal);
+			resultantMod.add(localized.ringOfIntegers().lift(perPrime.get(ideal).getResultant()));
+		}
+		NFE resultant = order.chineseRemainderTheorem(resultantMod, preparation);
+		UnivariatePolynomial<NFE> resultantCoeff1;
+		UnivariatePolynomial<NFE> resultantCoeff2;
+		List<NFE> gcdCoeffs = new ArrayList<>();
+		for (int i = 0; i <= minGcdDegree; i++) {
+			List<NFE> mods = new ArrayList<>();
+			for (NumberFieldIdeal ideal : ideals) {
+				LocalizedNumberField localized = order.localizeAndQuotient(ideal);
+				mods.add(localized.ringOfIntegers().lift(perPrime.get(ideal).getGcd().univariateCoefficient(i)));
+			}
+		}
+		UnivariatePolynomial<NFE> gcd;
+		UnivariatePolynomial<NFE> coeff1;
+		UnivariatePolynomial<NFE> coeff2;
+		return new ExtendedResultantResult<>(resultant, null, null, null, null, null);
+	}
+
 	@Override
 	public FactorizationResult<Polynomial<NFE>, NFE> factorization(UnivariatePolynomial<NFE> t) {
 		if (t.degree() == 0) {
 			return new FactorizationResult<>(t.univariateCoefficient(0), Collections.emptySortedMap());
 		}
 		UnivariatePolynomialRing<NFE> ring = getUnivariatePolynomialRing();
+		// extendedResultant(t, ring.derivative(t));
 		if (t.degree() == 1) {
 			NFE unit = t.leadingCoefficient();
 			t = ring.normalize(t);
@@ -512,7 +608,42 @@ public class NumberField extends AbstractFieldExtension<Fraction, NFE, NumberFie
 		}
 		NFE unit = t.leadingCoefficient();
 		t = removeDenominators(t);
-		FactorizationResult<Polynomial<NFE>, NFE> squareFree = ring.squareFreeFactorization(t);
+		Iterator<IntE> primes = Integers.z().primes();
+		for (int i = 0; i < 10; i++) {
+			primes.next();
+		}
+		int count = 0;
+		UnivariatePolynomial<NFE> derivative = ring.derivative(t);
+		boolean isSquareFree = false;
+		while (count < 5 && !isSquareFree) {
+			IntE prime = primes.next();
+			for (NumberFieldIdeal ideal : maximalOrder().idealsOver(prime)) {
+				LocalizedNumberField localized = maximalOrder().localizeAndQuotient(ideal);
+				if (localized.ramificationIndex() != 1) {
+					continue;
+				}
+				if (!localized.ringOfIntegers().valuationOfUnivariatePolynomial(t).equals(Value.ZERO)
+						|| !localized.ringOfIntegers().valuationOfUnivariatePolynomial(derivative).equals(Value.ZERO)) {
+					continue;
+				}
+				UnivariatePolynomial<FFE> reduced = localized.ringOfIntegers().reduceUnivariatePolynomial(t);
+				UnivariatePolynomial<FFE> reducedDerivative = localized.ringOfIntegers()
+						.reduceUnivariatePolynomial(derivative);
+				ExtendedResultantResult<FFE> resultant = localized.ringOfIntegers().reduction()
+						.getUnivariatePolynomialRing().extendedResultant(reduced, reducedDerivative);
+				if (resultant.getGcd().degree() == 0) {
+					isSquareFree = true;
+					break;
+				}
+				count++;
+			}
+		}
+		FactorizationResult<Polynomial<NFE>, NFE> squareFree;
+		if (isSquareFree) {
+			squareFree = new FactorizationResult<>(one(), SingletonSortedMap.map(t, 1));
+		} else {
+			squareFree = ring.squareFreeFactorization(t);
+		}
 		for (Polynomial<NFE> squareFreeFactor : squareFree.primeFactors()) {
 			for (Polynomial<NFE> factor : factorizeSquareFree(removeDenominators(squareFreeFactor))) {
 				result.put(ring.normalize(factor), squareFree.multiplicity(squareFreeFactor));

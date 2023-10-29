@@ -100,6 +100,21 @@ class IntegersTest {
 	}
 
 	@Test
+	void testWestOfLoathing() {
+		Integers z = Integers.z();
+		Vector<IntE> a = new Vector<>(z.getInteger(411));
+		Vector<IntE> b = new Vector<>(z.getInteger(295));
+		Vector<IntE> c = new Vector<>(z.getInteger(161));
+		List<Vector<IntE>> generators = new ArrayList<>();
+		generators.add(a);
+		generators.add(b);
+		generators.add(c);
+		SmallestIntegerSolutionPreparation preparation = z.prepareSmallestIntegerSolution(generators);
+		Vector<IntE> solution = z.smallestIntegerSolution(new Vector<>(z.getInteger(3200)), preparation);
+		System.out.println("3200 = " + solution.get(1) + "*#3 + " + solution.get(2) + "*#5 + " + solution.get(3) + "*#7");
+	}
+
+	@Test
 	void testSmallestModSolutionOneDimension() {
 		Integers z = Integers.z();
 		Vector<IntE> two = new Vector<>(z.getInteger(2));
@@ -154,7 +169,7 @@ class IntegersTest {
 			}
 		}
 	}
-	
+
 	@Test
 	void testResolvant() throws IOException {
 		Integers z = Integers.z();

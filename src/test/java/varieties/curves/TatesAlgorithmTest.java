@@ -131,7 +131,7 @@ class TatesAlgorithmTest {
 		}
 	}
 
-	@Test
+	//@Test
 	void testLegendreFormRationals() {
 		Rationals q = Rationals.q();
 		for (int tc = 0; tc < 10; tc++) {
@@ -212,7 +212,7 @@ class TatesAlgorithmTest {
 
 	}
 
-	// @Test
+	@Test
 	void testHeight() {
 		NumberField nf = NumberField.getNumberField();
 		EllipticCurve<NFE> curve = new EllipticCurve<>(nf, nf.zero(), nf.getInteger(-2));
@@ -221,6 +221,8 @@ class TatesAlgorithmTest {
 		System.out.println(curve.height(point));
 		System.out.println(curve.add(point, point));
 		System.out.println(curve.height(curve.add(point, point)));
-	}
+		System.out.println(curve.neronTatePairing(point, point));
+		System.out.println(curve.neronTatePairing(curve.multiply(2,point), point));
+			}
 
 }

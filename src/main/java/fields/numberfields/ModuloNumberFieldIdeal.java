@@ -207,7 +207,8 @@ public class ModuloNumberFieldIdeal extends AbstractRing<ModNFE> implements Ring
 		Rationals q = Rationals.q();
 		NFE reduced = genericIntModule.lift(genericIntModule.reduce(t));
 		Vector<Fraction> asFractions = Vector.mapVector(q.getEmbeddingMap(), order.asVector(reduced));
-		Vector<Fraction>	closestLatticePoint = orderAsRationalLattice.getVectorSpace().closestLatticePoint(asFractions, idealAsSubLattice);
+		Vector<Fraction> closestLatticePoint = orderAsRationalLattice.getVectorSpace().closestLatticePoint(asFractions,
+				idealAsSubLattice);
 		Vector<Fraction> diff = orderAsRationalLattice.getVectorSpace().subtract(asFractions, closestLatticePoint);
 		return new ModNFE(order.fromVector(Vector.mapVector(q.getAsIntegerMap(), diff)));
 	}

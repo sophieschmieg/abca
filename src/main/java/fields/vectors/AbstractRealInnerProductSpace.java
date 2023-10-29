@@ -201,7 +201,7 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 				values.set(k, innerProduct(orthogonal.get(k), orthogonal.get(k)));
 			}
 			reduceLLLBasis(k, k - 1, coefficients, basis, lattice, half);
-			if ((!isBasis && asReal(values.get(k)).compareTo(eps) < 0) || values.get(k).equals(r.zero())) {
+			if (!isBasis && asReal(values.get(k)).compareTo(eps) < 0) {
 				basis.remove(k);
 				coefficients.remove(coefficients.size() - 1);
 				orthogonal.remove(k);

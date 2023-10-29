@@ -6,6 +6,9 @@ import java.util.Iterator;
 import java.util.List;
 
 import fields.exceptions.InfinityException;
+import fields.floatingpoint.Complex;
+import fields.floatingpoint.Reals;
+import fields.floatingpoint.Reals.Real;
 import fields.helper.NTTRing.NTT;
 import fields.helper.ProductRing.ProductElement;
 import fields.helper.ProductRing.ProductIdeal;
@@ -47,6 +50,31 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 	private List<T> rootPowers;
 	private List<T> inverseRootPowers;
 
+	@SuppressWarnings("unchecked")
+	public NTTRing(R base, int degree) {
+		if (!(base instanceof Complex)) {
+			throw new ArithmeticException("Base ring not the complex numbers!");
+		}
+		Complex c = (Complex) base;
+		Reals r = c.getReals();
+		Real pi = r.pi();
+		this.degree = degree;
+		this.base = base;
+		this.inverseDegree = base.inverse(base.getInteger(degree));
+		this.product = ProductRing.power(base, degree);
+		this.rootPowers = new ArrayList<>();
+		this.inverseRootPowers = new ArrayList<>();
+		for (int i = 0; i < degree; i++) {
+			int exponent = bitReverse(i, degree);
+			Real angle = r.divide(r.multiply(exponent, pi), r.getInteger(degree));
+			Vector<Real> cosineAndSine = r.cosineAndSine(angle);
+			Real cos = cosineAndSine.get(1);
+			Real sin = cosineAndSine.get(2);
+			rootPowers.add((T) c.getNumber(cos, sin));
+			inverseRootPowers.add((T) c.getNumber(cos, r.negative(sin)));
+		}
+	}
+
 	public NTTRing(R base, int degree, T rootOfUnity) {
 		this.degree = degree;
 		this.base = base;
@@ -70,6 +98,14 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 		return base + "[X]/(X^" + degree + " + 1)";
 	}
 
+	public List<T> getRootPowers() {
+		return rootPowers;
+	}
+
+	public List<T> getInverseRootPowers() {
+		return inverseRootPowers;
+	}
+
 	private NTT<T> getElement(ProductElement<T> t) {
 		return new NTT<>(t);
 	}
@@ -84,7 +120,7 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 		return getElement(product.one());
 	}
 
-	private int bitReverse(int index, int degree) {
+	public static int bitReverse(int index, int degree) {
 		int inputPower = degree >> 1;
 		int outputPower = 1;
 		int result = 0;
@@ -153,15 +189,24 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 		return getElement(product.getElement(t));
 	}
 
+	public NTT<T> fromProductElement(ProductElement<T> t) {
+		return getElement(t);
+	}
+
+	// f^[i] = f(zeta^(2*bitreverse(i)+1)
 	public List<T> asList(NTT<T> t) {
 		return t.asProduct().values();
+	}
+
+	public ProductElement<T> asProductElement(NTT<T> t) {
+		return t.asProduct();
 	}
 
 	@Override
 	public BigInteger characteristic() {
 		return base.characteristic();
 	}
-	
+
 	public R getBaseRing() {
 		return base;
 	}

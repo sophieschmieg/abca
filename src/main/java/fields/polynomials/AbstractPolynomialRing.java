@@ -342,7 +342,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		}
 		return homogenousPolynomialRing.getIdeal(homogenousGenerators);
 	}
-	
+
 	@Override
 	public Set<Polynomial<T>> orbit(Polynomial<T> t) {
 		List<Integer> indeces = new ArrayList<>();
@@ -350,7 +350,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 			indeces.add(i);
 		}
 		Set<Polynomial<T>> result = new TreeSet<>();
-		for (List<Integer> permutation : MiscAlgorithms.permutations(indeces) ) {
+		for (List<Integer> permutation : MiscAlgorithms.permutations(indeces)) {
 			int[] map = new int[numberOfVariables()];
 			for (int i = 0; i < numberOfVariables(); i++) {
 				map[i] = permutation.get(i);
@@ -374,7 +374,7 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 	public int krullDimension() {
 		return getRing().krullDimension() + numberOfVariables();
 	}
-	
+
 	@Override
 	public List<PolynomialIdeal<T>> maximalPrimeIdealChain() {
 		return maximalPrimeIdealChain(getNilRadical());
@@ -442,7 +442,10 @@ public abstract class AbstractPolynomialRing<T extends Element<T>> extends Abstr
 		SortedMap<Monomial, T> remainder = new TreeMap<>();
 		SortedMap<Monomial, T> p = new TreeMap<>();
 		for (Monomial m : polynomial.monomials()) {
-			p.put(m, polynomial.coefficient(m));
+			T coeff = polynomial.coefficient(m);
+			if (!coeff.equals(ring.zero())) {
+				p.put(m, coeff);
+			}
 		}
 		for (int i = 0; i < basis.size(); i++) {
 			quotient.add(new TreeMap<>(comparator));
