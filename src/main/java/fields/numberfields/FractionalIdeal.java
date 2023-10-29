@@ -63,19 +63,19 @@ public class FractionalIdeal extends AbstractModule<IntE, NFE>
 		Set<Ideal<NFE>> primeIdeals = new TreeSet<>();
 		primeIdeals.addAll(numeratorFactors.primeFactors());
 		primeIdeals.addAll(denominatorFactors.primeFactors());
-		Map<NumberFieldIdeal, Integer> numeratorReduced = new TreeMap<>();
-		Map<NumberFieldIdeal, Integer> denominatorReduced = new TreeMap<>();
+		Map<Ideal<NFE>, Integer> numeratorReduced = new TreeMap<>();
+		Map<Ideal<NFE>, Integer> denominatorReduced = new TreeMap<>();
 		for (Ideal<NFE> prime : primeIdeals) {
 			int multiplicity = numeratorFactors.multiplicity(prime) - denominatorFactors.multiplicity(prime);
 			if (multiplicity > 0) {
-				numeratorReduced.put((NumberFieldIdeal) prime, multiplicity);
+				numeratorReduced.put( prime, multiplicity);
 			}
 			if (multiplicity < 0) {
-				denominatorReduced.put((NumberFieldIdeal) prime, -multiplicity);
+				denominatorReduced.put(prime, -multiplicity);
 			}
 		}
-		this.numerator = order.fromFactorization(numeratorReduced);
-		this.denominator = order.fromFactorization(denominatorReduced);
+		this.numerator = order.getIdealFromFactorization(numeratorReduced);
+		this.denominator = order.getIdealFromFactorization(denominatorReduced);
 	}
 
 	public static FractionalIdeal principalIdeal(NumberFieldIntegers order, NFE generator) {

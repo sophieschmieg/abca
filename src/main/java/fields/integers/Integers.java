@@ -731,9 +731,10 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	@Override
 	public List<Vector<IntE>> simplifySubModuleGenerators(MatrixModule<IntE> module, Matrix<IntE> m) {
-		return RealIntegerLattice
-				.getIntegerLattice(Reals.r(128), m.rows(), super.simplifySubModuleGenerators(module, m), true)
-				.getModuleGenerators();
+		return super.simplifySubModuleGenerators(module, m);
+//		return RealIntegerLattice
+//				.getIntegerLattice(Reals.r(128), m.rows(), super.simplifySubModuleGenerators(module, m), true)
+//				.getModuleGenerators();
 //		Rationals q = Rationals.q();
 //		RealIntegerLattice result = null;
 //		for (Vector<IntE> vector : m.asColumnList()) {
@@ -1028,7 +1029,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		result.put(z.negative(z.getInteger(sqrt[0])), 1);
 		return result;
 	}
-
+	
 	public Polynomial<IntE> clearFractionsAndContent(Polynomial<Fraction> polynomial) {
 		IntE denominator = one();
 		for (Monomial m : polynomial.monomials()) {

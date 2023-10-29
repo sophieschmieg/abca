@@ -90,6 +90,14 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 	public ProductElement<T> getElement(List<T> values) {
 		return new ProductElement<>(values);
 	}
+	
+	public <S extends Element<S>> ProductElement<T> mapElement(ProductElement<S> t, MathMap<S, T> map) {
+		List<T> values = new ArrayList<>();
+		for (S element : t.values()) {
+			values.add(map.evaluate(element));
+		}
+		return getElement(values);
+	}
 
 	public ProductElement<T> inject(T element, int index) {
 		List<T> values = new ArrayList<>();

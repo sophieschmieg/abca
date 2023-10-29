@@ -1,5 +1,6 @@
 package fields.floatingpoint;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Iterator;
 import java.util.List;
@@ -29,7 +30,8 @@ import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
-public class Reals extends AbstractField<Real> implements ValueField<Real>, FloatingPointSet<Real, Reals>, TotalOrder<Real> {
+public class Reals extends AbstractField<Real>
+		implements ValueField<Real>, FloatingPointSet<Real, Reals>, TotalOrder<Real> {
 	private final int precision;
 	private Reals highPrecision;
 	private Real pi;
@@ -37,13 +39,23 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	private Real zero;
 	private Real one;
 	private static Map<Integer, Reals> reals = new TreeMap<>();
+	private boolean lowPrecision;
 
 	public class Real extends AbstractElement<Real> {
 		private boolean positive;
 		private BigInteger value;
 		private int scale;
+		private double lowPrecisionValue;
+
+		private Real(double value) {
+			this.lowPrecisionValue = value;
+		}
 
 		private Real(BigInteger value, int scale, boolean positive) {
+			if (lowPrecision) {
+				this.lowPrecisionValue = (positive ? 1.0 : -1.0) * value.doubleValue() * Math.pow(2.0, scale);
+				return;
+			}
 			if (value.compareTo(BigInteger.ZERO) < 0) {
 				value = value.negate();
 				positive = !positive;
@@ -71,8 +83,31 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 			this.scale = scale;
 		}
 
+		private void fill() {
+			if (value == null) {
+				if (lowPrecisionValue == 0.0 || lowPrecisionValue == -0.0) {
+					scale = 0;
+					value = BigInteger.ZERO;
+					positive = true;
+					return;
+				}
+				int exponent = Math.getExponent(lowPrecisionValue);
+				scale = exponent - 53;
+				value = BigInteger.valueOf(Math.round(lowPrecisionValue * Math.pow(2.0, -scale)));
+				while (!value.testBit(0)) {
+					value = value.shiftRight(1);
+					scale++;
+				}
+			} else {
+				this.lowPrecisionValue = doubleValue();
+			}
+		}
+
 		@Override
 		public int compareTo(Real o) {
+			if (lowPrecision) {
+				return Double.compare(lowPrecisionValue, o.lowPrecisionValue);
+			}
 			if (!this.positive && o.positive) {
 				return -1;
 			}
@@ -100,6 +135,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 		public IntE roundDown() {
 			Integers z = Integers.z();
+			if (lowPrecision) {
+				return z.getInteger(BigDecimal.valueOf(Math.floor(lowPrecisionValue)).toBigIntegerExact());
+			}
 			if (!positive) {
 				return z.negative(Reals.this.negative(this).roundUp());
 			}
@@ -108,6 +146,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 		public IntE roundUp() {
 			Integers z = Integers.z();
+			if (lowPrecision) {
+				return z.getInteger(BigDecimal.valueOf(Math.ceil(lowPrecisionValue)).toBigIntegerExact());
+			}
 			if (!positive) {
 				return z.negative(Reals.this.negative(this).roundDown());
 			}
@@ -118,6 +159,10 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		}
 
 		public IntE round() {
+			if (lowPrecision) {
+				Integers z = Integers.z();
+				return z.getInteger(BigDecimal.valueOf(Math.round(lowPrecisionValue)).toBigIntegerExact());
+			}
 			if (scale >= 0) {
 				return positive ? roundDown() : roundUp();
 			}
@@ -132,10 +177,16 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		}
 
 		public int exponent() {
+			if (lowPrecision) {
+				Math.getExponent(lowPrecisionValue);
+			}
 			return scale + value.bitLength();
 		}
 
 		public String toString() {
+			if (lowPrecision) {
+				return Double.toString(lowPrecisionValue);
+			}
 			StringBuilder buf = new StringBuilder();
 			if (!positive) {
 				buf.append("-");
@@ -159,22 +210,28 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		}
 
 		public double doubleValue() {
-			Reals r = withPrecision(64);
-			Real t = r.getEmbedding(this);
-			if (t.scale > 1024) {
-				return t.positive ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+			if (lowPrecision) {
+				return lowPrecisionValue;
 			}
-			if (t.scale < -1024) {
-				return t.positive ? 0.0 : -0.0;
+			BigInteger v = value.shiftRight(Math.max(0, value.bitLength() - 64));
+			int s = scale + Math.max(0, value.bitLength() - 64);
+			if (s > 1024) {
+				return positive ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
 			}
-			double abs = t.value.doubleValue() * Math.pow(2.0, t.scale);
-			return t.positive ? abs : -abs;
+			if (s < -1024) {
+				return positive ? 0.0 : -0.0;
+			}
+			double abs = v.doubleValue() * Math.pow(2.0, s);
+			return positive ? abs : -abs;
 		}
 	}
 
 	private Reals(int precision) {
 		if (precision <= 0) {
 			throw new ArithmeticException("Precision too low");
+		}
+		if (precision <= 64) {
+			this.lowPrecision = true;
 		}
 		this.precision = precision;
 		this.zero = new Real(BigInteger.ZERO, 0, true);
@@ -204,12 +261,18 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	@Override
 	public boolean close(Real t1, Real t2) {
+		if (lowPrecision) {
+			return Math.abs(t1.lowPrecisionValue - t2.lowPrecisionValue) <= Double.MIN_NORMAL;
+		}
 		int minExponent = Math.min(t1.exponent(), t2.exponent());
 		return abs(subtract(t1, t2)).compareTo(new Real(BigInteger.ONE, -precision + minExponent + 1, true)) <= 0;
 	}
 
 	@Override
 	public Real roundToFixedPoint(Real t, int precision) {
+		if (lowPrecision) {
+			return new Real(Math.round(t.lowPrecisionValue * Math.pow(2.0, precision)) / Math.pow(2.0, precision));
+		}
 		BigInteger value = t.value.shiftLeft(precision);
 		value = value.shiftLeft(t.scale);
 		return new Real(value, -precision, t.positive);
@@ -236,6 +299,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real fromString(String string) {
+		if (lowPrecision) {
+			return new Real(Double.parseDouble(string));
+		}
 		boolean positive = string.charAt(0) != '-';
 		int dotIndex = string.indexOf(".");
 		String intValueString;
@@ -261,18 +327,30 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	@Override
 	public Real getInteger(BigInteger t) {
+		if (lowPrecision) {
+			return new Real(t.doubleValue());
+		}
 		return new Real(t, 0, true);
 	}
 
 	public Real getPowerOfTwo(int power) {
+		if (lowPrecision) {
+			return new Real(Math.pow(2.0, power));
+		}
 		return new Real(BigInteger.ONE, power, true);
 	}
 
 	public Real getEmbedding(Real t) {
+		if (lowPrecision) {
+			return new Real(t.doubleValue());
+		}
 		return new Real(t.value, t.scale, t.positive);
 	}
 
 	public Real getEmbedding(IntE t) {
+		if (lowPrecision) {
+			return new Real(t.getValue().doubleValue());
+		}
 		return getInteger(t.getValue());
 	}
 
@@ -312,6 +390,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	@Override
 	public Real add(Real t1, Real t2) {
+		if (lowPrecision) {
+			return new Real(t1.lowPrecisionValue + t2.lowPrecisionValue);
+		}
 		int minScale = Math.min(t1.scale, t2.scale);
 		BigInteger value1Adjusted = t1.value.shiftLeft(t1.scale - minScale);
 		BigInteger value2Adjusted = t2.value.shiftLeft(t2.scale - minScale);
@@ -326,16 +407,32 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	@Override
 	public Real negative(Real t) {
+		if (lowPrecision) {
+			return new Real(-t.lowPrecisionValue);
+		}
 		return new Real(t.value, t.scale, !t.positive);
 	}
 
 	@Override
 	public Real multiply(Real t1, Real t2) {
+		if (lowPrecision) {
+			return new Real(t1.lowPrecisionValue * t2.lowPrecisionValue);
+		}
 		return new Real(t1.value.multiply(t2.value), t1.scale + t2.scale, !(t1.positive ^ t2.positive));
+	}
+
+	public Real multiply(double t1, Real t2) {
+		if (lowPrecision) {
+			return new Real(t1 * t2.lowPrecisionValue);
+		}
+		return multiply(getDouble(t1), t2);
 	}
 
 	@Override
 	public Real inverse(Real t) {
+		if (lowPrecision) {
+			return new Real(1.0 / t.lowPrecisionValue);
+		}
 		if (t.equals(zero())) {
 			throw new ArithmeticException("Division by 0");
 		}
@@ -357,15 +454,24 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real abs(Real t) {
+		if (lowPrecision) {
+			return new Real(Math.abs(t.lowPrecisionValue));
+		}
 		return new Real(t.value, t.scale, true);
 	}
 
 	public Real exp(Real t) {
+		if (lowPrecision) {
+			return new Real(Math.exp(t.lowPrecisionValue));
+		}
 		Complex c = Complex.c(precision);
 		return c.exp(c.getEmbedding(t)).realPart();
 	}
 
 	public Real log(Real t) {
+		if (lowPrecision) {
+			return new Real(Math.log(t.lowPrecisionValue));
+		}
 		if (t.compareTo(zero()) <= 0) {
 			throw new ArithmeticException("log of non positive number!");
 		}
@@ -407,14 +513,22 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 
 	public Real e() {
 		if (e == null) {
-			e = exp(one());
+			if (lowPrecision) {
+				e = new Real(Math.E);
+			} else {
+				e = exp(one());
+			}
 		}
 		return e;
 	}
 
 	public Real pi() {
 		if (pi == null) {
-			pi = getEmbedding(highPrecision().calculatePi());
+			if (lowPrecision) {
+				pi = new Real(Math.PI);
+			} else {
+				pi = getEmbedding(highPrecision().calculatePi());
+			}
 		}
 		return pi;
 	}
@@ -441,14 +555,20 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real positiveSqrt(Real t) {
+		if (lowPrecision) {
+			return new Real(Math.sqrt(t.lowPrecisionValue));
+		}
 		return positiveRoot(t, 2);
 	}
 
 	public Real positiveRoot(Real t, int degree) {
+		if (lowPrecision) {
+			return new Real(Math.pow(t.lowPrecisionValue, 1.0 / degree));
+		}
 		if (t.equals(zero())) {
 			return zero();
 		}
-		return multiply(t, power(inverseRoot(t, degree), degree-1));
+		return multiply(t, power(inverseRoot(t, degree), degree - 1));
 //		if (t.compareTo(zero()) < 0) {
 //			throw new ArithmeticException("No positive root");
 //		}
@@ -467,10 +587,16 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real inverseSqrt(Real t) {
+		if (lowPrecision) {
+			return new Real(1.0 / Math.sqrt(t.lowPrecisionValue));
+		}
 		return inverseRoot(t, 2);
 	}
 
 	public Real inverseRoot(Real t, int degree) {
+		if (lowPrecision) {
+			return new Real(Math.pow(t.lowPrecisionValue, -1.0 / degree));
+		}
 		if (t.compareTo(zero()) <= 0) {
 			throw new ArithmeticException("No positive root");
 		}
@@ -493,22 +619,34 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		} while (!close(result, prevResult));
 		return result;
 	}
-	
+
 	public Real sin(Real angle) {
+		if (lowPrecision) {
+			return new Real(Math.sin(angle.lowPrecisionValue));
+		}
 		return cosineAndSine(angle).get(2);
 	}
-	
+
 	public Real cos(Real angle) {
+		if (lowPrecision) {
+			return new Real(Math.cos(angle.lowPrecisionValue));
+		}
 		return cosineAndSine(angle).get(1);
 	}
-	
+
 	public Vector<Real> cosineAndSine(Real angle) {
+		if (lowPrecision) {
+			return new Vector<>(cos(angle), sin(angle));
+		}
 		Complex c = Complex.c(precision);
 		ComplexNumber result = c.exp(c.getNumber(zero(), angle));
 		return new Vector<>(result.realPart(), result.complexPart());
 	}
 
 	public Real arctan(Real t) {
+		if (lowPrecision) {
+			return new Real(Math.atan(t.lowPrecisionValue));
+		}
 		/*
 		 * if (t.compareTo(one()) > 0) { return subtract(divide(pi(), getInteger(2)),
 		 * doublePrecision().calculateArctan(doublePrecision().inverse(t))); } else if
@@ -543,6 +681,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real arctan2(Real t1, Real t2) {
+		if (lowPrecision) {
+			return new Real(Math.atan2(t1.lowPrecisionValue, t2.lowPrecisionValue));
+		}
 		Real piOverTwo = divide(pi(), getInteger(2));
 		if (t2.equals(zero())) {
 			if (t1.positive) {
@@ -556,9 +697,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 			return arctan;
 		}
 		if (t1.positive) {
-			return add(arctan, piOverTwo);
+			return add(arctan, pi());
 		}
-		return subtract(arctan, piOverTwo);
+		return subtract(arctan, pi());
 	}
 
 	public Real findZero(MathMap<Real, Real> map, Real start, Real end) {
@@ -620,6 +761,9 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	public Real getDouble(double t) {
+		if (lowPrecision) {
+			return new Real(t);
+		}
 		if (t < 0) {
 			return negative(getDouble(-t));
 		}
@@ -737,17 +881,15 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 		}
 		return new FactorizationResult<>(t.leadingCoefficient(), factors);
 	}
-	
+
 	@Override
-	public boolean isSubModuleMember(MatrixModule<Real> module, Matrix<Real> m,
-			Vector<Real> b) {
+	public boolean isSubModuleMember(MatrixModule<Real> module, Matrix<Real> m, Vector<Real> b) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, b.dimension());
 		return space.isSubModuleMemberModule(module, m, b);
 	}
 
 	@Override
-	public Vector<Real> asSubModuleMember(MatrixModule<Real> module, Matrix<Real> m,
-			Vector<Real> b) {
+	public Vector<Real> asSubModuleMember(MatrixModule<Real> module, Matrix<Real> m, Vector<Real> b) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, b.dimension());
 		return space.asSubModuleMemberModule(module, m, b);
 	}
@@ -759,8 +901,7 @@ public class Reals extends AbstractField<Real> implements ValueField<Real>, Floa
 	}
 
 	@Override
-	public List<Vector<Real>> simplifySubModuleGenerators(MatrixModule<Real> module,
-			Matrix<Real> m) {
+	public List<Vector<Real>> simplifySubModuleGenerators(MatrixModule<Real> module, Matrix<Real> m) {
 		FiniteRealVectorSpace space = new FiniteRealVectorSpace(this, m.rows());
 		return space.simplifySubModuleGeneratorsModule(module, m);
 	}

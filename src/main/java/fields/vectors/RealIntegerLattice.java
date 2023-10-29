@@ -20,6 +20,7 @@ import fields.interfaces.Element;
 import fields.interfaces.Lattice;
 import fields.interfaces.RealInnerProductSpace;
 import fields.interfaces.ValueField;
+import util.FunctionMathMap;
 
 public class RealIntegerLattice<T extends Element<T>, S extends Element<S>> extends AbstractModule<IntE, Vector<IntE>>
 		implements Lattice<Vector<IntE>, T, S> {
@@ -207,12 +208,12 @@ public class RealIntegerLattice<T extends Element<T>, S extends Element<S>> exte
 	}
 
 	public Vector<IntE> closestLatticePoint(Vector<IntE> t) {
-		Vector<Fraction> solved = solveIntVector(t);
-		List<IntE> coeffs = new ArrayList<>();
-		for (Fraction coeff : solved.asList()) {
-			coeffs.add(coeff.round());
-		}
-		return fromVector(new Vector<>(coeffs));
+//		Vector<Fraction> solved = solveIntVector(t);
+//		List<IntE> coeffs = new ArrayList<>();
+//		for (Fraction coeff : solved.asList()) {
+//			coeffs.add(coeff.round());
+//		}
+		return space.closestLatticePoint(space.fromVector( Vector.mapVector(new FunctionMathMap<>((IntE x) -> space.getValueField().getInteger(x)), t)), this);
 	}
 
 	private Vector<Fraction> solveIntVector(Vector<IntE> b) {

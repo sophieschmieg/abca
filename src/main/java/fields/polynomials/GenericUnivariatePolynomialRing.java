@@ -293,37 +293,75 @@ public class GenericUnivariatePolynomialRing<T extends Element<T>> extends Abstr
 	public GenericUnivariatePolynomial<T> multiply(Polynomial<T> t1, Polynomial<T> t2) {
 		GenericUnivariatePolynomial<T> p1 = toUnivariate(t1);
 		GenericUnivariatePolynomial<T> p2 = toUnivariate(t2);
-		if (p1.degree() < p2.degree()) {
-			GenericUnivariatePolynomial<T> tmp = p1;
-			p1 = p2;
-			p2 = tmp;
+		return getPolynomial(multiplyMutable(p1.coefficients(), p2.coefficients()));
+	}
+
+	private List<T> multiplyMutable(List<T> t1, List<T> t2) {
+		if (t1.isEmpty() || t2.isEmpty()) {
+			return Collections.emptyList();
 		}
-		if (p1.degree() <= 0) {
-			GenericUnivariatePolynomial<T> result = getPolynomial(
-					Collections.singletonList(ring.multiply(p1.univariateCoefficient(0), p2.univariateCoefficient(0))));
+		if (t1.size() < t2.size()) {
+			List<T> tmp = t1;
+			t1 = t2;
+			t2 = tmp;
+		}
+		if (t2.size() == 1) {
+			List<T> result = new ArrayList<>();
+			for (int i = 0; i < t1.size(); i++) {
+				result.add(ring.multiply(t1.get(i), t2.get(0)));
+			}
 			return result;
 		}
-		int split = p1.degree() / 2 + 1;
-		GenericUnivariatePolynomial<T> p1Lsb = getPolynomial(p1.coefficients().subList(0, split));
-		GenericUnivariatePolynomial<T> p1Msb = getPolynomial(p1.coefficients().subList(split, p1.degree() + 1));
-		if (split > p2.degree()) {
-			GenericUnivariatePolynomial<T> lsb = multiply(p1Lsb, p2);
-			GenericUnivariatePolynomial<T> msb = multiply(p1Msb, p2);
-			GenericUnivariatePolynomial<T> result = add(multiplyPower(split, msb), lsb);
+		int split = (t1.size() - 1) / 2 + 1;
+		List<T> p1Lsb = t1.subList(0, split);
+		List<T> p1Msb = t1.subList(split, t1.size());
+		if (split >= t2.size()) {
+			List<T> lsb = multiplyMutable(p1Lsb, t2);
+			List<T> msb = multiplyMutable(p1Msb, t2);
+			List<T> result = addMutable(lsb, msb, split);
 			return result;
 		}
-		GenericUnivariatePolynomial<T> p2Lsb = getPolynomial(p2.coefficients().subList(0, split));
-		GenericUnivariatePolynomial<T> p2Msb = getPolynomial(p2.coefficients().subList(split, p2.degree() + 1));
-		UnivariatePolynomial<T> lsb = multiply(p1Lsb, p2Lsb);
-		UnivariatePolynomial<T> msb = multiply(p1Msb, p2Msb);
-		UnivariatePolynomial<T> p1mixed = add(p1Lsb, p1Msb);
-		UnivariatePolynomial<T> p2mixed = add(p2Lsb, p2Msb);
-		UnivariatePolynomial<T> mixed = toUnivariate(subtract(multiply(p1mixed, p2mixed), add(lsb, msb)));
-		GenericUnivariatePolynomial<T> result = toUnivariate(
-				add(lsb, multiplyPower(split, mixed), multiplyPower(2 * split, msb)));
+		List<T> p2Lsb = t2.subList(0, split);
+		List<T> p2Msb = t2.subList(split, t2.size());
+		List<T> lsb = multiplyMutable(p1Lsb, p2Lsb);
+		List<T> msb = multiplyMutable(p1Msb, p2Msb);
+		List<T> p1mixed = addMutable(p1Lsb, p1Msb, 0);
+		List<T> p2mixed = addMutable(p2Lsb, p2Msb, 0);
+		List<T> mixed = multiplyMutable(p1mixed, p2mixed);
+		subtractMutable(mixed, lsb, msb);
+		List<T> result = addMutable(lsb,  mixed, split);
+		result = addMutable(result, msb, 2 * split);
 		return result;
 	}
 
+	private List<T> addMutable(List<T> t1, List<T> t2, int t2Power) {
+		List<T> result = new ArrayList<>();
+		int t1Only = Math.min(t1.size(), t2Power);
+		for (int i = 0; i < t1Only; i++) {
+			result.add(t1.get(i));
+		}
+		for (int i = t1Only; i < t2Power; i++) {
+			result.add(ring.zero());
+		}
+		for (int i = t2Power; i < Math.max(t1.size(), t2.size() + t2Power); i++) {
+			result.add(ring.add(i < t1.size() ? t1.get(i) : ring.zero(), i < t2.size() + t2Power ? t2.get(i - t2Power) : ring.zero()));
+		}
+		return result;
+	}
+
+	private void subtractMutable(List<T> minuend, List<T> subtrahend1, List<T> subtrahend2) {
+		int common = Math.max(Math.max(minuend.size(), subtrahend1.size()), subtrahend2.size());
+		for (int i = 0; i < common; i++) {
+			T sum = ring.add(i < subtrahend1.size() ? subtrahend1.get(i) : ring.zero(),
+					i < subtrahend2.size() ? subtrahend2.get(i) : ring.zero());
+			if (i >= minuend.size()) {
+				minuend.add(ring.zero());
+			}
+			minuend.set(i, ring.subtract(minuend.get(i), sum));
+		}
+
+	}
+	
 	@Override
 	public GenericUnivariatePolynomial<T> multiplyPower(int power, Polynomial<T> t) {
 		GenericUnivariatePolynomial<T> p = toUnivariate(t);

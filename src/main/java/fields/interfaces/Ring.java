@@ -591,6 +591,8 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	@SuppressWarnings("unchecked")
 	public Ideal<T> getIdeal(T... generators);
 
+	public Ideal<T> getIdealFromFactorization(Map<Ideal<T>, Integer> factorization);
+
 	public Ideal<T> getUnitIdeal();
 
 	public Ideal<T> getZeroIdeal();

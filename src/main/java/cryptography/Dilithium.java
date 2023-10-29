@@ -26,7 +26,6 @@ import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
-import util.MiscAlgorithms;
 import util.Pair;
 
 public class Dilithium

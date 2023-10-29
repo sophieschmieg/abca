@@ -63,6 +63,7 @@ import fields.numberfields.EmbeddedNumberField;
 import fields.numberfields.LocalizedNumberField;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
+import fields.numberfields.NumberFieldIntegers;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.numberfields.NumberFieldOrder;
 import fields.numberfields.PicardGroup.OrderIdealClass;
@@ -416,6 +417,20 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		}
 		Pair<T, T> coefficients = fromJInvariantCoefficients(field, j);
 		return new EllipticCurve<>(field, coefficients.getFirst(), coefficients.getSecond());
+	}
+
+	public static <T extends Element<T>, S extends AlgebraicExtensionElement<T, S>, FE extends FieldExtension<T, S, FE>> EllipticCurve<S> extendBaseField(
+			FE extension, EllipticCurve<T> curve) {
+		return new EllipticCurve<>(extension, extension.getEmbedding(curve.getA1()),
+				extension.getEmbedding(curve.getA2()), extension.getEmbedding(curve.getA3()),
+				extension.getEmbedding(curve.getA4()), extension.getEmbedding(curve.getA6()));
+	}
+
+	public static <T extends Element<T>, S extends AlgebraicExtensionElement<T, S>, FE extends FieldExtension<T, S, FE>> EllipticCurve<S> extendBaseField(
+			FieldEmbedding<T, S, FE> extension, EllipticCurve<S> curve) {
+		return new EllipticCurve<>(extension.getField(), extension.getEmbedding(curve.getA1()),
+				extension.getEmbedding(curve.getA2()), extension.getEmbedding(curve.getA3()),
+				extension.getEmbedding(curve.getA4()), extension.getEmbedding(curve.getA6()));
 	}
 
 	public static <T extends Element<T>> EllipticCurve<T> fromLegendre(Field<T> field, T lambda) {
@@ -812,8 +827,14 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 				tau = field.negative(field.inverse(tau));
 			}
 		}
-		NFE orderGenerator = field.multiply(field.maximalOrder().getNumerator(tau),
-				field.maximalOrder().getDenominator(tau));
+		NFE tauNumerator = field.maximalOrder().getNumerator(tau);
+		NFE tauDenominator = field.maximalOrder().getDenominator(tau);
+		IntE discriminant = q.subtract(
+				q.multiply(field.trace(field.multiply(tauNumerator, tauNumerator)),
+						field.trace(field.multiply(tauDenominator, tauDenominator))),
+				q.power(field.trace(field.multiply(tauNumerator, tauDenominator)), 2)).asInteger();
+		IntE conductor = z.divideChecked(discriminant, field.discriminant());
+		NFE orderGenerator = field.multiply(conductor, field.maximalOrder().getModuleGenerators().get(1));
 		NumberFieldOrder order = field.getOrder(orderGenerator);
 		ClassFieldResult classFieldResult = computeRayClassField(order);
 		FieldEmbedding<Fraction, NFE, NumberField> rayClassField = classFieldResult.getClassField();
@@ -849,6 +870,58 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		curve = new Isomorphism<>(curve, classField.inverse(classField.getEmbedding(denominator)), classField.zero(),
 				classField.zero(), classField.zero()).getRange();
 		curve = curve.minimalModel(classField).get().getRange();
+		// C/M -> C/M, phi(z) = a*z
+		// phi(M) subset M
+		// <a, a*tau> subset M
+		EllipticCurve<NFE> extendedCurve = rational ? extendBaseField(rayClassField, curve) : curve;
+		Isogeny<NFE> endomorphism = new Isogeny<NumberField.NFE>() {
+
+			@Override
+			public int compareTo(Isogeny<NFE> o) {
+				// TODO Auto-generated method stub
+				return 0;
+			}
+
+			@Override
+			public List<ProjectivePoint<NFE>> kernelGenerators() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public EllipticCurve<NFE> getRange() {
+				return extendedCurve;
+			}
+
+			@Override
+			public Isogeny<NFE> getDual() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public EllipticCurve<NFE> getDomain() {
+				return extendedCurve;
+			}
+
+			@Override
+			public BigInteger getDegree() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public ProjectivePoint<NFE> evaluate(ProjectivePoint<NFE> point) {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public ProjectiveMorphism<NFE> asMorphism() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+		};
 		return new WithComplexMultiplication(curve, null, tau, field, rayClassField);
 	}
 
@@ -2480,34 +2553,6 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		}
 
 		private void init() {
-			if (kodairaSymbol.equals(KodairaSymbol.I0)) {
-				reducedCurve = new EllipticCurve<>(field.residueField(),
-						field.reduceInteger(translation.getRange().getA1()),
-						field.reduceInteger(translation.getRange().getA2()),
-						field.reduceInteger(translation.getRange().getA3()),
-						field.reduceInteger(translation.getRange().getA4()),
-						field.reduceInteger(translation.getRange().getA6()));
-				reducedScheme = reducedCurve.asGenericProjectiveScheme();
-			} else {
-				PolynomialRing<S> projectivePolynomialRing = AbstractPolynomialRing
-						.getPolynomialRing(field.residueField(), 3, Monomial.GREVLEX);
-				Map<Monomial, S> coeffs = new TreeMap<>();
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 3, 0, 0 }), field.residueField().one());
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 0, 2, 1 }),
-						field.residueField().getInteger(-1));
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 1, 1, 1 }),
-						field.reduceInteger(field.negative(translation.getRange().getA1())));
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 2, 0, 1 }),
-						field.reduceInteger(translation.getRange().getA2()));
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 0, 1, 2 }),
-						field.reduceInteger(field.negative(translation.getRange().getA3())));
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 1, 0, 2 }),
-						field.reduceInteger(translation.getRange().getA4()));
-				coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 0, 0, 3 }),
-						field.reduceInteger(translation.getRange().getA6()));
-				reducedScheme = new GenericProjectiveScheme<>(field.residueField(), projectivePolynomialRing,
-						Collections.singletonList(projectivePolynomialRing.getPolynomial(coeffs)));
-			}
 			reductionMap = new MathMap<>() {
 				@Override
 				public ProjectivePoint<S> evaluate(ProjectivePoint<T> t) {
@@ -2580,6 +2625,30 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		}
 
 		public GenericProjectiveScheme<S> getReducedScheme() {
+			if (reducedScheme == null) {
+				if (kodairaSymbol.equals(KodairaSymbol.I0)) {
+					reducedScheme = reducedCurve.asGenericProjectiveScheme();
+				} else {
+					PolynomialRing<S> projectivePolynomialRing = AbstractPolynomialRing
+							.getPolynomialRing(field.residueField(), 3, Monomial.GREVLEX);
+					Map<Monomial, S> coeffs = new TreeMap<>();
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 3, 0, 0 }), field.residueField().one());
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 0, 2, 1 }),
+							field.residueField().getInteger(-1));
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 1, 1, 1 }),
+							field.reduceInteger(field.negative(translation.getRange().getA1())));
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 2, 0, 1 }),
+							field.reduceInteger(translation.getRange().getA2()));
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 0, 1, 2 }),
+							field.reduceInteger(field.negative(translation.getRange().getA3())));
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 1, 0, 2 }),
+							field.reduceInteger(translation.getRange().getA4()));
+					coeffs.put(projectivePolynomialRing.getMonomial(new int[] { 0, 0, 3 }),
+							field.reduceInteger(translation.getRange().getA6()));
+					reducedScheme = new GenericProjectiveScheme<>(field.residueField(), projectivePolynomialRing,
+							Collections.singletonList(projectivePolynomialRing.getPolynomial(coeffs)));
+				}
+			}
 			return reducedScheme;
 		}
 
@@ -3016,6 +3085,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		int m = r.divide(r.log(r.divide(r.power(r.getInteger(bound), 3), r.getInteger(3))), r.log(r.getInteger(4)))
 				.roundDown().intValueExact();
 		int accuracy = (m + 1) * bound + 1;
+		accuracy = Math.max(accuracy, 3);
+		accuracy *= 2;
 		if (field.embeddingField().getAccuracy() < accuracy) {
 			List<EmbeddedNumberField<Ext, CompletedNumberField>> embeddings = field.numberField()
 					.padicEmbeddings(field.embeddingField().getBaseField().withAccuracy(accuracy));
@@ -3143,7 +3214,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	public <S extends Element<S>, F extends ValueField<S>> Real localHeight(EmbeddedNumberField<S, F> field,
 			ProjectivePoint<T> point) {
 		if (!(this.field instanceof NumberField)) {
-			throw new ArithmeticException("Not defined over number field!");
+			throw new ArithmeticException("Only defined over number field!");
 		}
 		if (field.embeddingField() instanceof CompletedNumberField) {
 			return nonArchimedeanLocalHeight((EmbeddedNumberField<Ext, CompletedNumberField>) field, point);
@@ -3153,7 +3224,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 	public Real height(ProjectivePoint<T> point) {
 		if (!(field instanceof NumberField)) {
-			throw new ArithmeticException("Not defined over number field!");
+			throw new ArithmeticException("Only defined over number field!");
 		}
 		NumberField nf = (NumberField) field;
 		Reals r = nf.minkowskiEmbeddingSpace().getValueField();
@@ -3174,6 +3245,8 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			int m = r.divide(r.log(r.divide(r.power(r.getInteger(bound), 3), r.getInteger(3))), r.log(r.getInteger(4)))
 					.roundDown().intValueExact();
 			int accuracy = (m + 1) * bound + 1;
+			accuracy = Math.max(accuracy, 3);
+			accuracy *= 3;
 			IntE intPrime = ((NumberFieldIdeal) prime).intGenerator();
 			if (!intPrimes.containsKey(intPrime) || intPrimes.get(intPrime) < accuracy) {
 				intPrimes.put(intPrime, accuracy);
@@ -3196,7 +3269,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 	public Real neronTatePairing(ProjectivePoint<T> p, ProjectivePoint<T> q) {
 		Reals r = ((NumberField) field).minkowskiEmbeddingSpace().getValueField();
-		return r.subtract(height(add(p, q)), r.add(height(p), height(q)));
+		return r.divide(r.subtract(height(add(p, q)), r.add(height(p), height(q))), r.getInteger(2));
 	}
 
 	private List<T> getPossibleY(T x) {
@@ -3284,6 +3357,9 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			return Collections.emptyList();
 		}
 		if (!torsionPointBasis.containsKey(torsion)) {
+			if (!field.isFinite()) {
+				throw new ArithmeticException("Field is not finite!");
+			}
 			IntE order = z.getInteger(getNumberOfElements());
 			FactorizationResult<IntE, IntE> torsionFactors = z.uniqueFactorization(torsion);
 			if (torsionFactors.primeFactors().size() > 1) {

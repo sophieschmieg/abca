@@ -362,17 +362,19 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 
 	@Override
 	public ChineseRemainderPreparation<T> prepareChineseRemainderTheorem(List<? extends Ideal<T>> ideals) {
-		Ideal<T> product = getUnitIdeal();
+		Map<Ideal<T>, Integer> product = new TreeMap<>();
 		List<T> multipliers = new ArrayList<>();
 		for (int i = 0; i < ideals.size(); i++) {
-			product = multiply(product, ideals.get(i));
-			Ideal<T> cofactor = getUnitIdeal();
-			for (int j = 0; j < ideals.size(); j++) {
-				if (i == j) {
-					continue;
-				}
-				cofactor = multiply(cofactor, ideals.get(j));
+			if (product.containsKey(ideals.get(i))) {
+				throw new ArithmeticException("Ideals are not coprime!");
 			}
+			product.put(ideals.get(i), 1);
+		}
+		for (int i = 0; i < ideals.size(); i++) {
+			Map<Ideal<T>, Integer> cofactorList = new TreeMap<>();
+			cofactorList.putAll(product);
+			cofactorList.remove(ideals.get(i));
+			Ideal<T> cofactor = getIdealFromFactorization(cofactorList);
 			BezoutIdentityResult<T> bezout = bezoutIdentity(ideals.get(i), cofactor);
 			T multiplier = one();
 			List<T> generators = ideals.get(i).generators();
@@ -381,7 +383,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			}
 			multipliers.add(multiplier);
 		}
-		return new ChineseRemainderPreparation<>(ideals, product, multipliers);
+		return new ChineseRemainderPreparation<>(ideals,getIdealFromFactorization( product), multipliers);
 	}
 
 	@Override
@@ -637,6 +639,15 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
+	public Ideal<T> getIdealFromFactorization(Map<Ideal<T>, Integer> factorization) {
+		Ideal<T> result = getUnitIdeal();
+		for (Ideal<T> factor : factorization.keySet()) {
+			result = multiply(power(factor, factorization.get(factor)), result);
+		}
+		return result;
+	}
+
+	@Override
 	public Ideal<T> getUnitIdeal() {
 		return getIdeal(Collections.singletonList(one()));
 	}
@@ -793,7 +804,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 		if (!isPrincipalIdealDomain()) {
 			List<Vector<T>> result = new ArrayList<>();
 			for (int i = 0; i < m.columns(); i++) {
-				result.add(m.column(i+1));
+				result.add(m.column(i + 1));
 			}
 			return result;
 		}

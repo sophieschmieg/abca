@@ -495,12 +495,12 @@ public abstract class AbstractField<T extends Element<T>>
 	public GlobalField<T, T, T> quotientField() {
 		throw new ArithmeticException("implementation artifact");
 	}
-	
+
 	@Override
 	public DiscreteValuationRing<T, T> localize(Ideal<T> maximalIdeal) {
 		return new LocalRingImplementation<>(new TrivialDiscreteValuationField<>(this), toString());
 	}
-	
+
 	@Override
 	public DiscreteValuationField<T, T> localizeAndQuotient(Ideal<T> maximalIdeal) {
 		return new TrivialDiscreteValuationField<>(this);
@@ -989,6 +989,16 @@ public abstract class AbstractField<T extends Element<T>>
 	@Override
 	public FieldIdeal<T> getIdeal(T... generators) {
 		return getIdeal(Arrays.asList(generators));
+	}
+
+	@Override
+	public Ideal<T> getIdealFromFactorization(Map<Ideal<T>, Integer> factorization) {
+		for (Ideal<T> factor : factorization.keySet()) {
+			if (factor.equals(getZeroIdeal()) && factorization.get(factor) > 0) {
+				return getZeroIdeal();
+			}
+		}
+		return getUnitIdeal();
 	}
 
 	@Override

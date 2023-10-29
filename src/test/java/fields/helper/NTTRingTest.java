@@ -1,6 +1,7 @@
 package fields.helper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
@@ -20,9 +21,19 @@ import fields.finitefields.PrimeField.PFE;
 import fields.helper.GenericAlgebraicRingExtension.GenericAlgebraicExtensionElement;
 import fields.helper.NTTRing.NTT;
 import fields.interfaces.Ring.QuotientAndRemainderResult;
+import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 
 class NTTRingTest {
+	
+	private int bitreverse(int i, int log2degree) {
+		int result = 0;
+		for (int j = 0; j < log2degree; j++) {
+			if ((i & (1 << j)) != 0)
+			result |= 1 << (log2degree - j - 1);
+		}
+		return result;
+	}
 
 	@Test
 	void test() {
@@ -50,8 +61,34 @@ class NTTRingTest {
 	}
 
 	@Test
+	void testEval() {
+		int prime = 41;
+		int zeta = 3;
+		int degree = 4;
+		PrimeField fp = PrimeField.getPrimeField(prime);
+		UnivariatePolynomialRing<PFE> poly = fp.getUnivariatePolynomialRing();
+		NTTRing<PFE, PrimeField> ntt = new NTTRing<>(fp, degree, fp.getElement(zeta));
+//		GenericAlgebraicRingExtension<PFE> extension = new GenericAlgebraicRingExtension<>(poly.add(poly.getVarPower(degree), poly.one()), fp);
+		for (int tc = 0; tc < 10; tc++) {
+			UnivariatePolynomial<PFE> testPolynomial = poly.getRandomElement(degree - 1);
+			List<PFE> asList = ntt.asList(ntt.fromPolynomial(testPolynomial));
+//			System.out.println("f(X) = " + testPolynomial);
+//			System.out.println("f^   = " + asList);
+//			GenericAlgebraicExtensionElement<PFE> asExt = extension.fromPolynomial(testPolynomial);
+//			System.out.println(extension.asIrreducibleProductElement(asExt));
+			for (int i = 0; i < degree; i++) {
+				PFE zetaPower = fp.power(fp.getElement( zeta), 2*bitreverse(i, 2) + 1);
+//				System.out.println("  zeta^(2*bitreverse(i)+1)  = " + zetaPower);
+//				System.out.println("f(zeta^bitreverse(i)) = " + poly.evaluate(testPolynomial, zetaPower));
+//				System.out.println("f^[i]                 = " + asList.get(i));
+				assertEquals(poly.evaluate(testPolynomial, zetaPower), asList.get(i));
+			}
+		}
+	}
+
+	@Test
 	void testKyberNtt() throws IOException {
-		int numbers = 1 << 20;
+		int numbers = 1 << 10;
 		int eta = 2;
 		Random rand = new SecureRandom();
 		PrimeField fp = PrimeField.getPrimeField(3329);

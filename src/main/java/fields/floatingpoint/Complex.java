@@ -39,6 +39,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 		implements ValueField<ComplexNumber>, FloatingPointSet<ComplexNumber, Complex> {
 	private Reals r;
 	private Complex highPrecision;
+	private boolean lowPrecision;
 	private static Map<Integer, Complex> complex = new TreeMap<>();
 
 	public class ComplexNumber extends AbstractElement<ComplexNumber>
@@ -82,6 +83,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	private Complex(Reals reals) {
 		super(reals.getUnivariatePolynomialRing().getPolynomial(reals.one(), reals.zero(), reals.one()), reals, "i");
 		this.r = reals;
+		this.lowPrecision = r.precision() <= 64;
 	}
 
 	private Complex(int precision) {
@@ -96,6 +98,9 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	private Complex highPrecision() {
+		if (lowPrecision) {
+			return this;
+		}
 		if (highPrecision == null) {
 			highPrecision = withPrecision(precision() + 4);
 		}
@@ -269,6 +274,9 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	public ComplexNumber exp(ComplexNumber t) {
+		if (lowPrecision) {
+			return getDouble(Math.exp(t.realPart().doubleValue()) * Math.cos(t.complexPart().doubleValue()), Math.exp(t.realPart().doubleValue()) * Math.sin(t.complexPart().doubleValue()));
+		}
 		return getEmbedding(highPrecision().calculateExp(t, this));
 	}
 

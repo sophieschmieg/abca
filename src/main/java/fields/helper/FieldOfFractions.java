@@ -74,7 +74,13 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 	@Override
 	public Fraction<T> add(Fraction<T> t1, Fraction<T> t2) {
 		if (t1.denominator.equals(t2.denominator)) {
-			return new Fraction<>(this.ring, this.ring.add(t1.numerator, t2.numerator), t1.denominator);
+			return new Fraction<>(this.ring, this.ring.add(t1.numerator, t2.numerator), t1.denominator, t1.counter + t2.counter + 1);
+		}
+		if (t1.counter > 1000) {
+			t1.canonicalize();
+		}
+		if (t2.counter > 1000) {
+			t2.canonicalize();
 		}
 		T denominator;
 		T ext1;
@@ -83,29 +89,29 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		ext1 = t2.denominator;
 		ext2 = t1.denominator;
 		T numerator = ring.add(ring.multiply(t1.numerator, ext1), ring.multiply(t2.numerator, ext2));
-		return new Fraction<>(this.ring, numerator, denominator);
+		return new Fraction<>(this.ring, numerator, denominator, t1.counter + t2.counter + 1);
 	}
 
 	@Override
 	public Fraction<T> negative(Fraction<T> t) {
-		return new Fraction<T>(this.ring, this.ring.negative(t.numerator), t.denominator);
+		return new Fraction<T>(this.ring, this.ring.negative(t.numerator), t.denominator, t.counter);
 	}
 
 	@Override
 	public Fraction<T> multiply(Fraction<T> t1, Fraction<T> t2) {
 		if (t1.numerator.equals(t2.denominator)) {
-			return new Fraction<>(ring, t2.numerator, t1.denominator);
+			return new Fraction<>(ring, t2.numerator, t1.denominator, Math.max(t1.counter, t2.counter));
 		}
 		if (t1.denominator.equals(t2.numerator)) {
-			return new Fraction<>(ring, t1.numerator, t2.denominator);
+			return new Fraction<>(ring, t1.numerator, t2.denominator, Math.max(t1.counter, t2.counter));
 		}
 		return new Fraction<>(ring, ring.multiply(t1.numerator, t2.numerator),
-				ring.multiply(t1.denominator, t2.denominator));
+				ring.multiply(t1.denominator, t2.denominator), Math.max(t1.counter, t2.counter));
 	}
 
 	@Override
 	public Fraction<T> inverse(Fraction<T> t) {
-		return new Fraction<T>(this.ring, t.denominator, t.numerator);
+		return new Fraction<T>(this.ring, t.denominator, t.numerator, t.counter);
 	}
 
 	@Override
@@ -159,7 +165,7 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		while (nonzero.equals(this.ring.zero())) {
 			nonzero = this.ring.getRandomElement();
 		}
-		return new Fraction<T>(this.ring, this.ring.getRandomElement(), nonzero);
+		return new Fraction<T>(this.ring, this.ring.getRandomElement(), nonzero, 1);
 	}
 
 	@Override
@@ -173,11 +179,11 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 	}
 
 	public Fraction<T> getEmbedding(T t) {
-		return new Fraction<T>(this.ring, t, this.ring.one());
+		return new Fraction<T>(this.ring, t, this.ring.one(), 0);
 	}
 
 	public Fraction<T> getFraction(T numerator, T denominator) {
-		return new Fraction<>(ring, numerator, denominator);
+		return new Fraction<>(ring, numerator, denominator, 1);
 	}
 
 	public static class Fraction<T extends Element<T>> extends AbstractElement<Fraction<T>> {
@@ -185,8 +191,9 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		private T numerator;
 		private T denominator;
 		private boolean canonical;
+		private int counter;
 
-		private Fraction(Ring<T> ring, T numerator, T denominator) {
+		private Fraction(Ring<T> ring, T numerator, T denominator, int counter) {
 			if (denominator.equals(ring.zero())) {
 				throw new ArithmeticException("Division by 0!");
 			}
@@ -201,6 +208,7 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 			this.numerator = numerator;
 			this.denominator = denominator;
 			this.canonical = false;
+			this.counter = counter;
 		}
 
 		public void canonicalize() {
@@ -208,6 +216,7 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 				return;
 			}
 			this.canonical = true;
+			this.counter = 0;
 			if (this.denominator.equals(ring.one())) {
 				return;
 			}
