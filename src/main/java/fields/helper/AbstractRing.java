@@ -235,6 +235,12 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 
 	@Override
 	public T power(T t, int n) {
+		if (n == 0) {
+			return one();
+		}
+		if (n == 1) {
+			return t;
+		}
 		return this.power(t, BigInteger.valueOf(n));
 	}
 
@@ -383,7 +389,7 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			}
 			multipliers.add(multiplier);
 		}
-		return new ChineseRemainderPreparation<>(ideals,getIdealFromFactorization( product), multipliers);
+		return new ChineseRemainderPreparation<>(ideals, getIdealFromFactorization(product), multipliers);
 	}
 
 	@Override
@@ -746,42 +752,185 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 		throw new UnsupportedOperationException();
 	}
 
-	@Override
-	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
-		if (!isPrincipalIdealDomain()) {
-			throw new ArithmeticException("Not a principal ideal domain!");
+	public static class GenericRingAsSubMemberModulePreperation<T extends Element<T>>
+			implements AsSubModuleMemberPreperation<T, GenericRingAsSubMemberModulePreperation<T>> {
+		private MatrixModule<T>.SmithNormalFormResult gauss;
+		private Matrix<T> matrix;
+		private List<Matrix<T>> syzygiesMatrices;
+		private List<IdealResult<T, ? extends Ideal<T>>> rowIdeals;
+		private List<Vector<T>> rows;
+		private MatrixModule<T> module;
+
+		public GenericRingAsSubMemberModulePreperation(Matrix<T> matrix, MatrixModule<T>.SmithNormalFormResult gauss,
+				MatrixModule<T> module) {
+			this.matrix = matrix;
+			this.gauss = gauss;
+			this.module = module;
 		}
-		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
-		Vector<T> rhs = module.codomainAlgebra().multiply(gauss.getRowOperationsInverse(), b);
+
+		public GenericRingAsSubMemberModulePreperation(Matrix<T> matrix, List<Matrix<T>> syzygiesMatrices,
+				List<IdealResult<T, ? extends Ideal<T>>> rowIdeals, List<Vector<T>> rows, MatrixModule<T> module) {
+			this.matrix = matrix;
+			this.syzygiesMatrices = syzygiesMatrices;
+			this.rowIdeals = rowIdeals;
+			this.rows = rows;
+			this.module = module;
+		}
+
+		public Matrix<T> getMatrix() {
+			return matrix;
+		}
+
+		public List<Matrix<T>> getSyzygiesMatrices() {
+			return syzygiesMatrices;
+		}
+
+		public List<IdealResult<T, ? extends Ideal<T>>> getRowIdeals() {
+			return rowIdeals;
+		}
+
+		public List<Vector<T>> getRows() {
+			return rows;
+		}
+
+		public MatrixModule<T> getModule() {
+			return module;
+		}
+
+		public MatrixModule<T>.SmithNormalFormResult getSmithNormalForm() {
+			return gauss;
+		}
+
+		@Override
+		public GenericRingAsSubMemberModulePreperation<T> asPreperation() {
+			return this;
+		}
+
+	}
+
+	private T rowMultiply(Vector<T> row, Vector<T> column) {
+		if (row.dimension() != column.dimension()) {
+			throw new ArithmeticException("Mismatched dimensions");
+		}
+		T result = zero();
+		for (int i = 0; i < row.dimension(); i++) {
+			result = add(multiply(row.get(i + 1), column.get(i + 1)), result);
+		}
+		return result;
+	}
+
+	private List<T> rowMultiplyMatrix(Vector<T> row, Matrix<T> columns) {
+		List<T> result = new ArrayList<>();
+		for (int i = 0; i < columns.columns(); i++) {
+			result.add(rowMultiply(row, columns.column(i + 1)));
+		}
+		return result;
+	}
+
+	@Override
+	public AsSubModuleMemberPreperation<T, ?> prepareAsSubModuleMember(MatrixModule<T> module, Matrix<T> m) {
+		if (isPrincipalIdealDomain()) {
+			return new GenericRingAsSubMemberModulePreperation<T>(m, module.smithNormalForm(m), module);
+		}
+		Matrix<T> syzygiesMatrix = module.domainAlgebra().one();
+		List<Matrix<T>> syzygiesMatrices = new ArrayList<>();
+		List<IdealResult<T, ? extends Ideal<T>>> rowIdeals = new ArrayList<>();
+		List<Vector<T>> rows = new ArrayList<>();
 		for (int i = 0; i < m.rows(); i++) {
-			if (i < m.columns() && !isDivisible(rhs.get(i + 1), gauss.getDiagonalMatrix().entry(i + 1, i + 1))) {
+			Vector<T> row = m.row(i + 1);
+			IdealResult<T, ? extends Ideal<T>> ideal = getIdealWithTransforms(rowMultiplyMatrix(row, syzygiesMatrix));
+			syzygiesMatrices.add(syzygiesMatrix);
+			rowIdeals.add(ideal);
+			rows.add(row);
+			if (ideal.getSyzygies().size() > 0) {
+				Matrix<T> rowSyzygiesMatrix = Matrix.fromColumns(ideal.getSyzygies());
+				syzygiesMatrix = module.multiply(syzygiesMatrix, rowSyzygiesMatrix);
+			} else {
+				syzygiesMatrix = module.domainAlgebra().zero();
+			}
+		}
+		return new GenericRingAsSubMemberModulePreperation<>(m, syzygiesMatrices, rowIdeals, rows, module);
+	}
+
+	@Override
+	public boolean isSubModuleMember(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> b) {
+		@SuppressWarnings("unchecked")
+		GenericRingAsSubMemberModulePreperation<T> prep = (GenericRingAsSubMemberModulePreperation<T>) preperation;
+		MatrixModule<T> module = prep.getModule();
+		Matrix<T> m = prep.getMatrix();
+		if (isPrincipalIdealDomain()) {
+			MatrixModule<T>.SmithNormalFormResult gauss = prep.getSmithNormalForm();
+			Vector<T> rhs = module.codomainAlgebra().multiply(gauss.getRowOperationsInverse(), b);
+			for (int i = 0; i < m.rows(); i++) {
+				if (i < m.columns() && !isDivisible(rhs.get(i + 1), gauss.getDiagonalMatrix().entry(i + 1, i + 1))) {
+					return false;
+				}
+				if (i >= m.columns() && !rhs.get(i + 1).equals(zero())) {
+					return false;
+				}
+			}
+			return true;
+		}
+		Vector<T> asSubModuleMember = module.domain().zero();
+		for (int i = 0; i < prep.getRows().size(); i++) {
+			Matrix<T> syzygiesMatrix = prep.getSyzygiesMatrices().get(i);
+			Vector<T> row = prep.getRows().get(i);
+			IdealResult<T, ? extends Ideal<T>> ideal = prep.getRowIdeals().get(i);
+			T adjusted = subtract(b.get(i + 1), rowMultiply(row, asSubModuleMember));
+			if (!ideal.getIdeal().contains(adjusted)) {
 				return false;
 			}
-			if (i >= m.columns() && !rhs.get(i + 1).equals(zero())) {
-				return false;
+			List<T> idealResult = ideal.getIdeal().generate(adjusted);
+			for (int j = 0; j < ideal.getIdeal().generators().size(); j++) {
+				asSubModuleMember = module
+						.domain().add(
+								module.domain().scalarMultiply(idealResult.get(j),
+										module.multiply(syzygiesMatrix,
+												new Vector<>(ideal.getGeneratorExpressions().get(j)))),
+								asSubModuleMember);
 			}
 		}
 		return true;
 	}
 
 	@Override
-	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
-		if (!isPrincipalIdealDomain()) {
-			throw new ArithmeticException("Not a principal ideal domain!");
+	public Vector<T> asSubModuleMember(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> b) {
+		@SuppressWarnings("unchecked")
+		GenericRingAsSubMemberModulePreperation<T> prep = (GenericRingAsSubMemberModulePreperation<T>) preperation;
+		MatrixModule<T> module = prep.getModule();
+		Matrix<T> m = prep.getMatrix();
+		if (isPrincipalIdealDomain()) {
+			List<T> result = new ArrayList<>();
+			MatrixModule<T>.SmithNormalFormResult gauss = prep.getSmithNormalForm();
+			Vector<T> rhs = module.codomainAlgebra().multiply(gauss.getRowOperationsInverse(), b);
+			for (int i = 0; i < m.columns(); i++) {
+				if (i < m.rows() && (!rhs.get(i + 1).equals(zero())
+						|| !gauss.getDiagonalMatrix().entry(i + 1, i + 1).equals(zero()))) {
+					T r = divideChecked(rhs.get(i + 1), gauss.getDiagonalMatrix().entry(i + 1, i + 1));
+					result.add(r);
+				} else {
+					result.add(zero());
+				}
+			}
+			return module.domainAlgebra().multiply(gauss.getColOperationsInverse(), new Vector<>(result));
 		}
-		List<T> result = new ArrayList<>();
-		MatrixModule<T>.SmithNormalFormResult gauss = module.smithNormalForm(m);
-		Vector<T> rhs = module.codomainAlgebra().multiply(gauss.getRowOperationsInverse(), b);
-		for (int i = 0; i < m.columns(); i++) {
-			if (i < m.rows() && (!rhs.get(i + 1).equals(zero())
-					|| !gauss.getDiagonalMatrix().entry(i + 1, i + 1).equals(zero()))) {
-				T r = divideChecked(rhs.get(i + 1), gauss.getDiagonalMatrix().entry(i + 1, i + 1));
-				result.add(r);
-			} else {
-				result.add(zero());
+		Vector<T> asSubModuleMember = module.domain().zero();
+		for (int i = 0; i < prep.getRows().size(); i++) {
+			Matrix<T> syzygiesMatrix = prep.getSyzygiesMatrices().get(i);
+			Vector<T> row = prep.getRows().get(i);
+			IdealResult<T, ? extends Ideal<T>> ideal = prep.getRowIdeals().get(i);
+			T adjusted = subtract(b.get(i + 1), rowMultiply(row, asSubModuleMember));
+			List<T> idealResult = ideal.getIdeal().generate(adjusted);
+			for (int j = 0; j < ideal.getIdeal().generators().size(); j++) {
+				asSubModuleMember = module
+						.domain().add(
+								module.domain().scalarMultiply(idealResult.get(j),
+										module.multiply(syzygiesMatrix,
+												new Vector<>(ideal.getGeneratorExpressions().get(j)))),
+								asSubModuleMember);
 			}
 		}
-		return module.domainAlgebra().multiply(gauss.getColOperationsInverse(), new Vector<>(result));
+		return asSubModuleMember;
 	}
 
 	@Override
@@ -830,6 +979,13 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 	}
 
 	@Override
+	public Vector<T> residueModuloSubmodule(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> t) {
+		MatrixModule<T> module = preperation.getModule();
+		Matrix<T> m = preperation.getMatrix();
+		return module.codomain().subtract(t, module.multiply(m, asSubModuleMember(preperation, t)));
+	}
+
+	@Override
 	public boolean isIrreducible(T t) {
 		if (!isUniqueFactorizationDomain()) {
 			throw new UnsupportedOperationException();
@@ -843,6 +999,14 @@ public abstract class AbstractRing<T extends Element<T>> implements Ring<T> {
 			throw new UnsupportedOperationException();
 		}
 		return isIrreducible(t);
+	}
+	
+	@Override
+	public T zeroCodivisor(T t) {
+		if (t.equals(zero())) {
+			return one();
+		}
+		return zero();
 	}
 
 	@Override

@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractAlgebra;
@@ -19,6 +21,7 @@ import fields.vectors.ExteriorProduct.WedgeProduct;
 import fields.vectors.ExteriorProduct.WedgeProductSum;
 import fields.vectors.FreeModule;
 import fields.vectors.Vector;
+import varieties.affine.AffinePoint;
 
 public class DifferentialForms<T extends Element<T>> extends AbstractAlgebra<Polynomial<T>, DifferentialForm<T>> {
 	public static class DifferentialForm<T extends Element<T>> extends AbstractElement<DifferentialForm<T>> {
@@ -162,6 +165,23 @@ public class DifferentialForms<T extends Element<T>> extends AbstractAlgebra<Pol
 		return asExteriorProduct.asGradedVector(asWedgeProductSum(s), degree);
 	}
 
+	public DifferentialForm<T> fromGradedVector(Vector<Polynomial<T>> s, int degree) {
+		return fromWedgeProductSum(asExteriorProduct.fromGradedVector(s, degree));
+	}
+
+	public Map<WedgeProduct, Polynomial<T>> asMap(DifferentialForm<T> t) {
+		Map<WedgeProduct, Polynomial<T>> result = new TreeMap<>();
+		WedgeProductSum<Polynomial<T>> asWedgeProductSum = asWedgeProductSum(t);
+		for (WedgeProduct product : asWedgeProductSum.getWedgeProducts()) {
+			result.put(product, asWedgeProductSum.coefficient(product));
+		}
+		return result;
+	}
+
+	public DifferentialForm<T> fromMap(Map<WedgeProduct, Polynomial<T>> t) {
+		return fromWedgeProductSum(asExteriorProduct.fromMap(t));
+	}
+
 	public DifferentialForm<T> getEmbedding(Polynomial<T> t) {
 		return fromWedgeProductSum(asExteriorProduct.getEmbedding(t));
 	}
@@ -187,6 +207,29 @@ public class DifferentialForms<T extends Element<T>> extends AbstractAlgebra<Pol
 			}
 		}
 		return result;
+	}
+	
+	public ExteriorProduct<T, Vector<T>> evaluationSpace() {
+		FreeModule<T> module = new FreeModule<>(polynomialRing.getRing(), polynomialRing.numberOfVariables());
+		String[] names = new String[polynomialRing.numberOfVariables()];
+		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+			names[i] = "d" + polynomialRing.getVariableNames()[i];
+		}
+		return new ExteriorProduct<>(module, names);
+	}
+
+	public WedgeProductSum<T> evaluate(DifferentialForm<T> t, List<T> ts) {
+		ExteriorProduct<T, Vector<T>> product = evaluationSpace();
+		Map<WedgeProduct, T> evaluated = new TreeMap<>();
+		for (WedgeProduct monomial : t.asWedgeProduct.getWedgeProducts()) {
+			evaluated.put(product.getWedgeProduct(monomial.getVariables()),
+					polynomialRing.evaluate(t.asWedgeProduct.coefficient(monomial), ts));
+		}
+		return product.fromMap(evaluated);
+	}
+
+	public WedgeProductSum<T> evaluate(DifferentialForm<T> t, AffinePoint<T> ts) {
+		return evaluate(t, ts.getCoords());
 	}
 
 	@Override
@@ -274,6 +317,11 @@ public class DifferentialForms<T extends Element<T>> extends AbstractAlgebra<Pol
 	@Override
 	public boolean isZeroDivisor(DifferentialForm<T> t) {
 		return asExteriorProduct.isZeroDivisor(asWedgeProductSum(t));
+	}
+	
+	@Override
+	public DifferentialForm<T> zeroCodivisor(DifferentialForm<T> t) {
+		return fromWedgeProductSum(asExteriorProduct.zeroCodivisor(asWedgeProductSum(t)));
 	}
 
 	@Override

@@ -17,8 +17,10 @@ import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import fields.interfaces.PolynomialRing.GroebnerBasis;
+import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
+import fields.vectors.Vector;
 import varieties.affine.AffinePoint;
 
 class PolynomialRingTest {
@@ -126,5 +128,32 @@ class PolynomialRingTest {
 //			Polynomial<PFE> p3 = polynomialRing.multiply(p1, p2);
 //			polynomialRing.uniqueFactorization(p3);
 //			}
+	}
+	
+	@Test
+	void asSubModuleMemberTest() {
+		int domainDim = 3;
+		int codaminDim = 4;
+		int degree = 2;
+		PrimeField field = PrimeField.getPrimeField(37);
+		PolynomialRing<PFE> polynomialRing = AbstractPolynomialRing.getPolynomialRing(field, 3, Monomial.GREVLEX);
+		List<Vector<Polynomial<PFE>>> columns = new ArrayList<>();
+		for (int i = 0; i < domainDim; i++) {
+			List<Polynomial<PFE>> column = new ArrayList<>();
+			for (int j = 0; j < codaminDim; j++) {
+				column.add(polynomialRing.getRandomElement(degree));
+			}
+			columns.add(new Vector<>(column));
+		}
+		Matrix<Polynomial<PFE>> matrix = Matrix.fromColumns(columns);
+		MatrixModule<Polynomial<PFE>> module = matrix.getModule(polynomialRing);
+		List<Polynomial<PFE>> x = new ArrayList<>();
+		for (int i = 0; i < domainDim; i++) {
+			x.add(polynomialRing.getRandomElement(degree));
+		}
+		Vector<Polynomial<PFE>> xVector = new Vector<>(x);
+		Vector<Polynomial<PFE>> image = module.multiply(matrix, xVector);
+		Vector<Polynomial<PFE>> solved = polynomialRing.asSubModuleMember(matrix, image);
+		System.out.println(solved);
 	}
 }

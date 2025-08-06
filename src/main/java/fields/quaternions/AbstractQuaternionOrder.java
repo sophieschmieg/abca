@@ -210,6 +210,9 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 
 	@Override
 	public boolean isUnit(Quaternion<T> t) {
+		if (t.equals(zero())) {
+			return false;
+		}
 		return isElement(quaternions.inverse(t));
 	}
 
@@ -245,6 +248,11 @@ public abstract class AbstractQuaternionOrder<T extends Element<T>, I extends El
 	@Override
 	public boolean isZeroDivisor(Quaternion<T> t) {
 		return quaternions.isZeroDivisor(t);
+	}
+	
+	@Override
+	public Quaternion<T> zeroCodivisor(Quaternion<T> t) {
+		return quaternions.zeroCodivisor(t);
 	}
 
 	@Override

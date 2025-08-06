@@ -44,8 +44,6 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 		}
 		List<AffineScheme<T>> coverList = new ArrayList<>();
 		List<List<AffineMorphism<T>>> intersectionList = new ArrayList<>();
-//		PolynomialRing<T> affineRing = AbstractPolynomialRing.getPolynomialRing(field,
-//				polynomialRing.numberOfVariables() - 1, polynomialRing.getComparator());
 		Polynomial<T> z = polynomialRing.getVar(polynomialRing.numberOfVariables());
 		for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
 			PolynomialRing<T> affineRing = polynomialRing.eliminateVariable(i + 1);
@@ -100,7 +98,7 @@ public class GenericProjectiveScheme<T extends Element<T>> extends AbstractSchem
 			}
 			intersectionList.get(i).add(coverList.get(i).identityMorphism());
 		}
-		this.cover = new AffineCover<>(coverList, intersectionList, true);
+		this.cover = new AffineCover<>(coverList, intersectionList, false);
 	}
 
 	public static <T extends Element<T>> GenericProjectiveScheme<T> fromAffineScheme(AffineScheme<T> affine) {

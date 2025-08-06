@@ -11,6 +11,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import fields.finitefields.PrimeField;
+import fields.finitefields.PrimeField.PFE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.interfaces.Polynomial;
@@ -19,6 +21,8 @@ import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
+import fields.polynomials.RelativeDifferentialForms;
+import fields.polynomials.RelativeDifferentialForms.RelativeDifferentialForm;
 
 class AffineMorphismTest {
 
@@ -166,4 +170,43 @@ class AffineMorphismTest {
 		assertTrue(lineSupYToLine.isFinite());
 	}
 
+	@Test
+	void relativeDifferentialFormsTest() throws IOException {
+		PrimeField p257 = PrimeField.getPrimeField(257);
+		PolynomialRing<PFE> polynomials = AbstractPolynomialRing.getPolynomialRing(p257, Monomial.REVLEX,
+				new String[] { "X", "Y" });
+		Polynomial<PFE> polynomial = polynomials.parse("-1*Y^2 + X^3 + -1*X");
+		AffineScheme<PFE> curve = new AffineScheme<>(p257,
+				polynomials.getIdeal(Collections.singletonList(polynomial)).divideOut());
+		AffineScheme<PFE> line = new AffineScheme<>(p257,
+				p257.getUnivariatePolynomialRing().getZeroIdeal().divideOut());
+		AffineMorphism<PFE> cover = AffineMorphism.fromPolynomials(curve, line,
+				Collections.singletonList(polynomials.getVar(1)));
+		RelativeDifferentialForms<PFE> relative = cover.getRelativeDifferentialForms();
+		CoordinateRingElement<PFE> x = curve.getCoordinateRing().getVar(1);
+		CoordinateRingElement<PFE> y = curve.getCoordinateRing().getVar(2);
+		for (RelativeDifferentialForms<PFE>.RelativeDifferentialForm baseForm : relative.getModuleGenerators()) {
+			System.out.println(baseForm);
+			System.out.println(relative.scalarMultiply(x, baseForm));
+			System.out.println(relative.scalarMultiply(x, relative.scalarMultiply(x, baseForm)));
+			System.out.println(
+					relative.scalarMultiply(x, relative.scalarMultiply(x, relative.scalarMultiply(x, baseForm))));
+			System.out.println(relative.scalarMultiply(y, baseForm));
+			System.out.println(relative.scalarMultiply(y, relative.scalarMultiply(y, baseForm)));
+			CoordinateRingElement<PFE> random = curve.getCoordinateRing().getEmbedding(polynomials.getRandomElement(5));
+			System.out.println(random);
+			System.out.println(relative.scalarMultiply(random, baseForm));
+		}
+		AffineMorphism<PFE> square = AffineMorphism.fromPolynomials(line, line,
+				Collections.singletonList(p257.getUnivariatePolynomialRing().getVarPower(2)));
+		RelativeDifferentialForms<PFE> squareRelative = square.getRelativeDifferentialForms();
+		for (RelativeDifferentialForms<PFE>.RelativeDifferentialForm baseForm : squareRelative.getModuleGenerators()) {
+			System.out.println(baseForm);
+			CoordinateRingElement<PFE> random = line.getCoordinateRing()
+					.getEmbedding(p257.getUnivariatePolynomialRing().getRandomElement(5));
+			System.out.println(random);
+			System.out.println(squareRelative.scalarMultiply(random, baseForm));
+		}
+
+	}
 }

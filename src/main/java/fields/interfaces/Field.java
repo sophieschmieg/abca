@@ -70,6 +70,8 @@ public interface Field<T extends Element<T>> extends MathSet<T>, Ring<T>, Dedeki
 	public T power(T t, int n);
 
 	public T power(T t, BigInteger n);
+	
+	public BigInteger discreteLogarithm(T basis, T power);
 
 	public Iterable<T> getNonZeroElements() throws InfinityException;
 
@@ -137,6 +139,10 @@ public interface Field<T extends Element<T>> extends MathSet<T>, Ring<T>, Dedeki
 
 		public Field<T> domain() {
 			return domain;
+		}
+
+		public int degree() {
+			return asVectorMap.evaluate(extension.one()).dimension();
 		}
 
 		public Extension<T, Base, Ext, ExtField> extendFurther(FieldEmbedding<Base, Ext, ExtField> embedding) {

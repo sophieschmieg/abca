@@ -108,6 +108,14 @@ public class Kyber implements KemScheme<ByteArray, ByteArray, ByteArray, Kyber> 
 	public int getDegree() {
 		return degree;
 	}
+	
+	public int getRank() {
+		return k;
+	}
+	
+	public int getPrime() {
+		return prime;
+	}
 
 	public NTT<FFE> fromPolynomial(UnivariatePolynomial<PFE> polynomial) {
 		return cyclotomic.fromPolynomial(

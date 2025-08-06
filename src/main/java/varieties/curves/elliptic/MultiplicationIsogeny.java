@@ -3,7 +3,10 @@ package varieties.curves.elliptic;
 import java.math.BigInteger;
 import java.util.List;
 
+import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
+import fields.interfaces.FieldExtension;
+import fields.interfaces.Field.Extension;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 
@@ -48,6 +51,12 @@ public class MultiplicationIsogeny<T extends Element<T>> implements Isogeny<T> {
 	@Override
 	public ProjectivePoint<T> evaluate(ProjectivePoint<T> point) {
 		return curve.multiply(n, point);
+	}
+	
+	@Override
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+			ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+		return curve.extendBaseField(extension).getCurve().multiply(n, point);
 	}
 
 	@Override

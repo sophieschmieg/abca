@@ -230,7 +230,7 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 
 	@Override
 	public boolean isZeroDivisor(T t) {
-		return false;
+		return t.equals(zero());
 	}
 
 	@Override
@@ -2068,10 +2068,8 @@ public class LocalRingImplementation<T extends Element<T>, S extends Element<S>>
 			OkutsuType<T, S, R, RE, RFE> type, UnivariatePolynomial<T> t) {
 		Rationals q = Rationals.q();
 		Value v = type.valuation(t);
-		if (v.isInfinite() && !field.isComplete()) {
-			throw new ArithmeticException("Infinite Value!");
-		}
-		int value = v.isInfinite() ? field.getAccuracy() + 1 : v.value();
+		int accuracy = field.isComplete() ? field.getAccuracy() : 1024;  // Arbitrarily determined "high" value
+		int value = v.isInfinite() ? accuracy + 1 : v.value();
 		return q.getFraction(value, type.ramificationIndex());
 	}
 

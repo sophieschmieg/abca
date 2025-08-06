@@ -48,6 +48,7 @@ import fields.polynomials.CoordinateRing;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.GenericUnivariatePolynomial;
 import fields.polynomials.Monomial;
+import fields.polynomials.PolynomialIdeal;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
@@ -1029,7 +1030,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 		result.put(z.negative(z.getInteger(sqrt[0])), 1);
 		return result;
 	}
-	
+
 	public Polynomial<IntE> clearFractionsAndContent(Polynomial<Fraction> polynomial) {
 		IntE denominator = one();
 		for (Monomial m : polynomial.monomials()) {
@@ -1049,18 +1050,200 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 	}
 
 	// file:///Users/sophie/Downloads/A_sparse_modular_GCD_algorithm_for_polynomials_ove.pdf
+	// https://www.cecm.sfu.ca/~mmonagan/papers/SparseMod.pdf
+	// The CoordinateRing must have the following structure:
+	// Variables 1 to transcendentVars are free
+	// Variables transcendentVars to numVars - 1 are bound
+	// Generator (numVars - transcendentVars) - i of the ideal binds
+	// transcendentVars + i
+	// Variable numVar is free
 	public CoordinateRingElement<IntE> gcdCoordinateRingElements(CoordinateRing<IntE> coordinateRing,
 			CoordinateRingElement<IntE> t1, CoordinateRingElement<IntE> t2) {
-		if (coordinateRing.getIdeal().generators().size() > 1) {
-			throw new ArithmeticException("Coordinate ring is only allowed to have one equation");
-		}
 		PolynomialRing<IntE> polynomialRing = coordinateRing.getPolynomialRing();
+		List<Polynomial<IntE>> moduli = coordinateRing.getIdeal().generators();
+		int transcendentVars = coordinateRing.krullDimension() - 1;
+		if (moduli.size() + transcendentVars + 1 != polynomialRing.numberOfVariables()) {
+			throw new ArithmeticException("Number of variables mismatched!");
+		}
+		for (int i = 0; i < moduli.size(); i++) {
+			Polynomial<IntE> modulus = moduli.get(i);
+			if (!modulus.leadingCoefficient().equals(one())) {
+				throw new ArithmeticException("Not a monic modulus!");
+			}
+			for (int j = transcendentVars + moduli.size() - i + 1; j <= polynomialRing.numberOfVariables(); j++) {
+				if (modulus.degree(j) != 0) {
+					throw new ArithmeticException("Variable " + j + " is not free!");
+				}
+			}
+		}
 		int freeVariable = polynomialRing.numberOfVariables() - 1;
 		int boundVariable = polynomialRing.numberOfVariables();
 		Polynomial<IntE> modulus = coordinateRing.getIdeal().generators().get(0);
 		if (modulus.degree(freeVariable) != 0) {
-			throw new ArithmeticException("Variable " + freeVariable + " is not free!");
 		}
+		return null;
+	}
+
+	private static class GcdCoordinateRingElementsModPResult {
+		private enum Type {
+			RESULT, BADFORM, ZERODIVISOR, UNLUCKY, UNLUCKYCONTENT
+		};
+
+		private Type type;
+		private UnivariatePolynomial<CoordinateRingElement<PFE>> result;
+	}
+
+	public CoordinateRing<PFE> reduceCoordinateRing(CoordinateRing<IntE> cr, IntE prime) {
+		PrimeField field = PrimeField.getPrimeField(prime);
+		PolynomialRing<IntE> polynomialRing = cr.getPolynomialRing();
+		PolynomialRing<PFE> primePolynomialRing = AbstractPolynomialRing.getPolynomialRing(field,
+				polynomialRing.getComparator(), polynomialRing.getVariableNames());
+		return ((PolynomialIdeal<PFE>) primePolynomialRing.getIdealEmbedding(cr.getIdeal(),
+				new FunctionMathMap<>((Polynomial<IntE> t) -> reducePolynomial(t, prime)))).divideOut();
+	}
+
+	public CoordinateRingElement<PFE> reduceCoordinateRingElement(CoordinateRing<PFE> cr, CoordinateRingElement<IntE> t,
+			IntE prime) {
+		return cr.getEmbedding(reducePolynomial(t.getElement(), prime));
+	}
+
+	private UnivariatePolynomial<CoordinateRingElement<PFE>> reduceCoordinateRingElementPolynomial(
+			CoordinateRing<PFE> cr, UnivariatePolynomial<CoordinateRingElement<IntE>> t, IntE prime) {
+		return cr.getUnivariatePolynomialRing().getEmbedding(t,
+				new FunctionMathMap<>((CoordinateRingElement<IntE> s) -> reduceCoordinateRingElement(cr, s, prime)));
+	}
+
+	private Polynomial<PFE> evalCoordinateRingElementPartially(PFE alpha, int variable, CoordinateRing<PFE> cr,
+			Polynomial<PFE> t) {
+		if (cr.boundVariables().contains(variable)) {
+			throw new ArithmeticException("Can only evaluate free variables!");
+		}
+		PolynomialRing<PFE> evaluated = cr.getPolynomialRing().eliminateVariable(variable);
+		List<PFE> eval = new ArrayList<>();
+		int[] map = new int[evaluated.numberOfVariables()];
+		int j = 0;
+		for (int i = 0; i < cr.getPolynomialRing().numberOfVariables(); i++) {
+			if (i == variable - 1) {
+				eval.add(alpha);
+			} else {
+				eval.add(null);
+				map[j++] = i;
+			}
+		}
+		return evaluated.getEmbedding(cr.getPolynomialRing().partiallyEvaluate(t, eval), map);
+	}
+
+	private CoordinateRing<PFE> evalCoordinateRingPartially(PFE alpha, int variable, CoordinateRing<PFE> cr) {
+		PolynomialRing<PFE> evaluated = cr.getPolynomialRing().eliminateVariable(variable);
+		List<Polynomial<PFE>> generators = new ArrayList<>();
+		for (Polynomial<PFE> generator : cr.getIdeal().generators()) {
+			generators.add(evalCoordinateRingElementPartially(alpha, variable, cr, generator));
+		}
+
+		return evaluated.getIdeal(generators).divideOut();
+	}
+
+	private UnivariatePolynomial<CoordinateRingElement<PFE>> evalCoordinateRingElementPolynomial(PFE alpha,
+			int variable, CoordinateRing<PFE> cr, CoordinateRing<PFE> evaluatedCr,
+			UnivariatePolynomial<CoordinateRingElement<PFE>> t) {
+		PolynomialRing<PFE> evaluated = evaluatedCr.getPolynomialRing();
+		return cr.getUnivariatePolynomialRing().getEmbedding(t,
+				new FunctionMathMap<>((CoordinateRingElement<PFE> s) -> evaluatedCr
+						.getEmbedding(evalCoordinateRingElementPartially(alpha, variable, cr, s.getElement()))));
+	}
+
+	private Optional<UnivariatePolynomial<CoordinateRingElement<PFE>>> remainderCoordinateRingPolynomialModP(
+			CoordinateRing<PFE> coordinateRing, UnivariatePolynomial<CoordinateRingElement<PFE>> dividend,
+			UnivariatePolynomial<CoordinateRingElement<PFE>> divisor) {
+		if (!coordinateRing.isUnit(divisor.leadingCoefficient())) {
+			return Optional.empty();
+		}
+		UnivariatePolynomialRing<CoordinateRingElement<PFE>> polynomials = coordinateRing.getUnivariatePolynomialRing();
+		divisor = polynomials.normalize(divisor);
+		while (dividend.degree() >= divisor.degree()) {
+			dividend = polynomials.toUnivariate(polynomials.subtract(dividend,
+					polynomials.multiplyPower(dividend.degree() - divisor.degree(), divisor)));
+		}
+		return Optional.of(dividend);
+	}
+
+	private Optional<UnivariatePolynomial<CoordinateRingElement<PFE>>> gcdCoordinateRingElementsModPZeroDim(
+			CoordinateRing<PFE> coordinateRing, UnivariatePolynomial<CoordinateRingElement<PFE>> t1,
+			UnivariatePolynomial<CoordinateRingElement<PFE>> t2) {
+		UnivariatePolynomialRing<CoordinateRingElement<PFE>> polynomials = coordinateRing.getUnivariatePolynomialRing();
+		while (!t2.equals(polynomials.zero())) {
+			Optional<UnivariatePolynomial<CoordinateRingElement<PFE>>> remainder = remainderCoordinateRingPolynomialModP(
+					coordinateRing, t1, t2);
+			if (remainder.isEmpty()) {
+				return Optional.empty();
+			}
+			t1 = t2;
+			t2 = remainder.get();
+		}
+		return Optional.of(t1);
+	}
+
+	private GcdCoordinateRingElementsModPResult gcdCoordinateRingElementsModP(IntE prime,
+			CoordinateRing<PFE> coordinateRing, UnivariatePolynomial<CoordinateRingElement<PFE>> t1,
+			UnivariatePolynomial<CoordinateRingElement<PFE>> t2,
+			UnivariatePolynomial<CoordinateRingElement<PFE>> assumedForm) {
+		UnivariatePolynomialRing<CoordinateRingElement<PFE>> polynomials = coordinateRing.getUnivariatePolynomialRing();
+		GcdCoordinateRingElementsModPResult result = new GcdCoordinateRingElementsModPResult();
+		if (coordinateRing.krullDimension() == 0) {
+			Optional<UnivariatePolynomial<CoordinateRingElement<PFE>>> gcd = gcdCoordinateRingElementsModPZeroDim(
+					coordinateRing, t1, t2);
+			if (gcd.isEmpty()) {
+				result.type = GcdCoordinateRingElementsModPResult.Type.ZERODIVISOR;
+				return result;
+			}
+			result.type = GcdCoordinateRingElementsModPResult.Type.RESULT;
+			result.result = gcd.get();
+			return result;
+		}
+		if (!assumedForm.equals(polynomials.zero())) {
+
+		}
+		PrimeField field = PrimeField.getPrimeField(prime);
+		PFE alpha;
+		int variable = coordinateRing.freeVariables().iterator().next();
+		CoordinateRing<PFE> evalCr;
+		UnivariatePolynomial<CoordinateRingElement<PFE>> eval1;
+		UnivariatePolynomial<CoordinateRingElement<PFE>> eval2;
+		while (true) {
+			alpha = field.getRandomElement();
+			evalCr = evalCoordinateRingPartially(alpha, variable, coordinateRing);
+			if (evalCr.degree() != coordinateRing.degree()) {
+				continue;
+			}
+			eval1 = evalCoordinateRingElementPolynomial(alpha,
+					variable, coordinateRing, evalCr, t1);
+			if (eval1.degree() != t1.degree()) {
+				continue;
+			}
+			eval2 = evalCoordinateRingElementPolynomial(alpha,
+					variable, coordinateRing, evalCr, t2);
+			if (eval2.degree() != t2.degree()) {
+				continue;
+			}
+			break;
+		}
+		GcdCoordinateRingElementsModPResult evalResult = gcdCoordinateRingElementsModP(prime, evalCr, eval1, eval2, evalCr.getUnivariatePolynomialRing().zero());
+		if (evalResult.type != GcdCoordinateRingElementsModPResult.Type.RESULT) {
+			return evalResult;
+		}
+		if (evalResult.result.equals(evalCr.getUnivariatePolynomialRing().one())) {
+			result.type = GcdCoordinateRingElementsModPResult.Type.RESULT;
+			result.result = coordinateRing.getUnivariatePolynomialRing().one();
+			return result;
+		}
+		PolynomialRing<PFE> ring = coordinateRing.getPolynomialRing();
+		assumedForm =polynomials.toUnivariate( polynomials.getEmbedding( result.result)); // FIXME
+		UnivariatePolynomial<CoordinateRingElement<PFE>> form = assumedForm;
+		Polynomial<PFE> modulus = ring.subtract(ring.getVar(variable),ring.getEmbedding(alpha));
+		int n = 2;
+		int c = 1;
+		int d = 1;
+		int u = 1;
 		return null;
 	}
 
@@ -1142,7 +1325,7 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 				continue;
 			}
 			int requiredAccuracy = (int) (Math.log(limit.doubleValue()) / Math.log(prime.value.doubleValue()))
-					+ t.degree();
+					+ 2 * t.degree();
 			PAdicField qp = new PAdicField(prime.value, requiredAccuracy);
 			DiscreteValuationRing<PAdicNumber, PFE> zp = qp.ringOfIntegers();
 			UnivariatePolynomialRing<PAdicNumber> zpr = zp.getUnivariatePolynomialRing();
@@ -1554,6 +1737,10 @@ public class Integers extends AbstractRing<IntE> implements DedekindRing<IntE, F
 
 	public IntE centeredLift(PFE t, Ideal<IntE> maximalIdeal) {
 		return centeredLift(t, maximalIdeal.generators().get(0).value);
+	}
+
+	public IntE centeredLift(PFE t, int prime) {
+		return centeredLift(t, BigInteger.valueOf(prime));
 	}
 
 	public Polynomial<IntE> liftPolynomial(Polynomial<PFE> t) {

@@ -9,7 +9,7 @@ public interface Morphism<T extends Element<T>, S extends Element<S>, U extends 
 	Scheme<T, U> getRange();
 
 	GeneralRationalFunction<T, S, U> restrict(S preimage);
-
+	
 /*
 	public static class FiberedProduct<T extends Element<T>, F1 extends Element<F1>, F2 extends Element<F2>, B extends Element<B>> {
 		private GluedScheme<T> product;

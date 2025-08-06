@@ -552,6 +552,12 @@ public abstract class AbstractAlgebraicRingExtension<T extends Element<T>, S ext
 	public boolean isZeroDivisor(S t) {
 		return baseRing.isZeroDivisor(polynomials.resultant(t.asPolynomial(), minimalPolynomial));
 	}
+	
+	@Override
+	public S zeroCodivisor(S t) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
 	@Override
 	public boolean isEuclidean() {

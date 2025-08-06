@@ -14,6 +14,7 @@ import fields.helper.ProductRing.ProductElement;
 import fields.helper.ProductRing.ProductIdeal;
 import fields.interfaces.Element;
 import fields.interfaces.Ideal;
+import fields.interfaces.MathMap;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
@@ -29,6 +30,14 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 
 		private ProductElement<T> asProduct() {
 			return asProduct;
+		}
+		
+		public T get(int i) {
+			return asProduct.get(i);
+		}
+		
+		public List<T> values() {
+			return asProduct.values();
 		}
 
 		@Override
@@ -201,6 +210,10 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 	public ProductElement<T> asProductElement(NTT<T> t) {
 		return t.asProduct();
 	}
+	
+	public ProductRing<T, R> getProductRing() {
+		return product;
+	}
 
 	@Override
 	public BigInteger characteristic() {
@@ -259,6 +272,11 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 	@Override
 	public boolean isZeroDivisor(NTT<T> t) {
 		return product.isZeroDivisor(t.asProduct());
+	}
+	
+	@Override
+	public NTT<T> zeroCodivisor(NTT<T> t) {
+		return fromProductElement(product.zeroCodivisor(t.asProduct()));
 	}
 
 	@Override
@@ -408,6 +426,10 @@ public class NTTRing<T extends Element<T>, R extends Ring<T>> extends AbstractRi
 				return getElement(it.next());
 			}
 		};
+	}
+	
+	public <S extends Element<S>> NTT<T> mapElement(ProductElement<S> t, MathMap<S, T> map) {
+		return fromProductElement(product.mapElement(t, map));
 	}
 
 	public class NTTIdeal extends AbstractIdeal<NTT<T>> {

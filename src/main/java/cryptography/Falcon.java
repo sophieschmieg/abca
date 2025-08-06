@@ -19,11 +19,8 @@ import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals;
 import fields.floatingpoint.Reals.Real;
 import fields.helper.AbstractElement;
-import fields.helper.FieldEmbedding;
 import fields.helper.NTTRing;
 import fields.helper.NTTRing.NTT;
-import fields.helper.ProductRing;
-import fields.helper.ProductRing.ProductElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
@@ -31,6 +28,7 @@ import fields.integers.Rationals.Fraction;
 import fields.interfaces.Element;
 import fields.interfaces.MathMap;
 import fields.interfaces.Ring.ExtendedEuclideanResult;
+import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
@@ -43,6 +41,7 @@ import util.MiscAlgorithms;
 import util.Pair;
 
 public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey, FalconPrivateKey, Falcon> {
+	
 	public class FalconPublicKey extends AbstractElement<FalconPublicKey> {
 		private NFE h;
 
@@ -55,6 +54,10 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 			return h.compareTo(o.h);
 		}
 
+		public NFE getH() {
+			return h;
+		}
+
 	}
 
 	public class FalconPrivateKey extends AbstractElement<FalconPrivateKey> {
@@ -62,7 +65,7 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		private NFE g;
 		private NFE capitalF;
 		private NFE capitalG;
-		private Matrix<ProductElement<ComplexNumber>> b;
+		private Matrix<NTT<ComplexNumber>> b;
 		private FalconTree root;
 		private FalconPublicKey publicKey;
 
@@ -92,6 +95,22 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 			return capitalG.compareTo(o.capitalG);
 		}
 
+		public NFE getF() {
+			return f;
+		}
+
+		public NFE getG() {
+			return g;
+		}
+
+		public NFE getCapitalF() {
+			return capitalF;
+		}
+
+		public NFE getCapitalG() {
+			return capitalG;
+		}
+
 	}
 
 	public class FalconSignature extends AbstractElement<FalconSignature> {
@@ -112,11 +131,15 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 			return signature.compareTo(o.signature);
 		}
 
+		public NFE getSignature() {
+			return signature;
+		}
+
 	}
 
 	private class FalconTree {
 		private Real leafValue;
-		private ProductElement<ComplexNumber> innerValue;
+		private NTT<ComplexNumber> innerValue;
 		private FalconTree left;
 		private FalconTree right;
 	}
@@ -128,18 +151,16 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 	private Reals r;
 	private MathMap<Fraction, ComplexNumber> embeddingMap;
 	private MathMap<ComplexNumber, Fraction> roundMap;
-	private NumberField nf;
 	private NTTRing<PFE, PrimeField> ntt;
-	private NTTRing<ComplexNumber, Complex> fft;
-	private List<ProductRing<ComplexNumber, Complex>> fftTower;
-	private List<ProductRing<IntE, Integers>> zFftTower;
-	private List<FieldEmbedding<Fraction, NFE, NumberField>> nfTower;
+	private List<NTTRing<ComplexNumber, Complex>> fftTower;
+	private List<NumberField> nfTower;
 	private List<List<ComplexNumber>> rootPowers;
 	private SecureRandom random;
 	private Real sigmaMin;
 	private Real sigma;
 	private Real sigmaMax;
 	private Real limit;
+	
 	private static final int[][] rcdt = new int[][] { { 0x02, 0x18, 0x39, 0xac, 0xd3, 0x2e, 0xf4, 0xf7, 0xa3 },
 			{ 0x82, 0xdb, 0x7d, 0x3f, 0x1f, 0x18, 0x2b, 0xd3, 0x54 },
 			{ 0xff, 0xc1, 0x29, 0x48, 0x93, 0xd0, 0xcd, 0x7d, 0x22 },
@@ -177,36 +198,30 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		this.sigmaMax = r.getDouble(sigmaMax);
 		this.limit = r.getDouble(limit);
 		this.fftTower = new ArrayList<>();
-		this.zFftTower = new ArrayList<>();
-		this.nfTower = new ArrayList<>();
 		this.rootPowers = new ArrayList<>();
-		NumberField base = NumberField.getNumberField();
-		for (int i = 0; i < log2degree; i++) {
-			NFE alpha = base.degree() == 1 ? base.one() : base.alpha();
-			UnivariatePolynomialRing<NFE> polynomialRing = base.getUnivariatePolynomialRing();
-			this.nfTower.add(base.getEmbeddedExtension(
-					polynomialRing.add(polynomialRing.getVarPower(2), polynomialRing.getEmbedding(alpha))));
-			this.fftTower.add(ProductRing.power(c, degree));
-			this.zFftTower.add(ProductRing.power(z, degree));
+		this.nfTower = new ArrayList<>();
+		UnivariatePolynomialRing<IntE> zPolynomials = z.getUnivariatePolynomialRing();
+		for (int i = 0; i <= log2degree; i++) {
+			UnivariatePolynomial<IntE> mipo = zPolynomials.add(zPolynomials.getVarPower(degree), zPolynomials.one());
+			this.nfTower.add(NumberField.getNumberFieldFromIntegerPolynomial(mipo));
+			this.fftTower.add(new NTTRing<>(c, degree));
 			this.rootPowers.add(new ArrayList<>());
 			for (int j = 0; j < degree / 2; j++) {
 				int power = 2 * NTTRing.bitReverse(j, i + 1) + 1;
 				Vector<Real> cosineSine = r.cosineAndSine(r.divide(r.multiply(power, r.pi()), r.getInteger(degree)));
 				this.rootPowers.get(i).add(c.fromVector(cosineSine));
 			}
-			degree *= 2;
+			if (i < log2degree) {
+				degree *= 2;
+			}
 
 		}
-		this.fft = new NTTRing<>(c, degree);
 		PFE root;
 		PrimeField fp = PrimeField.getPrimeField(prime);
 		do {
 			root = fp.power(fp.getRandomElement(), (prime - 1) / (2 * degree));
 		} while (!fp.power(root, degree).equals(fp.getInteger(-1)));
 		this.ntt = new NTTRing<>(fp, degree, root);
-		UnivariatePolynomialRing<IntE> intPolynomials = z.getUnivariatePolynomialRing();
-		this.nf = NumberField.getNumberFieldFromIntegerPolynomial(
-				intPolynomials.add(intPolynomials.getVarPower(degree), intPolynomials.one()));
 		Rationals q = Rationals.q();
 		this.embeddingMap = new FunctionMathMap<>((Fraction t) -> c.getFraction(t));
 		this.roundMap = new FunctionMathMap<>((ComplexNumber t) -> q.getInteger(t.realPart().round()));
@@ -223,67 +238,81 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		return new Matrix<>(asMatrix);
 	}
 
-	private ProductElement<ComplexNumber> asFFT(NFE t) {
-		return fft.asProductElement(
-				fft.fromPolynomial(c.getUnivariatePolynomialRing().getEmbedding(t.asPolynomial(), embeddingMap)));
+	public NTT<ComplexNumber> asFFT(NFE t) {
+		return asFFT(log2degree, t);
 	}
 
-	private NFE fromFFT(NTT<ComplexNumber> t) {
+	public NFE fromFFT(NTT<ComplexNumber> t) {
+		return fromFFT(log2degree, t);
+	}
+
+	public NumberField getNumberField(int layer) {
+		return nfTower.get(layer);
+	}
+
+	public NTTRing<ComplexNumber, Complex> getFFTRing(int layer) {
+		return fftTower.get(layer);
+	}
+
+	public NTTRing<PFE, PrimeField> getNTTRing() {
+		return ntt;
+	}
+
+	public int getPrime() {
+		return prime;
+	}
+	
+	public int getLog2Degree() {
+		return log2degree;
+	}
+	
+	public int getDegree() {
+		return degree;
+	}
+
+	private NTT<ComplexNumber> asFFT(int layer, NFE t) {
+		NTTRing<ComplexNumber, Complex> fft = fftTower.get(layer);
+		return fft.fromPolynomial(c.getUnivariatePolynomialRing().getEmbedding(t.asPolynomial(), embeddingMap));
+	}
+
+	private NFE fromFFT(int layer, NTT<ComplexNumber> t) {
 		Rationals q = Rationals.q();
-		return nf.fromPolynomial(q.getUnivariatePolynomialRing().getEmbedding(fft.asPolynomial(t), roundMap));
-	}
-
-//	private MathMap<NFE, ProductElement<ComplexNumber>> asFFT() {
-//		return new FunctionMathMap<>((NFE t) -> asFFT(t));
-//	}
-//
-//	private MathMap<NTT<ComplexNumber>, NFE> fromFFT() {
-//		return new FunctionMathMap<>((NTT<ComplexNumber> t) -> fromFFT(t));
-//	}
-
-	private ProductElement<IntE> mergeFFTInt(int layer, ProductElement<IntE> t0, ProductElement<IntE> t1) {
-		ProductRing<ComplexNumber, Complex> complexRing = fftTower.get(layer);
-		ProductElement<ComplexNumber> z0 = complexRing.mapElement(t0,
-				new FunctionMathMap<>((IntE s) -> c.getInteger(s)));
-		ProductElement<ComplexNumber> z1 = complexRing.mapElement(t1,
-				new FunctionMathMap<>((IntE s) -> c.getInteger(s)));
-		ProductRing<IntE, Integers> intRing = zFftTower.get(layer + 1);
-		return intRing.mapElement(mergeFFT(layer, z0, z1),
-				new FunctionMathMap<>((ComplexNumber s) -> s.realPart().round()));
+		UnivariatePolynomial<Fraction> asPolynomial = q.getUnivariatePolynomialRing()
+				.getEmbedding(fftTower.get(layer).asPolynomial(t), roundMap);
+		return nfTower.get(layer).fromPolynomial(asPolynomial);
 	}
 
 	// t0 + t1*X, t0, t1 in Q[X^2]
 	// t0 is even, t1 is odd coeffs of FFT
-	private ProductElement<ComplexNumber> mergeFFT(int layer, ProductElement<ComplexNumber> t0,
-			ProductElement<ComplexNumber> t1) {
+	private NTT<ComplexNumber> mergeFFT(int layer, NTT<ComplexNumber> t0, NTT<ComplexNumber> t1) {
 		// t(zeta^(2*bitreverse(i)+1)) = t0(zeta^(2*(2*bitreverse(i)+1)) +
 		// zeta^(2*bitreverse(i)+1)*t1(zeta^(2*(2*bitreverse(i)+1))
 		// t0(zeta^2*bitreverse(i)+1)
-		int step = 1 << layer;
+		int step = 1 << (layer - 1);
 		List<ComplexNumber> result = new ArrayList<>();
 		for (int i = 0; i < step; i++) {
-			ComplexNumber stepRoot = fft.getRootPowers().get(i + step);
+			ComplexNumber stepRoot = fftTower.get(layer).getRootPowers().get(i + step);
 			ComplexNumber odd = c.multiply(stepRoot, t1.get(i));
 			ComplexNumber even = t0.get(i);
 			result.add(c.add(odd, even));
 			result.add(c.subtract(even, odd));
 		}
-		return fftTower.get(layer).getElement(result);
+		return fftTower.get(layer).fromList(result);
 	}
 
-	private Vector<ProductElement<ComplexNumber>> splitFFT(int layer, ProductElement<ComplexNumber> t) {
+	private Vector<NTT<ComplexNumber>> splitFFT(int layer, NTT<ComplexNumber> t) {
 		List<ComplexNumber> asList = t.values();
 		List<ComplexNumber> t0 = new ArrayList<>();
 		List<ComplexNumber> t1 = new ArrayList<>();
-		int offset = 1 << layer;
+		int offset = 1 << (layer - 1);
 		for (int i = 0; i < offset; i++) {
-			ComplexNumber stepRoot = fft.getInverseRootPowers().get(i + offset);
+			ComplexNumber stepRoot = fftTower.get(layer).getInverseRootPowers().get(i + offset);
 			ComplexNumber odd = asList.get(2 * i + 1);
 			ComplexNumber even = asList.get(2 * i);
 			t0.add(c.divide(c.add(odd, even), c.getInteger(2)));
 			t1.add(c.divide(c.multiply(stepRoot, c.subtract(even, odd)), c.getInteger(2)));
 		}
-		return new Vector<>(fftTower.get(layer - 1).getElement(t0), fftTower.get(layer - 1).getElement(t1));
+		return new Vector<>(fftTower.get(layer - 1).fromList(t0), fftTower.get(layer - 1).fromList(t1));
 	}
 
 	private int baseSampler() {
@@ -332,7 +361,7 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		while (true) {
 			IntE z0 = z.getInteger(baseSampler());
 			int b = random.nextBoolean() ? 1 : 0;
-			IntE zx = z.add(z.getInteger(b), z.multiply(2 * (b - 1), z0));
+			IntE zx = z.add(z.getInteger(b), z.multiply(2 * b - 1, z0));
 			Real x = r.subtract(r.divide(r.power(r.subtract(r.getInteger(zx), s), 2), r.multiply(2, sigma, sigma)),
 					r.divide(r.power(r.getInteger(z0), 2), r.multiply(2, sigmaMax, sigmaMax)));
 			if (berExp(x, ccs)) {
@@ -341,47 +370,126 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		}
 	}
 
-	private Pair<ProductElement<IntE>, ProductElement<IntE>> fastFourierSampler(int layer,
-			ProductElement<ComplexNumber> t0, ProductElement<ComplexNumber> t1, FalconTree t) {
+	private Vector<NTT<ComplexNumber>> fastFourierSampler(int layer, NTT<ComplexNumber> t0, NTT<ComplexNumber> t1,
+			FalconTree t) {
 		if (layer == 0) {
 			IntE z0 = samplerZ(t0.values().get(0).realPart(), t.leafValue);
 			IntE z1 = samplerZ(t1.values().get(0).realPart(), t.leafValue);
-			return new Pair<>(zFftTower.get(layer).getElement(Collections.singletonList(z0)),
-					zFftTower.get(layer).getElement(Collections.singletonList(z1)));
+			return new Vector<>(fftTower.get(layer).getInteger(z0), fftTower.get(layer).getInteger(z1));
 		}
-		ProductRing<ComplexNumber, Complex> complexRing = fftTower.get(layer);
-		ProductElement<ComplexNumber> l = t.innerValue;
+		NTTRing<ComplexNumber, Complex> complexRing = fftTower.get(layer);
+		NTT<ComplexNumber> l = t.innerValue;
 		FalconTree tree0 = t.left;
 		FalconTree tree1 = t.right;
-		Vector<ProductElement<ComplexNumber>> split1 = splitFFT(layer - 1, t1);
-		Pair<ProductElement<IntE>, ProductElement<IntE>> splitZ1 = fastFourierSampler(layer - 1, split1.get(1),
-				split1.get(2), tree1);
-		ProductElement<IntE> z1 = mergeFFTInt(layer - 1, splitZ1.getFirst(), splitZ1.getSecond());
-		ProductElement<ComplexNumber> t0Prime = complexRing.add(t0, complexRing.multiply(complexRing.subtract(t1,
-				complexRing.mapElement(z1, new FunctionMathMap<>((IntE s) -> c.getInteger(s)))), l));
-		Vector<ProductElement<ComplexNumber>> split0 = splitFFT(layer - 1, t0Prime);
-		Pair<ProductElement<IntE>, ProductElement<IntE>> splitZ0 = fastFourierSampler(layer - 1, split0.get(1),
-				split0.get(2), tree0);
-		ProductElement<IntE> z0 = mergeFFTInt(layer - 1, splitZ0.getFirst(), splitZ0.getSecond());
-		return new Pair<>(z0, z1);
+		Vector<NTT<ComplexNumber>> split1 = splitFFT(layer, t1);
+		Vector<NTT<ComplexNumber>> splitZ1 = fastFourierSampler(layer - 1, split1.get(1), split1.get(2), tree1);
+		NTT<ComplexNumber> z1 = mergeFFT(layer, splitZ1.get(1), splitZ1.get(2));
+		NTT<ComplexNumber> t0Prime = complexRing.add(t0, complexRing.multiply(complexRing.subtract(t1, z1), l));
+		Vector<NTT<ComplexNumber>> split0 = splitFFT(layer, t0Prime);
+		Vector<NTT<ComplexNumber>> splitZ0 = fastFourierSampler(layer - 1, split0.get(1), split0.get(2), tree0);
+		NTT<ComplexNumber> z0 = mergeFFT(layer, splitZ0.get(1), splitZ0.get(2));
+		return new Vector<>(z0, z1);
 	}
 
-	private Vector<ProductElement<ComplexNumber>> asComplexVector(Pair<ProductElement<IntE>, ProductElement<IntE>> t) {
-		List<ComplexNumber> first = new ArrayList<>();
-		for (IntE s : t.getFirst().values()) {
-			first.add(c.getInteger(s));
+	private Pair<NFE, NFE> asLower(int layer, NFE t) {
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> poly = q.getUnivariatePolynomialRing();
+		UnivariatePolynomial<Fraction> asPoly = t.asPolynomial();
+		List<Fraction> even = new ArrayList<>();
+		List<Fraction> odd = new ArrayList<>();
+		for (int i = 0; i < (1 << layer); i++) {
+			if (i % 2 == 0) {
+				even.add(asPoly.univariateCoefficient(i));
+			} else {
+				odd.add(asPoly.univariateCoefficient(i));
+			}
 		}
-		List<ComplexNumber> second = new ArrayList<>();
-		for (IntE s : t.getSecond().values()) {
-			second.add(c.getInteger(s));
-		}
-		return new Vector<>(fftTower.get(log2degree).getElement(first), fftTower.get(log2degree).getElement(second));
+		return new Pair<>(nfTower.get(layer - 1).fromPolynomial(poly.getPolynomial(even)),
+				nfTower.get(layer - 1).fromPolynomial(poly.getPolynomial(odd)));
 	}
 
-	private Pair<NFE, NFE> ntruSolve(int layer, NFE f, NFE g) {
+	private NFE fromLower(int layer, Pair<NFE, NFE> t) {
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> poly = q.getUnivariatePolynomialRing();
+		NFE even = nfTower.get(layer).fromPolynomial(
+				poly.substitute(t.getFirst().asPolynomial(), Collections.singletonList(poly.getVarPower(2))));
+		NFE odd = nfTower.get(layer).fromPolynomial(
+				poly.substitute(t.getSecond().asPolynomial(), Collections.singletonList(poly.getVarPower(2))));
+		return nfTower.get(layer).add(even, nfTower.get(layer).multiply(nfTower.get(layer).alpha(), odd));
+	}
+
+	private NFE norm(int layer, NFE t) {
+		Pair<NFE, NFE> lower = asLower(layer, t);
+		return nfTower.get(layer - 1).subtract(nfTower.get(layer - 1).power(lower.getFirst(), 2),
+				nfTower.get(layer - 1).multiply(nfTower.get(layer - 1).alpha(), lower.getSecond(), lower.getSecond()));
+	}
+
+	private NFE conjugate(int layer, NFE t) {
+		Pair<NFE, NFE> asLower = asLower(layer, t);
+		return fromLower(layer, new Pair<>(asLower.getFirst(), nfTower.get(layer - 1).negative(asLower.getSecond())));
+	}
+
+	public Pair<NFE, NFE> reduce(int layer, NFE f, NFE g, NFE coeffF, NFE coeffG) {
+		NFE k;
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> poly = q.getUnivariatePolynomialRing();
 		Integers z = Integers.z();
+		IntE min = z.zero();
+		IntE max = z.zero();
+		for (int i = 0; i < degree; i++) {
+			min = z.min(f.asPolynomial().univariateCoefficient(i).asInteger(), min);
+			min = z.min(g.asPolynomial().univariateCoefficient(i).asInteger(), min);
+			max = z.max(f.asPolynomial().univariateCoefficient(i).asInteger(), max);
+			max = z.max(g.asPolynomial().univariateCoefficient(i).asInteger(), max);
+		}
+		int mantissaBitLength = 53;
+		NumberField nf = nfTower.get(layer);
+		NTTRing<ComplexNumber, Complex> fft = fftTower.get(layer);
+		int size = Math.max(mantissaBitLength, Math.max(min.getValue().bitLength(), max.getValue().bitLength()));
+		NFE fAdj = nf.fromPolynomial(poly.getEmbedding(f.asPolynomial(), new FunctionMathMap<>(
+				(Fraction t) -> q.getInteger(t.asInteger().getValue().shiftRight(size - mantissaBitLength)))));
+		NFE gAdj = nf.fromPolynomial(poly.getEmbedding(g.asPolynomial(), new FunctionMathMap<>(
+				(Fraction t) -> q.getInteger(t.asInteger().getValue().shiftRight(size - mantissaBitLength)))));
+		NTT<ComplexNumber> fftF = asFFT(layer, fAdj);
+		NTT<ComplexNumber> fftG = asFFT(layer, gAdj);
+		NTT<ComplexNumber> denominator = fft.add(fft.multiply(fftF, adjoint(layer, fftF)),
+				fft.multiply(fftG, adjoint(layer, fftG)));
+		do {
+			min = z.zero();
+			max = z.zero();
+			for (int i = 0; i < (1 << layer); i++) {
+				min = z.min(coeffF.asPolynomial().univariateCoefficient(i).asInteger(), min);
+				min = z.min(coeffG.asPolynomial().univariateCoefficient(i).asInteger(), min);
+				max = z.max(coeffF.asPolynomial().univariateCoefficient(i).asInteger(), max);
+				max = z.max(coeffG.asPolynomial().univariateCoefficient(i).asInteger(), max);
+			}
+			int coeffSize = Math.max(mantissaBitLength,
+					Math.max(min.getValue().bitLength(), max.getValue().bitLength()));
+			if (coeffSize < size) {
+				break;
+			}
+			NFE coeffFAdj = nf.fromPolynomial(poly.getEmbedding(coeffF.asPolynomial(), new FunctionMathMap<>(
+					(Fraction t) -> q.getInteger(t.asInteger().getValue().shiftRight(coeffSize - mantissaBitLength)))));
+			NFE coeffGAdj = nf.fromPolynomial(poly.getEmbedding(coeffG.asPolynomial(), new FunctionMathMap<>(
+					(Fraction t) -> q.getInteger(t.asInteger().getValue().shiftRight(coeffSize - mantissaBitLength)))));
+			NTT<ComplexNumber> fftCoeffF = asFFT(layer, coeffFAdj);
+			NTT<ComplexNumber> fftCoeffG = asFFT(layer, coeffGAdj);
+
+			NTT<ComplexNumber> coeff = fft.divide(fft.add(fft.multiply(fftCoeffF, adjoint(layer, fftF)),
+					fft.multiply(fftCoeffG, adjoint(layer, fftG))), denominator);
+			k = fromFFT(layer, coeff);
+			System.out
+					.println("Current bit length: " + coeffSize + " target bit length: " + size + " multiplier: " + k);
+			coeffF = nf.subtract(coeffF, nf.multiply(z.power(z.getInteger(2), coeffSize - size), k, f));
+			coeffG = nf.subtract(coeffG, nf.multiply(z.power(z.getInteger(2), coeffSize - size), k, g));
+		} while (!k.equals(nf.zero()));
+		return new Pair<>(coeffF, coeffG);
+	}
+
+	public Pair<NFE, NFE> ntruSolve(int layer, NFE f, NFE g) {
+		Integers z = Integers.z();
+		NumberField nf = nfTower.get(layer);
 		if (layer == 0) {
-			FieldEmbedding<Fraction, NFE, NumberField> nf = nfTower.get(layer);
 			IntE fc = f.asPolynomial().univariateCoefficient(0).asInteger();
 			IntE gc = g.asPolynomial().univariateCoefficient(0).asInteger();
 			ExtendedEuclideanResult<IntE> egcd = z.extendedEuclidean(fc, gc);
@@ -396,64 +504,42 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 				coeffF = egcd.getCoeff1();
 				coeffG = z.negative(egcd.getCoeff2());
 			}
-			return new Pair<>(nf.getEmbeddedField().multiply(prime, nf.getEmbeddedField().getInteger(coeffG)),
-					nf.getEmbeddedField().multiply(prime, nf.getEmbeddedField().getInteger(coeffF)));
+			return reduce(layer, f, g, nf.multiply(prime, nf.getInteger(coeffG)),
+					nf.multiply(prime, nf.getInteger(coeffF)));
 		}
-		FieldEmbedding<Fraction, NFE, NumberField> nf = nfTower.get(layer - 1);
-		NFE normF = nf.norm(f);
-		NFE normG = nf.norm(g);
+		NFE normF = norm(layer, f);
+		NFE normG = norm(layer, g);
 		Pair<NFE, NFE> lower = ntruSolve(layer - 1, normF, normG);
 		if (lower == null) {
 			return null;
 		}
-		UnivariatePolynomialRing<Fraction> qPolynomialRing = Rationals.q().getUnivariatePolynomialRing();
-		NFE coeffF = nf.getField().fromPolynomial(qPolynomialRing.multiply(
-				qPolynomialRing.substitute(lower.getFirst().asPolynomial(),
-						Collections.singletonList(qPolynomialRing.getVarPower(2))),
-				qPolynomialRing.substitute(g.asPolynomial(),
-						Collections.singletonList(qPolynomialRing.getEmbedding(Rationals.q().getInteger(-1), 1)))));
-		NFE coeffG = nf.getField().fromPolynomial(qPolynomialRing.multiply(
-				qPolynomialRing.substitute(lower.getSecond().asPolynomial(),
-						Collections.singletonList(qPolynomialRing.getVarPower(2))),
-				qPolynomialRing.substitute(f.asPolynomial(),
-						Collections.singletonList(qPolynomialRing.getEmbedding(Rationals.q().getInteger(-1), 1)))));
-		NFE k;
-		do {
-			NFE coeff = nf.getField()
-					.divide(nf.getField().add(nf.getField().multiply(coeffF, adjoint(layer, f)),
-							nf.getField().multiply(coeffG, adjoint(layer, g))),
-							nf.getField().add(nf.getField().multiply(f, adjoint(layer, f)),
-									nf.getField().multiply(g, adjoint(layer, g))));
-			k = nf.getField().fromPolynomial(qPolynomialRing.getEmbedding(coeff.asPolynomial(),
-					new FunctionMathMap<>((Fraction t) -> Rationals.q().getInteger(t.round()))));
-			coeffF = nf.getField().subtract(coeffF, nf.getField().multiply(k, f));
-			coeffG = nf.getField().subtract(coeffG, nf.getField().multiply(k, g));
-		} while (!k.equals(nf.getField().zero()));
-		return new Pair<>(coeffF, coeffG);
+		NFE coeffF = nf.multiply(fromLower(layer, new Pair<>(lower.getFirst(), nfTower.get(layer - 1).zero())),
+				conjugate(layer, g));
+		NFE coeffG = nf.multiply(fromLower(layer, new Pair<>(lower.getSecond(), nfTower.get(layer - 1).zero())),
+				conjugate(layer, f));
+		return reduce(layer, f, g, coeffF, coeffG);
 	}
 
-	private NFE adjoint(int layer, NFE t) {
+	public NFE adjoint(int layer, NFE t) {
 		if (layer == 0) {
 			return t;
 		}
-		NumberField nf = nfTower.get(layer - 1).getField();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> rationalPolynomialRing = q.getUnivariatePolynomialRing();
 		List<Fraction> coeffs = new ArrayList<>();
 		coeffs.add(t.asPolynomial().univariateCoefficient(0));
-		int degree = nf.degree();
-		for (int i = 1; i < degree; i++) {
+		for (int i = 1; i < (1 << layer); i++) {
 			coeffs.add(q.negative(t.asPolynomial().univariateCoefficient(degree - i)));
 		}
-		return nf.fromPolynomial(rationalPolynomialRing.getPolynomial(coeffs));
+		return nfTower.get(layer).fromPolynomial(rationalPolynomialRing.getPolynomial(coeffs));
 	}
 
-	private ProductElement<ComplexNumber> adjoint(int layer, ProductElement<ComplexNumber> t) {
+	public NTT<ComplexNumber> adjoint(int layer, NTT<ComplexNumber> t) {
 		List<ComplexNumber> result = new ArrayList<>();
 		for (ComplexNumber coeff : t.values()) {
 			result.add(c.conjugate(coeff));
 		}
-		return fftTower.get(layer).getElement(result);
+		return fftTower.get(layer).fromList(result);
 	}
 
 	private FalconPrivateKey ntruKeyGen() {
@@ -462,6 +548,7 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> fractionsPolynomialRing = q.getUnivariatePolynomialRing();
 		Real sigma = r.multiply(1.17, r.positiveSqrt(r.divide(r.getInteger(prime), r.getInteger(8192))));
+		NumberField nf = nfTower.get(log2degree);
 		while (true) {
 			List<IntE> fCoeffs = new ArrayList<>();
 			List<IntE> gCoeffs = new ArrayList<>();
@@ -484,13 +571,13 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 			if (!ntt.isUnit(reducedF) || !ntt.isUnit(reducedG)) {
 				continue;
 			}
-			ProductElement<ComplexNumber> denominator = asFFT(
-					nf.add(nf.multiply(f, adjoint(log2degree, f)), nf.multiply(g, adjoint(log2degree, g))));
-			ProductRing<ComplexNumber, Complex> ring = fftTower.get(log2degree);
-			Real gamma = r.max(norm(log2degree, new Vector<>(f, nf.negative(g))),
-					norm(new Vector<>(ring.divide(ring.multiply(prime, adjoint(log2degree, asFFT(f))), denominator),
-							ring.divide(ring.multiply(prime, adjoint(log2degree, asFFT(g))), denominator))));
-			if (gamma.compareTo(r.multiply(1.17, r.positiveSqrt(r.getInteger(prime)))) > 0) {
+			NTTRing<ComplexNumber, Complex> ring = fftTower.get(log2degree);
+			NTT<ComplexNumber> denominator = ring.add(ring.multiply(asFFT(f), asFFT(adjoint(log2degree, f))),
+					ring.multiply(asFFT(g), asFFT(adjoint(log2degree, g))));
+			Real gamma = r.max(normSqr(log2degree, new Vector<>(f, nf.negative(g))),
+					normSqr(new Vector<>(ring.divide(asFFT(nf.multiply(prime, adjoint(log2degree, f))), denominator),
+							ring.divide(asFFT(nf.multiply(prime, adjoint(log2degree, g))), denominator))));
+			if (gamma.compareTo(r.multiply(1.17 * 1.17, r.getInteger(prime))) > 0) {
 				continue;
 			}
 			Pair<NFE, NFE> capitalFG = ntruSolve(log2degree, f, g);
@@ -520,7 +607,7 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		return result;
 	}
 
-	private ComplexNumber innerProduct(ProductElement<ComplexNumber> t1, ProductElement<ComplexNumber> t2) {
+	private ComplexNumber innerProduct(NTT<ComplexNumber> t1, NTT<ComplexNumber> t2) {
 		ComplexNumber result = c.zero();
 		for (int i = 0; i < degree; i++) {
 			result = c.add(c.multiply(t1.get(i), c.conjugate(t2.get(i))), result);
@@ -528,35 +615,33 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		return result;
 	}
 
-	private ComplexNumber innerProduct(Vector<ProductElement<ComplexNumber>> t1,
-			Vector<ProductElement<ComplexNumber>> t2) {
+	private ComplexNumber innerProduct(Vector<NTT<ComplexNumber>> t1, Vector<NTT<ComplexNumber>> t2) {
 		ComplexNumber result = c.zero();
 		for (int i = 0; i < t1.dimension(); i++) {
 			result = c.add(innerProduct(t1.get(i + 1), t2.get(i + 1)), result);
 		}
-		return result;
+		return c.divide(result, c.getInteger(degree));
 	}
 
-	private Real norm(int layer, Vector<NFE> t) {
-		return r.positiveSqrt(innerProduct(layer, t, t));
+	public Real normSqr(int layer, Vector<NFE> t) {
+		return innerProduct(layer, t, t);
 	}
 
-	private Real norm(Vector<ProductElement<ComplexNumber>> t) {
+	public Real normSqr(Vector<NTT<ComplexNumber>> t) {
 		return c.asReal(innerProduct(t, t));
 	}
 
-	private Pair<Matrix<ProductElement<ComplexNumber>>, Matrix<ProductElement<ComplexNumber>>> ldl(int layer,
-			Matrix<ProductElement<ComplexNumber>> g) {
-		ProductRing<ComplexNumber, Complex> ring = fftTower.get(layer);
-		ProductElement<ComplexNumber> d00 = g.entry(1, 1);
-		ProductElement<ComplexNumber> l10 = ring.divideChecked(g.entry(2, 1), d00);
-		ProductElement<ComplexNumber> d11 = ring.subtract(g.entry(2, 2), ring.multiply(l10, adjoint(layer, l10), d00));
+	private Pair<Matrix<NTT<ComplexNumber>>, Matrix<NTT<ComplexNumber>>> ldl(int layer, Matrix<NTT<ComplexNumber>> g) {
+		NTTRing<ComplexNumber, Complex> ring = fftTower.get(layer);
+		NTT<ComplexNumber> d00 = g.entry(1, 1);
+		NTT<ComplexNumber> l10 = ring.divideChecked(g.entry(2, 1), d00);
+		NTT<ComplexNumber> d11 = ring.subtract(g.entry(2, 2), ring.multiply(l10, adjoint(layer, l10), d00));
 		return new Pair<>(twoByTwo(ring.one(), ring.zero(), l10, ring.one()),
 				twoByTwo(d00, ring.zero(), ring.zero(), d11));
 	}
 
-	private FalconTree ffldl(int layer, Matrix<ProductElement<ComplexNumber>> g) {
-		Pair<Matrix<ProductElement<ComplexNumber>>, Matrix<ProductElement<ComplexNumber>>> ldl = ldl(layer, g);
+	private FalconTree ffldl(int layer, Matrix<NTT<ComplexNumber>> g) {
+		Pair<Matrix<NTT<ComplexNumber>>, Matrix<NTT<ComplexNumber>>> ldl = ldl(layer, g);
 		FalconTree node = new FalconTree();
 		node.innerValue = ldl.getFirst().entry(2, 1);
 		if (layer == 1) {
@@ -566,29 +651,27 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 			node.right.leafValue = r.multiply(sigma, r.inverseSqrt(ldl.getSecond().entry(2, 2).get(0).realPart()));
 			return node;
 		}
-		Vector<ProductElement<ComplexNumber>> d0 = splitFFT(layer, ldl.getSecond().entry(1, 1));
-		Vector<ProductElement<ComplexNumber>> d1 = splitFFT(layer, ldl.getSecond().entry(2, 2));
-		Matrix<ProductElement<ComplexNumber>> g0 = twoByTwo(d0.get(1), d0.get(2), adjoint(layer - 1, d0.get(2)),
-				d0.get(1));
-		Matrix<ProductElement<ComplexNumber>> g1 = twoByTwo(d1.get(1), d1.get(2), adjoint(layer - 1, d1.get(2)),
-				d1.get(1));
+		Vector<NTT<ComplexNumber>> d0 = splitFFT(layer, ldl.getSecond().entry(1, 1));
+		Vector<NTT<ComplexNumber>> d1 = splitFFT(layer, ldl.getSecond().entry(2, 2));
+		Matrix<NTT<ComplexNumber>> g0 = twoByTwo(d0.get(1), d0.get(2), adjoint(layer - 1, d0.get(2)), d0.get(1));
+		Matrix<NTT<ComplexNumber>> g1 = twoByTwo(d1.get(1), d1.get(2), adjoint(layer - 1, d1.get(2)), d1.get(1));
 		node.left = ffldl(layer - 1, g0);
 		node.right = ffldl(layer - 1, g1);
 		return node;
 	}
 
-	private NTT<PFE> reduceAndTransform(NFE t) {
+	public NTT<PFE> reduceAndTransform(NFE t) {
 		PrimeField fp = PrimeField.getPrimeField(prime);
 		UnivariatePolynomialRing<PFE> ring = fp.getUnivariatePolynomialRing();
 		return ntt.fromPolynomial(
 				ring.getEmbedding(t.asPolynomial(), new FunctionMathMap<>((Fraction s) -> fp.getFraction(s))));
 	}
 
-	private NFE lift(NTT<PFE> t) {
+	public NFE lift(NTT<PFE> t) {
 		Rationals q = Rationals.q();
-		PrimeField fp = PrimeField.getPrimeField(prime);
-		return nf.fromPolynomial(q.getUnivariatePolynomialRing().getEmbedding(ntt.asPolynomial(t),
-				new FunctionMathMap<PFE, Fraction>((PFE s) -> q.getInteger(fp.liftToInteger(s)))));
+		Integers z = Integers.z();
+		return nfTower.get(log2degree).fromPolynomial(q.getUnivariatePolynomialRing().getEmbedding(ntt.asPolynomial(t),
+				new FunctionMathMap<PFE, Fraction>((PFE s) -> q.getInteger(z.centeredLift(s, prime)))));
 	}
 
 	private NFE hashToPoint(ByteArray seed) {
@@ -619,7 +702,7 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		} catch (IOException e) {
 			throw new RuntimeException("XOF ran out of bytes!", e);
 		}
-		return nf.fromPolynomial(q.getUnivariatePolynomialRing().getPolynomial(coeffs));
+		return nfTower.get(log2degree).fromPolynomial(q.getUnivariatePolynomialRing().getPolynomial(coeffs));
 	}
 
 	@Override
@@ -627,40 +710,67 @@ public class Falcon implements SignatureScheme<FalconSignature, FalconPublicKey,
 		return privateKey.publicKey;
 	}
 
+	public FalconPrivateKey createPrivateKeyFromGiven(NFE f, NFE g) {
+		Pair<NFE, NFE> capitalFG = ntruSolve(log2degree, f, g);
+		if (capitalFG == null) {
+			throw new ArithmeticException("Could not solve!");
+		}
+		FalconPrivateKey key = new FalconPrivateKey(f, g, capitalFG.getFirst(), capitalFG.getSecond());
+		Matrix<NTT<ComplexNumber>> b = key.b;
+		FreeModule<NTT<ComplexNumber>> module = new FreeModule<>(fftTower.get(log2degree), 2);
+		MatrixAlgebra<NTT<ComplexNumber>> algebra = module.matrixAlgebra();
+		Matrix<NTT<ComplexNumber>> fftBt = algebra.transpose(
+				Matrix.mapMatrix(new FunctionMathMap<>((NTT<ComplexNumber> s) -> adjoint(log2degree, s)), b));
+		Matrix<NTT<ComplexNumber>> gMatrix = algebra.multiply(b, fftBt);
+		key.root = ffldl(log2degree, gMatrix);
+		key.publicKey = new FalconPublicKey(
+				lift(ntt.divideChecked(reduceAndTransform(key.g), reduceAndTransform(key.f))));
+		return key;
+		
+	}
+	
 	@Override
 	public FalconPrivateKey createPrivateKey() {
 		FalconPrivateKey key = ntruKeyGen();
-		Matrix<ProductElement<ComplexNumber>> b = key.b;
-		FreeModule<ProductElement<ComplexNumber>> module = new FreeModule<>(fftTower.get(log2degree), 2);
-		MatrixAlgebra<ProductElement<ComplexNumber>> algebra = module.matrixAlgebra();
-		Matrix<ProductElement<ComplexNumber>> fftBt = algebra.transpose(Matrix
-				.mapMatrix(new FunctionMathMap<>((ProductElement<ComplexNumber> s) -> adjoint(log2degree, s)), b));
-		Matrix<ProductElement<ComplexNumber>> g = algebra.multiply(b, fftBt);
+		Matrix<NTT<ComplexNumber>> b = key.b;
+		FreeModule<NTT<ComplexNumber>> module = new FreeModule<>(fftTower.get(log2degree), 2);
+		MatrixAlgebra<NTT<ComplexNumber>> algebra = module.matrixAlgebra();
+		Matrix<NTT<ComplexNumber>> fftBt = algebra.transpose(
+				Matrix.mapMatrix(new FunctionMathMap<>((NTT<ComplexNumber> s) -> adjoint(log2degree, s)), b));
+		Matrix<NTT<ComplexNumber>> g = algebra.multiply(b, fftBt);
 		key.root = ffldl(log2degree, g);
 		key.publicKey = new FalconPublicKey(
 				lift(ntt.divideChecked(reduceAndTransform(key.g), reduceAndTransform(key.f))));
-		return null;
+		return key;
+	}
+
+	public Pair<ByteArray, NTT<ComplexNumber>> hash(byte[] message) {
+		byte[] random = new byte[40];
+		this.random.nextBytes(random);
+		NTT<ComplexNumber> c = asFFT(hashToPoint(ByteArray.concatenate(random, message)));
+		return new Pair<>(new ByteArray(random), c);
+	}
+
+	public FalconSignature prehashSign(FalconPrivateKey privateKey, byte[] random, NTT<ComplexNumber> c) {
+		NTTRing<ComplexNumber, Complex> ring = fftTower.get(log2degree);
+		NTT<ComplexNumber> qInv = ring.inverse(ring.getInteger(prime));
+		FreeModule<NTT<ComplexNumber>> module = new FreeModule<>(ring, 2);
+		Vector<NTT<ComplexNumber>> t = new Vector<>(ring.multiply(-1, qInv, c, asFFT(privateKey.capitalF)),
+				ring.multiply(qInv, c, asFFT(privateKey.f)));
+		Vector<NTT<ComplexNumber>> s;
+		do {
+			Vector<NTT<ComplexNumber>> intSample = fastFourierSampler(log2degree, t.get(1), t.get(2), privateKey.root);
+			s = module.matrixAlgebra().multiply(module.matrixAlgebra().transpose(privateKey.b),
+					module.subtract(t, intSample));
+		} while (normSqr(s).compareTo(limit) > 0);
+		NFE signature = fromFFT(s.get(2));
+		return new FalconSignature(random, signature);
 	}
 
 	@Override
 	public FalconSignature sign(byte[] message, FalconPrivateKey privateKey) {
-		byte[] random = new byte[40];
-		this.random.nextBytes(random);
-		ProductRing<ComplexNumber, Complex> ring = fftTower.get(log2degree);
-		ProductElement<ComplexNumber> c = asFFT(hashToPoint(ByteArray.concatenate(random, message)));
-		ProductElement<ComplexNumber> qInv = ring.inverse(ring.getInteger(prime));
-		FreeModule<ProductElement<ComplexNumber>> module = new FreeModule<>(ring, 2);
-		Vector<ProductElement<ComplexNumber>> t = new Vector<>(ring.multiply(-1, qInv, c, asFFT(privateKey.capitalF)),
-				ring.multiply(qInv, c, asFFT(privateKey.f)));
-		Vector<ProductElement<ComplexNumber>> s;
-		do {
-			Vector<ProductElement<ComplexNumber>> intSample = asComplexVector(
-					fastFourierSampler(log2degree, t.get(1), t.get(2), privateKey.root));
-			s = module.matrixAlgebra().multiply(module.matrixAlgebra().transpose(privateKey.b),
-					module.subtract(t, intSample));
-		} while (norm(s).compareTo(limit) > 0);
-		NFE signature = fromFFT(fft.fromProductElement(s.get(2)));
-		return new FalconSignature(random, signature);
+		Pair<ByteArray, NTT<ComplexNumber>> hashed = hash(message);
+		return prehashSign(privateKey, hashed.getFirst().array(), hashed.getSecond());
 	}
 
 	@Override

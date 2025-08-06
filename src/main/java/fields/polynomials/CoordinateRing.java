@@ -1,5 +1,6 @@
 package fields.polynomials;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8,6 +9,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -36,6 +38,9 @@ import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
+import util.FunctionMathMap;
+import util.MiscAlgorithms;
+import util.PeekableReader;
 import varieties.FunctionField;
 import varieties.RationalFunction;
 import varieties.projective.GenericProjectiveScheme;
@@ -50,6 +55,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	private UnivariatePolynomial<Fraction> hilbertPolynomial;
 	private Set<Integer> boundVariables;
 	private Map<Integer, IntE> hilbertFunction;
+	private MathMap<CoordinateRingElement<T>, Polynomial<T>> asElementMap;
 
 	public static class CoordinateRingElement<T extends Element<T>> extends AbstractElement<CoordinateRingElement<T>> {
 		private Polynomial<T> polynomial;
@@ -122,6 +128,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		this.ring = ring;
 		this.ideal = ideal;
 		this.hilbertFunction = new TreeMap<>();
+		this.asElementMap = new FunctionMathMap<>((CoordinateRingElement<T> t) -> t.getElement());
 		int i = 0;
 		int nonTrivial = 0;
 		for (Polynomial<T> generator : this.ideal.generators()) {
@@ -142,7 +149,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		if (ideal.contains(ring.one())) {
 			this.dimension = -1;
 		} else {
-			int[] set = this.makeset(0, new int[this.ring.numberOfVariables() + 1], leadingMonomials);
+			int[] set = MiscAlgorithms.minimalSupport(leadingMonomials);//this.makeset(0, new int[this.ring.numberOfVariables() + 1], leadingMonomials);
 			this.dimension = this.ring.krullDimension() - set[this.ring.numberOfVariables()];
 			for (int j = 0; j < ring.numberOfVariables(); j++) {
 				if (set[j] != 0) {
@@ -151,29 +158,29 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 			}
 		}
 	}
-
-	private int[] makeset(int level, int[] set, int[][] leadingMonomials) {
-		if (level == leadingMonomials.length)
-			return set;
-		int[] optimalset = new int[set.length];
-		optimalset[set.length - 1] = -1;
-		for (int i = 0; i < leadingMonomials[level].length; i++) {
-			if (leadingMonomials[level][i] == 0)
-				continue;
-			if (set[i] == 1) {
-				return this.makeset(level + 1, set, leadingMonomials);
-			}
-			set[i] = 1;
-			set[set.length - 1]++;
-			int[] sethere = this.makeset(level + 1, set, leadingMonomials);
-			if (optimalset[set.length - 1] == -1 || optimalset[set.length - 1] > sethere[set.length - 1]) {
-				optimalset = Arrays.copyOf(sethere, sethere.length);
-			}
-			set[i] = 0;
-			set[set.length - 1]--;
-		}
-		return optimalset;
-	}
+//
+//	private int[] makeset(int level, int[] set, int[][] leadingMonomials) {
+//		if (level == leadingMonomials.length)
+//			return set;
+//		int[] optimalset = new int[set.length];
+//		optimalset[set.length - 1] = -1;
+//		for (int i = 0; i < leadingMonomials[level].length; i++) {
+//			if (leadingMonomials[level][i] == 0)
+//				continue;
+//			if (set[i] == 1) {
+//				return this.makeset(level + 1, set, leadingMonomials);
+//			}
+//			set[i] = 1;
+//			set[set.length - 1]++;
+//			int[] sethere = this.makeset(level + 1, set, leadingMonomials);
+//			if (optimalset[set.length - 1] == -1 || optimalset[set.length - 1] > sethere[set.length - 1]) {
+//				optimalset = Arrays.copyOf(sethere, sethere.length);
+//			}
+//			set[i] = 0;
+//			set[set.length - 1]--;
+//		}
+//		return optimalset;
+//	}
 
 	@Override
 	public Exactness exactness() {
@@ -212,6 +219,11 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	}
 
 	@Override
+	public CoordinateRingElement<T> parse(PeekableReader reader) throws IOException {
+		return getEmbedding(ring.parse(reader));
+	}
+
+	@Override
 	public int krullDimension() {
 		return dimension;
 	}
@@ -246,6 +258,17 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 	public Set<Integer> boundVariables() {
 		return boundVariables;
+	}
+
+	public Set<Integer> freeVariables() {
+		Set<Integer> result = new TreeSet<>();
+		for (int i = 1; i <= ring.numberOfVariables(); i++) {
+			if (boundVariables.contains(i)) {
+				continue;
+			}
+			result.add(i);
+		}
+		return result;
 	}
 
 	private <S extends Element<S>> FieldOfFractionsResult<CoordinateRingElement<T>, RationalFunction<S>> fieldOfFractions(
@@ -540,6 +563,10 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		return new CoordinateRingElement<>(this.ideal, ring.getEmbedding(t), reduce);
 	}
 
+	public MathMap<CoordinateRingElement<T>, Polynomial<T>> getAsElementMap() {
+		return asElementMap;
+	}
+
 	public CoordinateRingElement<T> getRingEmbedding(T t) {
 		return this.getEmbedding(this.ring.getEmbedding(t), false);
 	}
@@ -602,6 +629,12 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	public boolean isUnit(CoordinateRingElement<T> t) {
 		return this.ring.coprime(ring.getIdeal(Collections.singletonList(t.getElement())), ideal);
 	}
+	
+	@Override
+	public Optional<CoordinateRingElement<T>> maybeInverse(CoordinateRingElement<T> t) {
+		// TODO Auto-generated method stub
+		return super.maybeInverse(t);
+	}
 
 	public CoordinateRingElement<T> projectToUnit(CoordinateRingElement<T> t) {
 		return getEmbedding(ring.projectToUnit(t.polynomial));
@@ -649,7 +682,15 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 	@Override
 	public boolean isZeroDivisor(CoordinateRingElement<T> t) {
-		throw new UnsupportedOperationException();
+		PolynomialIdeal<T> addedIdeal = ring.add(ideal, ring.getIdeal(Collections.singletonList(t.getElement())));
+		return addedIdeal.dimension() == ideal.dimension();
+	}
+
+	@Override
+	public CoordinateRingElement<T> zeroCodivisor(CoordinateRingElement<T> t) {
+		IdealResult<CoordinateRingElement<T>, CoordinateIdeal<T>> codivisor = getIdealWithTransforms(
+				Collections.singletonList(t));
+		return codivisor.getSyzygies().get(0).get(1);
 	}
 
 	@Override
@@ -749,21 +790,21 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 
 	}
 
-	@Override
-	public boolean isSubModuleMember(MatrixModule<CoordinateRingElement<T>> module, Matrix<CoordinateRingElement<T>> m,
-			Vector<CoordinateRingElement<T>> b) {
-		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
-		return ring.isSubModuleMember(polynomialMatrix.getModule(ring), polynomialMatrix, polynomialVector(b));
-	}
-
-	@Override
-	public Vector<CoordinateRingElement<T>> asSubModuleMember(MatrixModule<CoordinateRingElement<T>> module,
-			Matrix<CoordinateRingElement<T>> m, Vector<CoordinateRingElement<T>> b) {
-		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
-		Vector<Polynomial<T>> polynomialSolution = ring.asSubModuleMember(polynomialMatrix.getModule(ring),
-				polynomialMatrix, polynomialVector(b));
-		return coordinateRingVector(polynomialSolution, m.columns());
-	}
+//	@Override
+//	public boolean isSubModuleMember(MatrixModule<CoordinateRingElement<T>> module, Matrix<CoordinateRingElement<T>> m,
+//			Vector<CoordinateRingElement<T>> b) {
+//		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
+//		return ring.isSubModuleMember(polynomialMatrix.getModule(ring), polynomialMatrix, polynomialVector(b));
+//	}
+//
+//	@Override
+//	public Vector<CoordinateRingElement<T>> asSubModuleMember(MatrixModule<CoordinateRingElement<T>> module,
+//			Matrix<CoordinateRingElement<T>> m, Vector<CoordinateRingElement<T>> b) {
+//		Matrix<Polynomial<T>> polynomialMatrix = polynomialMatrix(m);
+//		Vector<Polynomial<T>> polynomialSolution = ring.asSubModuleMember(polynomialMatrix.getModule(ring),
+//				polynomialMatrix, polynomialVector(b));
+//		return coordinateRingVector(polynomialSolution, m.columns());
+//	}
 
 	@Override
 	public List<Vector<CoordinateRingElement<T>>> syzygyProblem(MatrixModule<CoordinateRingElement<T>> module,
@@ -978,7 +1019,7 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 	public static class CoordinateIdeal<T extends Element<T>> extends AbstractIdeal<CoordinateRingElement<T>> {
 		private CoordinateRing<T> ring;
 		private List<CoordinateRingElement<T>> generators;
-		private List<List<CoordinateRingElement<T>>> relations;
+		// private List<List<CoordinateRingElement<T>>> relations;
 		private SortedMap<Integer, List<Polynomial<T>>> polynomialIdealGeneratorWeights;
 		private PolynomialIdeal<T> asPolynomialIdeal;
 
@@ -1165,4 +1206,5 @@ public class CoordinateRing<T extends Element<T>> extends AbstractAlgebra<Polyno
 		}
 
 	}
+
 }

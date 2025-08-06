@@ -33,7 +33,8 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 		if (base.residueField().characteristic().equals(BigInteger.TWO)) {
 			return new PAdicQuaternions(base, base.getInteger(-3), base.uniformizer());
 		}
-		return new PAdicQuaternions(base, base.liftToInteger(base.residueField().quadraticNonResidue()), base.uniformizer());
+		return new PAdicQuaternions(base, base.liftToInteger(base.residueField().quadraticNonResidue()),
+				base.uniformizer());
 	}
 
 	public static PAdicQuaternions quaternions(PAdicField base, PAdicNumber a, PAdicNumber b) {
@@ -57,7 +58,7 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 						{ 1, -1, 1, -1, 1, -1, 1, -1 } // 6
 				};
 			} else {
-				int s = MiscAlgorithms.jacobiSymbol(BigInteger.valueOf(-1), base.reduction().characteristic());
+				int s = MiscAlgorithms.jacobiSymbol(BigInteger.valueOf(-1), base.residueField().characteristic());
 				result = new int[][] { { 1, 1, 1, 1 }, // 1
 						{ 1, 1, -1, -1 }, // e
 						{ 1, -1, s, -s }, // p
@@ -74,7 +75,7 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 	 * [1, e, p, ep] if char = (0, p), e non square residue
 	 */
 	private static int upToSquaresIndex(PAdicField base, PAdicNumber t) {
-		if (base.reduction().characteristic().equals(BigInteger.TWO)) {
+		if (base.residueField().characteristic().equals(BigInteger.TWO)) {
 			if (t.equals(base.zero())) {
 				return 4;
 			}
@@ -115,9 +116,24 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 		}
 		int value = base.valuation(t).value();
 		t = base.multiply(t, base.power(base.uniformizer(), -value));
-		int sqrt = base.reduction().hasSqrt(base.reduce(t)) ? 0 : 1;
+		int sqrt = base.residueField().hasSqrt(base.reduceInteger(t)) ? 0 : 1;
 		value = value > 0 ? (value % 2) : ((-value) % 2);
 		return value * 2 + sqrt;
+	}
+
+	private static PAdicNumber upToSquares(PAdicField base, PAdicNumber t) {
+		return upToSquaresRepresentative(base, upToSquaresIndex(base, t));
+	}
+
+	private static PAdicNumber upToSquaresRepresentative(PAdicField base, int upToSquaresIndex) {
+		if (base.residueField().characteristic().equals(BigInteger.TWO)) {
+			int[] representatives = { -6, -3, -2, -1, 1, 2, 3, 6 };
+			return base.getInteger(representatives[upToSquaresIndex]);
+		}
+		PAdicNumber nonResidue = base.liftToInteger(base.residueField().primitiveRoot());
+		PAdicNumber uniformizer = base.uniformizer();
+		return base.multiply(base.power(nonResidue, upToSquaresIndex % 2),
+				base.power(uniformizer, upToSquaresIndex / 2));
 	}
 
 	@Override
@@ -168,8 +184,8 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 			}
 			if (nonZero == null) {
 				nonZero = asVector.get(i + 1);
-			} else 
-			if (allEqual && !asVector.get(i+1).equals(nonZero) && !asVector.get(i+1).equals(base.negative(nonZero))) {
+			} else if (allEqual && !asVector.get(i + 1).equals(nonZero)
+					&& !asVector.get(i + 1).equals(base.negative(nonZero))) {
 				allEqual = false;
 			}
 			if (minValue.compareTo(value) > 0) {
@@ -187,6 +203,9 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 		int aValueSqrt = MiscAlgorithms.DivRoundDown(base.valuation(a()).value(), 2);
 		int bIndex = upToSquaresIndex(base, b());
 		int bValueSqrt = MiscAlgorithms.DivRoundDown(base.valuation(b()).value(), 2);
+		PAdicNumber a = upToSquaresRepresentative(base, aIndex);
+		PAdicNumber b = upToSquaresRepresentative(base, bIndex);
+		// Find number x and y such that x^2-a*y^2 = b up to squares.
 		PAdicNumber x;
 		PAdicNumber y;
 		if (reduction.characteristic().equals(BigInteger.TWO)) {
@@ -309,13 +328,15 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 				x = base.one();
 				y = base.zero();
 			} else {
-				int s = MiscAlgorithms.jacobiSymbol(BigInteger.valueOf(-1), base.reduction().characteristic());
-				if (s == 1) { // -1 is square
+				int s = MiscAlgorithms.jacobiSymbol(BigInteger.valueOf(-1), reduction.characteristic());
+				if (s == 1 || aIndex == 2 || aIndex == 3) { // -1 is square or -1 is not a square, a = p, b = ep
 					x = base.zero();
 					y = base.one();
 				} else {
+					// -1 is not a square, a = e, b = e, w.r. a = -1, b = -1
+					// x^2 - ay^2 = b up to squares
 					FiniteField fp2 = reduction.getExtension(reduction.getUnivariatePolynomialRing()
-							.getPolynomial(reduction.one(), reduction.zero(), reduction.one())).extension();
+							.getPolynomial(reduction.negative(base.reduceInteger(a)), reduction.zero(), reduction.one())).extension();
 					FFE sqrtm1 = fp2.power(fp2.primitiveRoot(),
 							fp2.characteristic().subtract(BigInteger.ONE).shiftRight(1));
 					x = base.liftToInteger(sqrtm1.asPolynomial().univariateCoefficient(0));
@@ -324,17 +345,22 @@ public class PAdicQuaternions extends AbstractQuaternions<PAdicNumber> {
 			}
 		}
 		int maxValueSqrt = Math.max(aValueSqrt, bValueSqrt);
-		PAdicField highAccuracyBase = base.withAccuracy(base.getAccuracy() + 2 * (maxValueSqrt));
-		if (y.equals(base.zero())) {
-			maxValueSqrt = bValueSqrt;
-		} else if (x.equals(base.zero())) {
-			maxValueSqrt = Math.abs(aValueSqrt - bValueSqrt);
-		}
-		x = highAccuracyBase.multiply(x, highAccuracyBase.power(base.uniformizer(), maxValueSqrt));
-		y = highAccuracyBase.multiply(y, highAccuracyBase.power(base.uniformizer(), maxValueSqrt - aValueSqrt));
+		PAdicField highAccuracyBase = base.withAccuracy(2 * base.getAccuracy() + 4 * maxValueSqrt);
+		// z = sqrt((x^2 - a*y^2)/b)
 		PAdicNumber result = highAccuracyBase.divide(
-				highAccuracyBase.subtract(highAccuracyBase.multiply(x, x), highAccuracyBase.multiply(a(), y, y)), b());
-		PAdicNumber z = base.round(highAccuracyBase.sqrt(result).keySet().iterator().next(), base.getAccuracy());
+				highAccuracyBase.subtract(highAccuracyBase.multiply(x, x), highAccuracyBase.multiply(a, y, y)), b);
+		PAdicNumber z = highAccuracyBase.sqrt(result).keySet().iterator().next();
+		System.out.println(
+				base.subtract(base.subtract(base.multiply(x, x), base.multiply(a, y, y)), base.multiply(b, z, z)));
+		// Switching back to the actual a and b
+		// x^2 - a*y^2 = b*z^2
+		PAdicNumber aSqrt = highAccuracyBase.sqrt(highAccuracyBase.divide(a, a())).keySet().iterator().next();
+		PAdicNumber bSqrt = highAccuracyBase.sqrt(highAccuracyBase.divide(b, b())).keySet().iterator().next();
+		y = base.round(highAccuracyBase.multiply(y, aSqrt), base.getAccuracy());
+		z = base.round(highAccuracyBase.multiply(z, bSqrt), base.getAccuracy());
+		System.out.println(
+				base.subtract(base.subtract(base.multiply(x, x), base.multiply(a(), y, y)), base.multiply(b(), z, z)));
+
 		List<Quaternion<PAdicNumber>> candidates = new ArrayList<>();
 		candidates.add(normalize(getElement(base.zero(), y, z, base.zero())));
 		candidates.add(normalize(getElement(base.zero(), base.negative(y), z, base.zero())));

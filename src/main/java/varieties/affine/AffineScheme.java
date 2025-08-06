@@ -25,7 +25,6 @@ import fields.interfaces.FieldExtension;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
-import fields.interfaces.Ring.IdealResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
 import fields.polynomials.AbstractPolynomialRing;
@@ -33,6 +32,7 @@ import fields.polynomials.CoordinateRing;
 import fields.polynomials.CoordinateRing.CoordinateIdeal;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.DifferentialForms;
+import fields.polynomials.DifferentialForms.DifferentialForm;
 import fields.polynomials.FieldExtensionUnivariatePolynomialRing;
 import fields.polynomials.LocalizedCoordinateRing;
 import fields.polynomials.Monomial;
@@ -45,6 +45,8 @@ import util.FunctionMathMap;
 import varieties.AbstractMorphism;
 import varieties.AbstractScheme;
 import varieties.GeneralRationalFunction;
+import varieties.GluedScheme;
+import varieties.GluedScheme.GluedPoint;
 import varieties.Morphism;
 import varieties.SimpleFunctionField;
 import varieties.SimpleFunctionField.SimpleFunctionFieldFromCoordinateRing;
@@ -163,6 +165,11 @@ public class AffineScheme<T extends Element<T>> extends AbstractScheme<T, Affine
 		result.firstEmbedding = AffineMorphism.fromPolynomials(t1, result.union, identity);
 		result.secondEmbedding = AffineMorphism.fromPolynomials(t2, result.union, identity);
 		return result;
+	}
+
+	public static <T extends Element<T>> AffineScheme<T> affineSpace(Field<T> base, int power) {
+		return new AffineScheme<>(base,
+				AbstractPolynomialRing.getPolynomialRing(base, power, Monomial.GREVLEX).getZeroIdeal().divideOut());
 	}
 
 	@Override
@@ -442,6 +449,182 @@ public class AffineScheme<T extends Element<T>> extends AbstractScheme<T, Affine
 		return coordinateRing.isIntegral();
 	}
 
+	public static class BlowUpResult<T extends Element<T>> {
+		private Morphism<T, GluedPoint<T>, AffinePoint<T>> blowup;
+		private GeneralRationalFunction<T, AffinePoint<T>, GluedPoint<T>> inverse;
+
+		private BlowUpResult(Morphism<T, GluedPoint<T>, AffinePoint<T>> blowup,
+				GeneralRationalFunction<T, AffinePoint<T>, GluedPoint<T>> inverse) {
+			this.blowup = blowup;
+			this.inverse = inverse;
+		}
+
+		public Morphism<T, GluedPoint<T>, AffinePoint<T>> getBlowUp() {
+			return blowup;
+		}
+
+		public GeneralRationalFunction<T, AffinePoint<T>, GluedPoint<T>> getInverse() {
+			return inverse;
+		}
+
+	}
+	
+	public List<DifferentialForm<T>> getCotangentSyzygies() {
+		List<DifferentialForm<T>> result = new ArrayList<>();
+		DifferentialForms<T> diffForms = coordinateRing.getPolynomialRing().differentialForms();
+		for (Polynomial<T> generator : coordinateRing.getIdeal().generators()) {
+			result.add(diffForms.derivative(generator));
+		}
+		return result;
+	}
+
+	public BlowUpResult<T> blowupPoint(AffinePoint<T> point) {
+		PolynomialRing<T> ring = coordinateRing.getPolynomialRing();
+		int vars = ring.numberOfVariables();
+		PolynomialRing<T> blownupRing = AbstractPolynomialRing.getPolynomialRing(field, 2 * vars, Monomial.GREVLEX);
+		List<Polynomial<T>> generators = new ArrayList<>();
+		generators.addAll(blownupRing.getIdealEmbedding(coordinateRing.getIdeal(),
+				new FunctionMathMap<>((Polynomial<T> t) -> blownupRing.getEmbedding(t))).generators());
+		for (int i = 0; i < vars; i++) {
+			for (int j = 0; j < vars; j++) {
+				if (i == j) {
+					continue;
+				}
+				generators.add(blownupRing.subtract(
+						blownupRing.multiply(
+								blownupRing.subtract(blownupRing.getVar(i + 1),
+										blownupRing.getEmbedding(point.getCoord(i + 1))),
+								blownupRing.getVar(vars + j + 1)),
+						blownupRing.multiply(blownupRing.getVar(vars + i + 1), blownupRing.subtract(
+								blownupRing.getVar(j + 1), blownupRing.getEmbedding(point.getCoord(j + 1))))));
+			}
+		}
+		List<AffineScheme<T>> coverList = new ArrayList<>();
+		List<List<AffineMorphism<T>>> intersectionList = new ArrayList<>();
+		Polynomial<T> z = blownupRing.getVar(blownupRing.numberOfVariables());
+		for (int i = vars; i < 2 * vars; i++) {
+			PolynomialRing<T> affineRing = blownupRing.eliminateVariable(i + 1);
+			List<Polynomial<T>> affineList = new ArrayList<>();
+			int[] map = new int[2 * vars];
+			for (int j = 0; j < 2 * vars; j++) {
+				if (j < i) {
+					map[j] = j;
+				} else if (j > i) {
+					map[j] = j - 1;
+				} else {
+					map[j] = -1;
+				}
+			}
+			List<T> values = new ArrayList<T>();
+			for (int k = 0; k < 2 * vars; k++)
+				if (i == k)
+					values.add(field.one());
+				else
+					values.add(null);
+			for (Polynomial<T> generator : generators) {
+				affineList.add(affineRing.getEmbedding(blownupRing.partiallyEvaluate(generator, values), map));
+			}
+			CoordinateRing<T> cr = affineRing.getIdeal(affineList).divideOut();
+			coverList.add(new AffineScheme<>(field, cr));
+			intersectionList.add(new ArrayList<>());
+			for (int j = vars; j < i; j++) {
+				Polynomial<T> inverse = blownupRing.subtract(blownupRing.multiply(blownupRing.getVar(j + 1), z),
+						blownupRing.one());
+				List<Polynomial<T>> intersectionGenerators = new ArrayList<>();
+				intersectionGenerators.add(inverse);
+				for (Polynomial<T> generator : affineList) {
+					intersectionGenerators.add(blownupRing.getEmbedding(generator));
+				}
+				CoordinateRing<T> intersectionCoordinateRing = blownupRing.getIdeal(intersectionGenerators).divideOut();
+				AffineScheme<T> intersection = new AffineScheme<>(field, intersectionCoordinateRing);
+				List<Polynomial<T>> firstEmbeddingList = new ArrayList<>();
+				List<Polynomial<T>> secondEmbeddingList = new ArrayList<>();
+				for (int k = 0; k < affineRing.numberOfVariables(); k++) {
+					firstEmbeddingList.add(blownupRing.getVar(k + 1));
+					if (k < vars) {
+						secondEmbeddingList.add(blownupRing.getVar(k + 1));
+						continue;
+					}
+					Polynomial<T> var;
+					if (k < j || k >= i) {
+						var = blownupRing.getVar(k + 1);
+					} else if (k == i - 1) {
+						var = blownupRing.one();
+					} else {
+						var = blownupRing.getVar(k + 2);
+					}
+					secondEmbeddingList.add(blownupRing.multiply(var, z));
+				}
+				AffineMorphism<T> firstEmbedding = AffineMorphism.fromPolynomials(intersection, coverList.get(i - vars),
+						firstEmbeddingList);
+				AffineMorphism<T> secondEmbedding = AffineMorphism.fromPolynomials(intersection,
+						coverList.get(j - vars), secondEmbeddingList);
+				intersectionList.get(i - vars).add(firstEmbedding);
+				intersectionList.get(j - vars).add(secondEmbedding);
+			}
+			intersectionList.get(i - vars).add(coverList.get(i - vars).identityMorphism());
+		}
+		AffineCover<T> cover = new AffineCover<>(coverList, intersectionList, false);
+		GluedScheme<T> blowup = new GluedScheme<>(field, cover);
+		Morphism<T, GluedPoint<T>, AffinePoint<T>> blowupMorphism = new Morphism<>() {
+
+			@Override
+			public AffinePoint<T> evaluate(GluedPoint<T> t) {
+				AffinePoint<T> affine = blowup.asAffinePoint(t, blowup.recommendAffineCoverIndex(t));
+				return new AffinePoint<T>(field, affine.getCoords().subList(0, vars));
+			}
+
+			@Override
+			public GluedScheme<T> getDomain() {
+				return blowup;
+			}
+
+			@Override
+			public AffineScheme<T> getRange() {
+				return AffineScheme.this;
+			}
+
+			@Override
+			public GeneralRationalFunction<T, GluedPoint<T>, AffinePoint<T>> restrict(GluedPoint<T> preimage) {
+				int index = blowup.recommendAffineCoverIndex(preimage);
+				List<CoordinateRingElement<T>> projection = new ArrayList<>();
+				AffineScheme<T> affine = blowup.getAffineCover().get(index);
+				CoordinateRing<T> affineRing = affine.getCoordinateRing();
+				for (int i = 0; i < vars; i++) {
+					projection.add(affineRing.getVar(i + 1));
+				}
+				return new GeneralRationalFunction<>(blowup, AffineScheme.this,
+						new AffineMorphism<>(affine, AffineScheme.this, projection), index,
+						AffineScheme.this.identityMorphism(), 0);
+			}
+		};
+		PolynomialRing<T> restrictedRing = AbstractPolynomialRing.getPolynomialRing(field, vars + 1, Monomial.GREVLEX);
+		List<Polynomial<T>> restrictedGenerators = new ArrayList<>();
+		for (Polynomial<T> generator : coordinateRing.getIdeal().generators()) {
+			restrictedGenerators.add(restrictedRing.getEmbedding(generator));
+		}
+		restrictedGenerators.add(restrictedRing.subtract(
+				restrictedRing.multiply(restrictedRing.subtract(restrictedRing.getVar(1),
+						restrictedRing.getEmbedding(point.getCoord(1))), restrictedRing.getVar(vars + 1)),
+				restrictedRing.one()));
+		AffineScheme<T> restricted = new AffineScheme<>(field,
+				restrictedRing.getIdeal(restrictedGenerators).divideOut());
+		List<Polynomial<T>> restrictionEmbedding = new ArrayList<>();
+		List<Polynomial<T>> inverseMorphism = new ArrayList<>();
+		for (int i = 0; i < vars; i++) {
+			restrictionEmbedding.add(restrictedRing.getVar(i + 1));
+			inverseMorphism.add(restrictedRing.getVar(i + 1));
+		}
+		restrictionEmbedding.add(restrictedRing.one());
+		for (int i = 1; i < vars; i++) {
+			inverseMorphism.add(restrictedRing.multiply(restrictedRing.getVar(vars + 1), restrictedRing.getVar(i + 1)));
+		}
+		GeneralRationalFunction<T, AffinePoint<T>, GluedPoint<T>> inverse = new GeneralRationalFunction<>(this, blowup,
+				AffineMorphism.fromPolynomials(restricted, blowup.getAffineCover().get(0), inverseMorphism), 0,
+				AffineMorphism.fromPolynomials(restricted, this, restrictionEmbedding), 0);
+		return new BlowUpResult<>(blowupMorphism, inverse);
+	}
+
 	public static class AffineSimplification<T extends Element<T>> {
 		private AffineMorphism<T> simplification;
 		private AffineMorphism<T> inverse;
@@ -536,11 +719,11 @@ public class AffineScheme<T extends Element<T>> extends AbstractScheme<T, Affine
 		if (singularLocus.isEmpty()) {
 			return Collections.emptyList();
 		}
-		if (singularLocus.get().getDomain().dimension() == 0) {
-			for (AffinePoint<T> point : singularLocus.get().getDomain()) {
-				result.add(point);
-			}
+		// if (singularLocus.get().getDomain().dimension() == 0) {
+		for (AffinePoint<T> point : singularLocus.get().getDomain()) {
+			result.add(point);
 		}
+		// }
 //		for (AffineMorphism<T> singular : singularLocus.get().getDomain().irreducibleComponents()) {
 //			if (singular.getDomain().dimension() == 0) {
 //				for (AffinePoint<T> point : singular.getDomain()) {

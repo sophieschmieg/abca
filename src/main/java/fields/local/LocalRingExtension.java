@@ -14,10 +14,12 @@ import fields.interfaces.DiscreteValuationRing;
 import fields.interfaces.Element;
 import fields.interfaces.FieldExtension;
 import fields.interfaces.Ideal;
+import fields.interfaces.MathMap;
 import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
+import util.FunctionMathMap;
 
 public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E extends AlgebraicExtensionElement<B, E>, FE extends DiscreteValuationFieldExtension<B, S, E,FE, R, RE, RFE>, R extends Element<R>, RE extends AlgebraicExtensionElement<R, RE>, RFE extends FieldExtension<R, RE, RFE>>
 		extends LocalRingImplementation<E, RE> implements Algebra<B, E>, DiscreteValuationRing<E, RE>, DedekindRingExtension<B, B, S, E, E, R, RE, RFE, FE, FE> {
@@ -166,6 +168,11 @@ public class LocalRingExtension<B extends Element<B>, S extends Element<S>, E ex
 	@Override
 	public E getEmbedding(B t) {
 		return extension.getEmbedding(t);
+	}
+	
+	@Override
+	public MathMap<B, E> getEmbeddingMap() {
+		return new FunctionMathMap<>((B t) -> getEmbedding(t));
 	}
 
 	@Override

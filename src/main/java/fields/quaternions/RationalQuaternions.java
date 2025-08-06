@@ -4,25 +4,15 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.TreeSet;
 
-import fields.finitefields.PrimeField;
-import fields.finitefields.PrimeField.PFE;
 import fields.floatingpoint.Reals;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
 import fields.integers.Rationals;
 import fields.integers.Rationals.Fraction;
 import fields.local.PAdicField;
-import fields.numberfields.NumberField;
-import fields.numberfields.NumberField.NFE;
-import fields.numberfields.NumberFieldIntegers;
-import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
-import fields.vectors.Matrix;
-import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import util.MiscAlgorithms;
 
@@ -50,7 +40,8 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 					(Math.log(bUpToSquares.getValue().abs().doubleValue()) / Math.log(prime.getValue().doubleValue())))
 					+ 1;
 			PAdicField field = new PAdicField(prime.getValue(), accuracy);
-			if (PAdicQuaternions.quaternions(field, field.getInteger(aUpToSquares), field.getInteger(bUpToSquares)).isIntegral()) {
+			if (PAdicQuaternions.quaternions(field, field.getInteger(aUpToSquares), field.getInteger(bUpToSquares))
+					.isIntegral()) {
 				ramifiedPrimes.add(prime);
 				this.discriminant = z.multiply(discriminant, prime);
 			}
@@ -78,6 +69,9 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 	public static RationalQuaternions quaternions(Set<IntE> places) {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
+		if (places.size() == 1 && z.remainder(places.iterator().next(), z.getInteger(4)).equals(z.getInteger(3))) {
+			return new RationalQuaternions(q.getInteger(-1), q.getInteger(z.negative(places.iterator().next())));
+		}
 		IntE unit = places.size() % 2 == 0 ? z.one() : z.getInteger(-1);
 		IntE discriminant = z.one();
 		for (IntE place : places) {
@@ -158,8 +152,8 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 		}
 		return this.ramifiedPrimes.equals(o.ramifiedPrimes);
 	}
-	
-	protected  Quaternion<Fraction> normalize( Quaternion<Fraction> t) {
+
+	protected Quaternion<Fraction> normalize(Quaternion<Fraction> t) {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		IntE denom = z.one();
@@ -175,86 +169,89 @@ public class RationalQuaternions extends AbstractQuaternions<Fraction> {
 		return fromVector(new Vector<>(asList));
 	}
 
-	
 	@Override
 	protected Quaternion<Fraction> splittingElement() {
 		Integers z = Integers.z();
 		Rationals q = Rationals.q();
 		IntE aUpToSquares = modSquares(a());
-		Fraction aSqrt = q.sqrt(q.divide(a(), q.getInteger(aUpToSquares))).keySet().iterator().next();
 		IntE bUpToSquares = modSquares(b());
-		NumberField nf = NumberField.getNumberField(q.getUnivariatePolynomialRing()
-				.getPolynomial(q.negative(q.getInteger(aUpToSquares)), q.zero(), q.one()));
-		NumberFieldIntegers maximalOrder = nf.maximalOrder();
-		FactorizationResult<IntE, IntE> bFactors = z.uniqueFactorization(bUpToSquares);
-		NumberFieldIdeal ideal = maximalOrder.getUnitIdeal();
-		for (IntE prime : bFactors.primeFactors()) {
-			ideal = maximalOrder.multiply(ideal, maximalOrder.idealsOver(z.getIdeal(prime)).get(0));
+		boolean aPositive = true;
+		if (aUpToSquares.compareTo(z.zero()) < 0) {
+			aPositive = false;
+			IntE tmp = aUpToSquares;
+			aUpToSquares = bUpToSquares;
+			bUpToSquares = tmp;
 		}
-		if (ideal.generators().size() == 1) {
-			NFE result = ideal.generators().get(0);
-			return normalize(getElement(q.zero(), q.zero(), q.multiply(result.asPolynomial().univariateCoefficient(0), aSqrt),
-					result.asPolynomial().univariateCoefficient(1)));
+		Fraction aSqrt = q.sqrt(q.divide(q.getInteger(aUpToSquares), aPositive ? a() : b())).keySet().iterator().next();
+		if (aUpToSquares.equals(z.one())) {
+			return aPositive ? getElement(q.zero(), aSqrt, q.zero(), q.zero())
+					: getElement(q.zero(), q.zero(), aSqrt, q.zero());
 		}
-		SortedSet<IntE> primes = new TreeSet<>();
-		Iterator<IntE> primeIt = z.primes();
-		IntE minkowskiBound = nf.minkowskiBound().roundDown();
-		List<PFE> rhsList = new ArrayList<>();
-		PrimeField f2 = PrimeField.getPrimeField(2);
-		rhsList.add(f2.one());
-		while (primeIt.hasNext()) {
-			IntE prime = primeIt.next();
-			if (!z.gcd(prime, bUpToSquares).equals(z.one())) {
-				continue;
-			}
-			if (prime.compareTo(z.multiply(4, minkowskiBound)) > 0) {
-				break;
-			}
-			primes.add(prime);
-			rhsList.add(f2.zero());
-		}
-		Vector<PFE> rhs = new Vector<>(rhsList);
-		List<NFE> candidates = new ArrayList<>();
-		List<Vector<PFE>> columns = new ArrayList<>();
-		while (true) {
-			List<NFE> fromVector = new ArrayList<>();
-			for (int i = 0; i < ideal.generators().size(); i++) {
-				List<IntE> nfeFromVector = new ArrayList<>();
-				for (int j = 0; j < nf.degree(); j++) {
-					nfeFromVector.add(z.getRandomElement(minkowskiBound));
-				}
-				fromVector.add(maximalOrder.fromVector(new Vector<>(nfeFromVector)));
-			}
-			NFE idealElement = ideal.fromVector(new Vector<>(fromVector));
-			IntE norm = nf.norm(idealElement).asInteger();
-			norm = z.divideChecked(norm, bUpToSquares);
-			Optional<FactorizationResult<IntE, IntE>> factorizationIfSmooth = z.uniqueFactorizationIfSmooth(norm, primes);
-			if (factorizationIfSmooth.isEmpty()) {
-				continue;
-			}
-			List<PFE> sqr = new ArrayList<>();
-			sqr.add(f2.one());
-			for (IntE prime : primes) {
-				sqr.add(f2.getInteger(factorizationIfSmooth.get().multiplicity(prime)));
-			}
-			columns.add(new Vector<>(sqr));
-			candidates.add(idealElement);
-			Matrix<PFE> m = Matrix.fromColumns(columns);
-			MatrixModule<PFE> matrices = new MatrixModule<>(f2, primes.size() + 1, candidates.size());
-			if (matrices.hasSolution(m, rhs)) {
-				NFE solution = nf.one();
-				Vector<PFE> solved = matrices.solve(m, rhs);
-				for (int i = 0; i < solved.dimension(); i++) {
-					if (solved.get(i + 1).equals(f2.one())) {
-						solution = nf.multiply(candidates.get(i), solution);
-					}
-				}
-				IntE solvedNorm = nf.norm(solution).asInteger();
-				solvedNorm = z.divide(solvedNorm, bUpToSquares);
-				return normalize(getElement(q.zero(), q.zero(),
-						q.multiply(solution.asPolynomial().univariateCoefficient(0), aSqrt),
-						solution.asPolynomial().univariateCoefficient(1)));
+		// x^2 - a*y^2 = b
+		List<Vector<IntE>> solutions = MiscAlgorithms.pellsEquation(aUpToSquares, bUpToSquares, false);
+		IntE minNorm = null;
+		IntE x = null;
+		IntE y = null;
+		for (Vector<IntE> solution : solutions) {
+			IntE norm = z.add(z.multiply(solution.get(1), solution.get(1)),
+					z.multiply(solution.get(2), solution.get(2)));
+			if (minNorm == null || minNorm.compareTo(norm) > 0) {
+				minNorm = norm;
+				x = solution.get(1);
+				y = solution.get(2);
 			}
 		}
+		Fraction yPrime = q.multiply(y, aSqrt);
+		if (aPositive) {
+			return getElement(q.zero(), q.zero(), q.getInteger(x), yPrime);
+		} else {
+			return getElement(q.zero(), q.getInteger(x), q.zero(), yPrime);
+		}
+		/*
+		 * NumberField nf = NumberField.getNumberField(q.getUnivariatePolynomialRing()
+		 * .getPolynomial(q.negative(q.getInteger(aUpToSquares)), q.zero(), q.one()));
+		 * NumberFieldIntegers maximalOrder = nf.maximalOrder();
+		 * FactorizationResult<IntE, IntE> bFactors =
+		 * z.uniqueFactorization(bUpToSquares); NumberFieldIdeal ideal =
+		 * maximalOrder.getUnitIdeal(); for (IntE prime : bFactors.primeFactors()) {
+		 * ideal = maximalOrder.multiply(ideal,
+		 * maximalOrder.idealsOver(z.getIdeal(prime)).get(0)); } if
+		 * (ideal.generators().size() == 1) { NFE result = ideal.generators().get(0);
+		 * return normalize( getElement(q.zero(), q.zero(),
+		 * q.multiply(result.asPolynomial().univariateCoefficient(0), aSqrt),
+		 * result.asPolynomial().univariateCoefficient(1))); } SortedSet<IntE> primes =
+		 * new TreeSet<>(); Iterator<IntE> primeIt = z.primes(); IntE minkowskiBound =
+		 * nf.minkowskiBound().roundDown(); List<PFE> rhsList = new ArrayList<>();
+		 * PrimeField f2 = PrimeField.getPrimeField(2); rhsList.add(f2.one()); while
+		 * (primeIt.hasNext()) { IntE prime = primeIt.next(); if (!z.gcd(prime,
+		 * bUpToSquares).equals(z.one())) { continue; } if
+		 * (prime.compareTo(z.multiply(4, minkowskiBound)) > 0) { break; }
+		 * primes.add(prime); rhsList.add(f2.zero()); } Vector<PFE> rhs = new
+		 * Vector<>(rhsList); List<NFE> candidates = new ArrayList<>();
+		 * List<Vector<PFE>> columns = new ArrayList<>(); while (true) { List<NFE>
+		 * fromVector = new ArrayList<>(); for (int i = 0; i <
+		 * ideal.generators().size(); i++) { List<IntE> nfeFromVector = new
+		 * ArrayList<>(); for (int j = 0; j < nf.degree(); j++) {
+		 * nfeFromVector.add(z.getRandomElement(minkowskiBound)); }
+		 * fromVector.add(maximalOrder.fromVector(new Vector<>(nfeFromVector))); } NFE
+		 * idealElement = ideal.fromVector(new Vector<>(fromVector)); IntE norm =
+		 * nf.norm(idealElement).asInteger(); norm = z.divideChecked(norm,
+		 * bUpToSquares); Optional<FactorizationResult<IntE, IntE>>
+		 * factorizationIfSmooth = z.uniqueFactorizationIfSmooth(norm, primes); if
+		 * (factorizationIfSmooth.isEmpty()) { continue; } List<PFE> sqr = new
+		 * ArrayList<>(); sqr.add(f2.one()); for (IntE prime : primes) {
+		 * sqr.add(f2.getInteger(factorizationIfSmooth.get().multiplicity(prime))); }
+		 * columns.add(new Vector<>(sqr)); candidates.add(idealElement); Matrix<PFE> m =
+		 * Matrix.fromColumns(columns); MatrixModule<PFE> matrices = new
+		 * MatrixModule<>(f2, primes.size() + 1, candidates.size()); if
+		 * (matrices.hasSolution(m, rhs)) { NFE solution = nf.one(); Vector<PFE> solved
+		 * = matrices.solve(m, rhs); for (int i = 0; i < solved.dimension(); i++) { if
+		 * (solved.get(i + 1).equals(f2.one())) { solution =
+		 * nf.multiply(candidates.get(i), solution); } } IntE solvedNorm =
+		 * nf.norm(solution).asInteger(); solvedNorm = z.divide(solvedNorm,
+		 * bUpToSquares); return normalize(getElement(q.zero(), q.zero(),
+		 * q.multiply(solution.asPolynomial().univariateCoefficient(0), aSqrt),
+		 * solution.asPolynomial().univariateCoefficient(1))); } }
+		 */
 	}
 }

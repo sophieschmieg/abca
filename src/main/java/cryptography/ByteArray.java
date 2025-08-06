@@ -51,6 +51,18 @@ public class ByteArray extends AbstractElement<ByteArray> {
 		return String.join(" ", hex);
 	}
 
+	public static ByteArray fromString(String s) {
+		if (s.length() % 2 != 0) {
+			throw new ArithmeticException("Not hex encoded");
+		}
+		byte[] result = new byte[s.length() / 2];
+		for (int i = 0; i < result.length; i++) {
+			result[i] = (byte) ((Character.digit(s.charAt(2 * i), 16)) << 4
+					| (Character.digit(s.charAt(2 * i + 1), 16)));
+		}
+		return new ByteArray(result);
+	}
+
 	public int length() {
 		return array.length;
 	}

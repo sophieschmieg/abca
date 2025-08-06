@@ -187,6 +187,12 @@ public class ModuloNumberFieldOrderIdeal extends AbstractRing<ModNFE> implements
 	public boolean isUnit(ModNFE t) {
 		return order.coprime(ideal, order.getIdeal(Collections.singletonList(lift(t))));
 	}
+	
+	@Override
+	public ModNFE zeroCodivisor(ModNFE t) {
+		NumberFieldOrderIdeal added = (NumberFieldOrderIdeal)order.add(ideal, order.getIdeal(Collections.singletonList(lift(t))));
+		return null;
+	}
 
 	@Override
 	public ModNFE inverse(ModNFE t) {

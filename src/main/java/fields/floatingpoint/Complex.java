@@ -208,7 +208,7 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	}
 
 	public boolean isReal(ComplexNumber t) {
-		return r.abs(t.complexPart()).compareTo(r.getPowerOfTwo(-r.precision() + t.realPart().exponent())) < 0;
+		return r.abs(t.complexPart()).compareTo(r.getPowerOfTwo(-r.precision() + t.realPart().exponent())) <= 0;
 	}
 
 	public Real asReal(ComplexNumber t) {

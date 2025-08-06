@@ -46,6 +46,10 @@ public class PolynomialIdeal<T extends Element<T>> extends AbstractIdeal<Polynom
 	public int degree() {
 		return divideOut().degree();
 	}
+	
+	PolynomialRing<T> getPolynomialRing() {
+		return polynomialRing;
+	}
 
 //	@Override
 //	public List<Vector<Polynomial<T>>> nonTrivialCombinations(List<Polynomial<T>> s) {

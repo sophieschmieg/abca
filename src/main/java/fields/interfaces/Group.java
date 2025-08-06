@@ -1,6 +1,8 @@
 package fields.interfaces;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -10,13 +12,15 @@ import fields.interfaces.Ring.FactorizationResult;
 
 public interface Group<T extends Element<T>> extends Monoid<T> {
 	public T neutral();
+
 	public T inverse(T t);
+
 	public T operate(T t1, T t2);
-	
+
 	public default T power(int n, T t) {
-		return power(BigInteger.valueOf(n), t);	
+		return power(BigInteger.valueOf(n), t);
 	}
-	
+
 	public default T power(BigInteger n, T t) {
 		T result = this.neutral();
 		if (n.signum() < 0) {
@@ -30,33 +34,48 @@ public interface Group<T extends Element<T>> extends Monoid<T> {
 		}
 		return result;
 	}
-	
+
 	public default BigInteger discreteLogarithm(T base, T power) {
-		Map<T, Integer> babySteps = new TreeMap<>();
 		BigInteger n = getOrder(base);
+		Integers z = Integers.z();
+		FactorizationResult<IntE, IntE> factorization = z.uniqueFactorization(z.getInteger(n));
+		if (!factorization.isPrimePower()) {
+			List<IntE> primePowers = new ArrayList<>();
+			List<IntE> residues = new ArrayList<>();
+			for (IntE prime : factorization.primeFactors()) {
+				IntE primePower = z.power(prime, factorization.multiplicity(prime));
+				primePowers.add(primePower);
+				IntE multiplier = z.divideChecked(z.getInteger(n), primePower);
+				residues.add(z.getInteger(
+						discreteLogarithm(power(multiplier.getValue(), base), power(multiplier.getValue(), power))));
+			}
+			return z.chineseRemainderTheoremModuli(residues, primePowers).getValue();
+		}
+		Map<T, Integer> babySteps = new TreeMap<>();
 		int m = n.sqrt().add(BigInteger.ONE).intValueExact();
 		T babyStep = neutral();
-		for(int i = 0; i < m; i++) {
-		babySteps.put(babyStep, i);
-		babyStep = operate(babyStep, base);
+		for (int i = 0; i < m; i++) {
+			babySteps.put(babyStep, i);
+			babyStep = operate(babyStep, base);
 		}
 		T baseByM = power(-m, base);
 		T giantStep = power;
-		for(int i = 0; i < m; i++) {
+		for (int i = 0; i < m; i++) {
 			if (babySteps.containsKey(giantStep)) {
-				return BigInteger.valueOf(i).multiply(BigInteger.valueOf(m)).add(BigInteger.valueOf(babySteps.get(giantStep)));
+				return BigInteger.valueOf(i).multiply(BigInteger.valueOf(m))
+						.add(BigInteger.valueOf(babySteps.get(giantStep)));
 			}
 			giantStep = operate(giantStep, baseByM);
 		}
 		throw new ArithmeticException("Could not find discrete logarithm!");
 	}
-	
+
 	public default BigInteger getOrder(T t) {
 		BigInteger order = this.getNumberOfElements();
 		if (!power(order, t).equals(neutral())) {
 			throw new ArithmeticException("Element order wrong");
 		}
-		
+
 		FactorizationResult<IntE, IntE> primeDecomp = Integers.z().uniqueFactorization(new IntE(order));
 		for (IntE prime : primeDecomp.primeFactors()) {
 			int power = primeDecomp.multiplicity(prime);

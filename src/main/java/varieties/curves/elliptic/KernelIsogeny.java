@@ -14,7 +14,10 @@ import java.util.TreeMap;
 import fields.helper.AbstractElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
+import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
+import fields.interfaces.Field.Extension;
+import fields.interfaces.FieldExtension;
 import fields.interfaces.Ring.FactorizationResult;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
@@ -262,6 +265,15 @@ public class KernelIsogeny<T extends Element<T>> extends AbstractElement<Isogeny
 	public ProjectivePoint<T> evaluate(ProjectivePoint<T> point) {
 		return evaluateLadder(point, isogenies);
 	}
+	
+	@Override
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+			ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+		for (Isogeny<T> isogeny : isogenies) {
+			point = isogeny.evaluateOverExtension(point, extension);
+		}
+		return point;
+	}
 
 	@Override
 	public BigInteger getDegree() {
@@ -328,6 +340,17 @@ public class KernelIsogeny<T extends Element<T>> extends AbstractElement<Isogeny
 			while (it.hasNext()) {
 				Isogeny<T> isogeny = it.next();
 				point = isogeny.getDual().evaluate(point);
+			}
+			return point;
+		}
+		
+		@Override
+		public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+				ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+			Iterator<Isogeny<T>> it = dual.isogenies.descendingIterator();
+			while (it.hasNext()) {
+				Isogeny<T> isogeny = it.next();
+				point = isogeny.getDual().evaluateOverExtension(point, extension);
 			}
 			return point;
 		}

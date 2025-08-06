@@ -26,17 +26,23 @@ public abstract class AbstractLattice<R extends Element<R>, T extends Element<T>
 	private Matrix<T> generatorsAsMatrix;
 	private MatrixModule<T> matrixModule;
 
-	protected AbstractLattice(RealInnerProductSpace<T, S> embeddingSpace, List<R> generators, boolean isBasis) {
+	protected AbstractLattice(RealInnerProductSpace<T, S> embeddingSpace, List<R> generators, boolean bkz,
+			int blockSize, double delta, boolean isBasis) {
 		Integers z = Integers.z();
 		this.embeddingSpace = embeddingSpace;
 		this.asFreeModule = new FreeModule<>(z, generators.size());
-		this.generators = embeddingSpace.latticeReduction(generators, this, isBasis);
+		this.generators = bkz ? embeddingSpace.latticeReduction(generators, this, delta, blockSize, isBasis)
+				: embeddingSpace.latticeReduction(generators, this, delta, isBasis);
 		List<Vector<T>> asReducedVectors = new ArrayList<>();
 		for (R generator : this.generators) {
 			asReducedVectors.add(embeddingSpace.asVector(embedding(generator)));
 		}
 		this.generatorsAsMatrix = Matrix.fromColumns(asReducedVectors);
 		this.matrixModule = generatorsAsMatrix.getModule(embeddingSpace.getField());
+	}
+
+	protected AbstractLattice(RealInnerProductSpace<T, S> embeddingSpace, List<R> generators, boolean isBasis) {
+		this(embeddingSpace, generators, true, 10, 0.75, isBasis);
 	}
 
 	@Override

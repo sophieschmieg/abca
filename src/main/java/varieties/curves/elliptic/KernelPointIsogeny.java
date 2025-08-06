@@ -6,10 +6,16 @@ import java.util.Collections;
 import java.util.List;
 
 import fields.helper.AbstractElement;
+import fields.integers.Integers;
+import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.FieldExtension;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.Field.Extension;
+import varieties.curves.elliptic.EllipticCurve.EllipticCurveExtensionResult;
+import varieties.curves.elliptic.EllipticCurve.Isomorphism;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 
@@ -26,6 +32,12 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 	public KernelPointIsogeny(EllipticCurve<T> domain, ProjectivePoint<T> kernelGenerator, int kernelDegree) {
 		this.field = domain.getField();
 		this.domain = domain;
+		if (!Integers.z().isPrime(Integers.z().getInteger(kernelDegree))) {
+			throw new ArithmeticException("Not of prime degree!");
+		}
+		if (kernelGenerator.equals(domain.neutral())) {
+			throw new ArithmeticException("Kernel point is not generator!");
+		}
 		if (!domain.multiply(kernelDegree, kernelGenerator).equals(domain.neutral())) {
 			throw new ArithmeticException("kernel degree wrong! [" + kernelDegree + "]" + kernelGenerator + " = "
 					+ domain.multiply(kernelDegree, kernelGenerator));
@@ -125,6 +137,38 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 		ProjectivePoint<T> result = new ProjectivePoint<T>(field, x, y, field.one());
 		return result;
 	}
+	
+	@Override
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+			ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+		EllipticCurveExtensionResult<T, B, E, FE> extendedDomain = domain.extendBaseField(extension);
+		EllipticCurveExtensionResult<T, B, E, FE> extendedRange = range.extendBaseField(extension);
+		if (!extendedDomain.getCurve().hasRationalPoint(point)) {
+			throw new ArithmeticException("Point not on curve");
+		}
+		if (point.equals(extendedDomain.getCurve().neutral())) {
+			return extendedRange.getCurve().neutral();
+		}
+		FE field = extension.extension();
+		E x = point.getDehomogenisedCoord(1, 3);
+		E y = point.getDehomogenisedCoord(2, 3);
+		for (int i = 1; i < kernelDegree; i++) {
+			ProjectivePoint<E> kernelPoint = extendedDomain.getCurve().multiply(i,extendedDomain.getEmbedding().evaluate(kernelGenerator));
+			if (kernelPoint.equals(point)) {
+				return extendedRange.getCurve().neutral();
+			}
+			ProjectivePoint<E> added = extendedDomain.getCurve().add(point, kernelPoint);
+			if (added.equals(domain.neutral())) {
+				return extendedRange.getCurve().neutral();
+			}
+			x = field.add(x, added.getDehomogenisedCoord(1, 3));
+			x = field.subtract(x, kernelPoint.getDehomogenisedCoord(1, 3));
+			y = field.add(y, added.getDehomogenisedCoord(2, 3));
+			y = field.subtract(y, kernelPoint.getDehomogenisedCoord(2, 3));
+		}
+		ProjectivePoint<E> result = new ProjectivePoint<>(field, x, y, field.one());
+		return result;
+	}
 
 	public BigInteger getDegree() {
 		return BigInteger.valueOf(kernelDegree);
@@ -161,24 +205,42 @@ public class KernelPointIsogeny<T extends Element<T>> extends AbstractElement<Is
 
 	public Isogeny<T> getDual() {
 		ProjectivePoint<T> dualKernelPoint = null;
-		torsionPointsLoop: for (ProjectivePoint<T> torsionPoint : domain.getTorsionPoints(kernelDegree)) {
-			for (int i = 1; i < kernelDegree; i++) {
-				if (domain.multiply(i, torsionPoint).equals(domain.neutral())) {
-					continue torsionPointsLoop;
-				}
-			}
-			if (!evaluate(torsionPoint).equals(range.neutral())) {
-				dualKernelPoint = torsionPoint;
+		for (ProjectivePoint<T> torsionPoint : domain.getTorsionPointBasis(kernelDegree)) {
+			ProjectivePoint<T> evaluated = evaluate(torsionPoint);
+			if (range.getOrder(evaluated).intValueExact() == kernelDegree) {
+				dualKernelPoint = evaluated;
 				break;
 			}
 		}
 		if (dualKernelPoint == null) {
 			throw new ArithmeticException("Dual isogeny not definied over this field. Please extend the field.");
 		}
-		return new KernelPointIsogeny<T>(range, dualKernelPoint, kernelDegree);
+		Isogeny<T> dualUpToIsomorphism = new KernelPointIsogeny<T>(range, dualKernelPoint, kernelDegree);
+		if (dualUpToIsomorphism.getRange().equals(domain)) {
+			return dualUpToIsomorphism;
+		}
+		ProjectivePoint<T> testPoint;
+		BigInteger order;
+		int tries = 0;
+		BigInteger degree = BigInteger.valueOf(kernelDegree);
+		do {
+			testPoint = domain.getRandomElement();
+			order = domain.getOrder(testPoint);
+			tries++;
+		} while (tries < 10 && degree.mod(order).equals(degree.negate().mod(order)));
+		ProjectivePoint<T> expected = domain.multiply(kernelDegree, testPoint);
+		for (Isomorphism<T> isomorphism : dualUpToIsomorphism.getRange().getIsomorphisms(domain)) {
+				ProjectivePoint<T> evaluated = evaluate(testPoint);
+				evaluated = dualUpToIsomorphism.evaluate(evaluated);
+				evaluated = isomorphism.evaluate(evaluated);
+				if (evaluated.equals(expected)) {
+					return new CompositionIsogeny<>(dualUpToIsomorphism, isomorphism);
+				}
+		}
+		throw new ArithmeticException("Dual not computed correctly");
 	}
 
-//	@Override
+	@Override
 	public List<ProjectivePoint<T>> kernelGenerators() {
 		return Collections.singletonList(kernelGenerator);
 	}
