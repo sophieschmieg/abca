@@ -165,7 +165,7 @@ public class FieldExtensionUnivariatePolynomialRing<B extends Element<B>, E exte
 
 	@Override
 	public boolean isZeroDivisor(Polynomial<E> t) {
-		return false;
+		return t.equals(zero());
 	}
 
 	@Override

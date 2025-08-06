@@ -7,9 +7,9 @@ import java.util.List;
 import fields.helper.AbstractElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
-import fields.interfaces.Ideal;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.polynomials.PolynomialIdeal;
 
 public class AffinePoint<T extends Element<T>> extends AbstractElement<AffinePoint<T>> {
 	private int dim;
@@ -56,7 +56,7 @@ public class AffinePoint<T extends Element<T>> extends AbstractElement<AffinePoi
 		return this.coords.get(i - 1);
 	}
 
-	public Ideal<Polynomial<T>> asIdeal(PolynomialRing<T> ring) {
+	public PolynomialIdeal<T> asIdeal(PolynomialRing<T> ring) {
 		List<Polynomial<T>> generators = new ArrayList<>();
 		for (int i = 0; i < coords.size(); i++) {
 			T t = coords.get(i);

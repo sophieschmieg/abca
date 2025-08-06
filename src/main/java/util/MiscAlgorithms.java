@@ -2,6 +2,7 @@ package util;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -176,6 +177,37 @@ public class MiscAlgorithms {
 			}
 		}
 		return result;
+	}
+	
+	// Finds the minimal set of variables such that all elements in the array have at least one variable set
+	// The returned array has a 1 in set variables, and total number of variables in position numVar.
+	public static int[] minimalSupport(int[][] leadingMonomials) {
+		return makeset(0, new int[leadingMonomials[0].length + 1], leadingMonomials);
+	}
+
+	private static int[] makeset(int level, int[] set, int[][] leadingMonomials) {
+		if (level == leadingMonomials.length)
+			return set;
+		for (int i = 0; i < leadingMonomials[level].length; i++) {
+			if (set[i] == 1 && leadingMonomials[level][i] != 0) {
+				return makeset(level + 1, set, leadingMonomials);
+			}
+		}
+		int[] optimalset = new int[set.length];
+		optimalset[set.length - 1] = -1;
+		for (int i = 0; i < leadingMonomials[level].length; i++) {
+			if (leadingMonomials[level][i] == 0)
+				continue;
+			set[i] = 1;
+			set[set.length - 1]++;
+			int[] sethere = makeset(level + 1, set, leadingMonomials);
+			if (optimalset[set.length - 1] == -1 || optimalset[set.length - 1] > sethere[set.length - 1]) {
+				optimalset = Arrays.copyOf(sethere, sethere.length);
+			}
+			set[i] = 0;
+			set[set.length - 1]--;
+		}
+		return optimalset;
 	}
 	
 	public static <T> List<T> flattenMap(Map<T, Integer> map) {

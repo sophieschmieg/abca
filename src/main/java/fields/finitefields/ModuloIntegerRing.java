@@ -236,6 +236,12 @@ public class ModuloIntegerRing extends AbstractRing<ModuloIntegerRingElement> {
 	public boolean isZeroDivisor(ModuloIntegerRingElement t) {
 		return !isUnit(t);
 	}
+	
+	@Override
+	public ModuloIntegerRingElement zeroCodivisor(ModuloIntegerRingElement t) {
+		BigInteger gcd = n.gcd(t.value);
+		return getInteger(n.divide(gcd));
+	}
 
 	@Override
 	public boolean isEuclidean() {

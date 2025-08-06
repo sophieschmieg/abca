@@ -629,7 +629,8 @@ class NumberFieldTest {
 		power = field.add(field.getInteger(4), field.multiply(-3, field.alpha()));
 		System.out.println(primitive);
 		System.out.println(power);
-		IntE discreteLog = field.discreteLogarithm(primitive, power);
+		BigInteger discreteLog = field.discreteLogarithm(primitive, power);
+		System.out.println(discreteLog);
 		assertEquals(power, field.power(primitive, discreteLog));
 //		Rationals q = Rationals.q();
 //		Integers z = Integers.z();

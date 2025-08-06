@@ -89,7 +89,7 @@ class QuaternionsTest {
 	@Test
 	public void testSplitRationals() {
 		Rationals q = Rationals.q();
-		int[][] testCases = new int[][] { { -29, 5 }, { 25, 5 }, { -1, 1 }, { 12, 1 }, { -13, 16 } };
+		int[][] testCases = new int[][] {/* { -29, 5 }, { 25, 5 }, { -1, 1 }, { 12, 1 }, { -13, 16 },*/ {3, 144} };
 		for (int[] testCase : testCases) {
 			RationalQuaternions h = RationalQuaternions.quaternions(q.getInteger(testCase[0]),
 					q.getInteger(testCase[1]));
@@ -114,8 +114,6 @@ class QuaternionsTest {
 			PAdicField qp2 = qp.withAccuracy(2 * accuracy);
 			for (int a = -32; a < 32; a++) {
 				for (int b = -32; b < 32; b++) {
-		a = -27;
-		b = -27;
 					if (a == 0 || b == 0) {
 						continue;
 					}

@@ -4,7 +4,11 @@ import java.math.BigInteger;
 import java.util.List;
 
 import fields.helper.AbstractElement;
+import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
+import fields.interfaces.Field.Extension;
+import fields.interfaces.FieldExtension;
+import varieties.curves.elliptic.EllipticCurve.EllipticCurveExtensionResult;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 
@@ -26,6 +30,11 @@ public class AdditionIsogeny<T extends Element<T>> extends AbstractElement<Isoge
 		this.range = firstSummand.getRange();
 		this.firstSummand = firstSummand;
 		this.secondSummand = secondSummand;
+	}
+	
+	@Override
+	public String toString() {
+		return firstSummand.toString() + " + " + secondSummand.toString();
 	}
 
 	@Override
@@ -63,6 +72,13 @@ public class AdditionIsogeny<T extends Element<T>> extends AbstractElement<Isoge
 	@Override
 	public ProjectivePoint<T> evaluate(ProjectivePoint<T> point) {
 		return range.add(firstSummand.evaluate(point), secondSummand.evaluate(point));
+	}
+	
+	@Override
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+			ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+		EllipticCurveExtensionResult<T, B,E, FE> rangeExtension = range.extendBaseField(extension);
+		return rangeExtension.getCurve().add(firstSummand.evaluateOverExtension(point, extension), secondSummand.evaluateOverExtension(point, extension));
 	}
 
 	@Override

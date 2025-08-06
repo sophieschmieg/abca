@@ -7,8 +7,11 @@ import java.util.List;
 import java.util.Map;
 
 import fields.helper.AbstractElement;
+import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
 import fields.interfaces.Field;
+import fields.interfaces.Field.Extension;
+import fields.interfaces.FieldExtension;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import varieties.projective.ProjectiveMorphism;
@@ -27,7 +30,8 @@ public class Frobenius<T extends Element<T>> extends AbstractElement<Isogeny<T>>
 		this.field = domain.getField();
 		this.q = this.field.characteristic().pow(power);
 		this.power = power;
-		this.range = new EllipticCurve<>(field, field.power(domain.getA(), q), field.power(domain.getB(), q));
+		this.range = new EllipticCurve<>(field, field.power(domain.getA1(), q), field.power(domain.getA2(), q),
+				field.power(domain.getA3(), q), field.power(domain.getA4(), q), field.power(domain.getA6(), q));
 	}
 
 	@Override
@@ -64,7 +68,18 @@ public class Frobenius<T extends Element<T>> extends AbstractElement<Isogeny<T>>
 		for (T coord : point.getCoords()) {
 			coords.add(field.power(coord, q));
 		}
-		return new ProjectivePoint<T>(field, coords);
+		return new ProjectivePoint<>(field, coords);
+	}
+
+	@Override
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+			ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+		FE field = extension.extension();
+		List<E> coords = new ArrayList<>();
+		for (E coord : point.getCoords()) {
+			coords.add(field.power(coord, q));
+		}
+		return new ProjectivePoint<>(field, coords);
 	}
 
 	@Override
@@ -132,6 +147,22 @@ public class Frobenius<T extends Element<T>> extends AbstractElement<Isogeny<T>>
 		}
 
 		@Override
+		public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+				ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+			FE field = extension.extension();
+			List<E> coords = new ArrayList<>();
+			for (E coord : point.getCoords()) {
+				Map<E, Integer> roots = field.roots(coord, frobenius.q.intValueExact());
+				if (roots.size() != 1) {
+					throw new ArithmeticException("qth root not unique");
+				}
+				coords.addAll(roots.keySet());
+			}
+			return frobenius.domain.extendBaseField(extension).getCurve().multiply(frobenius.q,
+					new ProjectivePoint<>(field, coords));
+		}
+
+		@Override
 		public BigInteger getDegree() {
 			return frobenius.q;
 		}
@@ -156,7 +187,7 @@ public class Frobenius<T extends Element<T>> extends AbstractElement<Isogeny<T>>
 			return asMorphism;
 		}
 
-//		@Override
+		@Override
 		public List<ProjectivePoint<T>> kernelGenerators() {
 			if (frobenius.domain.isSupersingular()) {
 				return Collections.emptyList();
@@ -170,7 +201,7 @@ public class Frobenius<T extends Element<T>> extends AbstractElement<Isogeny<T>>
 		return new DualFrobenius<>(this);
 	}
 
-//	@Override
+	@Override
 	public List<ProjectivePoint<T>> kernelGenerators() {
 		return Collections.emptyList();
 	}

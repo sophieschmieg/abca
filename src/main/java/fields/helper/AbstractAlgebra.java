@@ -6,18 +6,28 @@ import java.util.List;
 
 import fields.interfaces.Algebra;
 import fields.interfaces.Element;
+import fields.interfaces.MathMap;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
+import util.FunctionMathMap;
 
 public abstract class AbstractAlgebra<T extends Element<T>, S extends Element<S>> extends AbstractRing<S>
 		implements Algebra<T, S> {
+	private MathMap<T, S> embeddingMap;
+	
 	public AbstractAlgebra() {
-		super(true);
+		this(true);
 	}
 
 	public AbstractAlgebra(boolean generateUnivariatePolynomialRing) {
 		super(generateUnivariatePolynomialRing);
+		this.embeddingMap = new FunctionMathMap<>((T t) -> getEmbedding(t));
+	}
+	
+	@Override
+	public MathMap<T, S> getEmbeddingMap() {
+		return embeddingMap;
 	}
 
 	@Override

@@ -45,6 +45,11 @@ public class GeneralRationalFunction<T extends Element<T>, S extends Element<S>,
 			throw new ArithmeticException("Domain not an open immersion!");
 		}
 	}
+	
+	@Override
+	public String toString() {
+		return morphism.toString();
+	}
 
 	public Scheme<T, S> getDomain() {
 		return domain;

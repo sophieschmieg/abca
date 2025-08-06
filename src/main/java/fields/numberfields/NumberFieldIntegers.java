@@ -239,8 +239,11 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 
 	@Override
 	public NFE projectToUnit(NFE t) {
-		Vector<Real> logs = field.logRepresentation(t);
-		NFE unit = field.logRepresentationSpace().closestLatticePoint(logs, getUnitLattice()).representative;
+		NFE unit = one();
+		if (getUnitLattice() != null) {
+			Vector<Real> logs = field.logRepresentation(t);
+			unit = field.logRepresentationSpace().closestLatticePoint(logs, getUnitLattice()).representative;
+		}
 		NFE normalized = divideChecked(t, unit);
 		int max = primitiveRootsOfUnity().lastKey().intValueExact();
 		NFE primitiveRootOfUnity = primitiveRootsOfUnity().get(Integers.z().getInteger(max));
@@ -891,7 +894,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		primeFactors.addAll(ideal2.idealFactorization.primeFactors());
 		Map<Ideal<NFE>, Integer> result = new TreeMap<>();
 		for (Ideal<NFE> ideal : primeFactors) {
-			result.put( ideal,
+			result.put(ideal,
 					ideal1.idealFactorization.multiplicity(ideal) + ideal2.idealFactorization.multiplicity(ideal));
 		}
 		return getIdealFromFactorization(result);
@@ -909,7 +912,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		primeFactors.addAll(ideal2.idealFactorization.primeFactors());
 		Map<Ideal<NFE>, Integer> result = new TreeMap<>();
 		for (Ideal<NFE> ideal : primeFactors) {
-			result.put( ideal, Math.max(ideal1.idealFactorization.multiplicity(ideal),
+			result.put(ideal, Math.max(ideal1.idealFactorization.multiplicity(ideal),
 					ideal2.idealFactorization.multiplicity(ideal)));
 		}
 		return getIdealFromFactorization(result);
@@ -923,7 +926,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 		}
 		Map<Ideal<NFE>, Integer> result = new TreeMap<>();
 		for (Ideal<NFE> idealFactor : ideal.idealFactorization.primeFactors()) {
-			result.put( idealFactor, 1);
+			result.put(idealFactor, 1);
 		}
 		return getIdealFromFactorization(result);
 	}
@@ -952,7 +955,7 @@ public class NumberFieldIntegers extends AbstractAlgebra<IntE, NFE> implements A
 			return getUnitIdeal();
 		}
 		if (factors.size() == 1 && factors.get(factors.keySet().iterator().next()) == 1) {
-			return (NumberFieldIdeal)factors.keySet().iterator().next();
+			return (NumberFieldIdeal) factors.keySet().iterator().next();
 		}
 		SortedMap<Ideal<NFE>, Integer> cast = new TreeMap<>();
 		Map<IntE, SortedMap<Ideal<NFE>, Integer>> perPrimeFactorization = new TreeMap<>();

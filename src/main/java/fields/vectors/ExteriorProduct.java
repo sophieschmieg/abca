@@ -344,6 +344,15 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 
 	}
 
+	public WedgeProductSum<T> fromGradedVector(Vector<T> s, int degree) {
+		WedgeProductSum<T> result = zero();
+		List<WedgeProductSum<T>> generators = getGradedModuleGenerators(degree);
+		for (int i = 0; i < generators.size(); i++) {
+			result = add(scalarMultiply(s.get(i + 1), generators.get(i)), result);
+		}
+		return result;
+	}
+
 	public T asScalar(WedgeProductSum<T> s) {
 		return s.coefficient(new WedgeProduct(Collections.emptySet(), variableNames));
 	}
@@ -397,6 +406,10 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 
 	public WedgeProductSum<T> getEmbedding(T t, WedgeProduct wedge) {
 		return new WedgeProductSum<>(Collections.singletonMap(wedge, t), ring);
+	}
+
+	public WedgeProductSum<T> fromMap(Map<WedgeProduct, T> t) {
+		return new WedgeProductSum<>(t, ring);
 	}
 
 	public WedgeProductSum<T> getModuleEmbedding(S t) {
@@ -542,14 +555,39 @@ public class ExteriorProduct<T extends Element<T>, S extends Element<S>>
 	@Override
 	public boolean isZeroDivisor(WedgeProductSum<T> t) {
 		for (WedgeProduct primitive : t.coefficients.keySet()) {
-			if (!primitive.variables.isEmpty()) {
-				return true;
-			}
-			if (ring.isZeroDivisor(t.coefficient(primitive))) {
-				return true;
+			if (primitive.variables.isEmpty() && !ring.isZeroDivisor(t.coefficient(primitive))) {
+				return false;
 			}
 		}
-		return false;
+		return true;
+	}
+
+	@Override
+	public WedgeProductSum<T> zeroCodivisor(WedgeProductSum<T> t) {
+		int[][] leadingMonomials = new int[t.coefficients.size()][variableNames.length];
+		int i = 0;
+		T codivisor = ring.one();
+		for (WedgeProduct p : t.coefficients.keySet()) {
+			for (int j = 0; j < variableNames.length; j++) {
+				if (p.variables.contains(j + 1)) {
+					leadingMonomials[i][j] = 1;
+				} else {
+					leadingMonomials[i][j] = 0;
+				}
+			}
+			if (p.variables.isEmpty()) {
+				codivisor = ring.multiply(ring.zeroCodivisor(t.coefficient(p)), codivisor);
+			}
+			i++;
+		}
+		int[] set = MiscAlgorithms.minimalSupport(leadingMonomials);
+		Set<Integer> result = new TreeSet<>();
+		for (int j = 0; j < variableNames.length; j++) {
+			if (set[j] != 0) {
+				result.add(j + 1);
+			}
+		}
+		return getEmbedding(codivisor, getWedgeProduct(result));
 	}
 
 	@Override

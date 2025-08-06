@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -35,6 +36,13 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public BigInteger getNumberOfUnits();
 
 	public T inverse(T t);
+	
+	default public Optional<T> maybeInverse(T t) {
+		if (!isUnit(t)) {
+			return Optional.empty();
+		}
+		return Optional.of(inverse(t));
+	}
 
 	public boolean isCommutative();
 
@@ -45,6 +53,8 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public boolean isIrreducible();
 
 	public boolean isZeroDivisor(T t);
+	
+	public T zeroCodivisor(T t);
 
 	public boolean isEuclidean();
 
@@ -575,6 +585,21 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 			return syzygies;
 		}
 
+		public List<T> generate(T t) {
+			Ring<T> ring = ideal.getRing();
+			List<T> generate = ideal.generate(t);
+			List<T> result = new ArrayList<>();
+			for (int i = 0; i < originalGenerators.size(); i++) {
+				T multiplier = ring.zero();
+				for (int j = 0; j < generate.size(); j++) {
+					multiplier = ring.add(ring.multiply(generate.get(j), generatorExpressions.get(j).get(i)),
+							multiplier);
+				}
+				result.add(multiplier);
+			}
+			return result;
+		}
+
 		public String toString() {
 			return ideal.toString();
 		}
@@ -738,6 +763,12 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 
 	public T characteristicRoot(T t, int power);
 
+	public interface AsSubModuleMemberPreperation<T extends Element<T>, P extends AsSubModuleMemberPreperation<T, P>> {
+		public MatrixModule<T> getModule();
+		public Matrix<T> getMatrix();
+		public P asPreperation();
+	}
+	
 	public default boolean isIdealMember(List<T> m, T b) {
 		return getIdeal(m).contains(b);
 	}
@@ -759,6 +790,12 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		}
 		return result;
 	}
+	
+	public default AsSubModuleMemberPreperation<T, ?> prepareAsSubModuleMember(Matrix<T> m) {
+		return prepareAsSubModuleMember(m.getModule(this), m);
+	}
+	
+	public AsSubModuleMemberPreperation<T, ?> prepareAsSubModuleMember(MatrixModule<T> module, Matrix<T> m);
 
 	public default boolean isSubModuleMember(List<Vector<T>> generators, Vector<T> b) {
 		return isSubModuleMember(Matrix.fromColumns(generators), b);
@@ -767,6 +804,12 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public default boolean isSubModuleMember(Matrix<T> m, Vector<T> b) {
 		return isSubModuleMember(m.getModule(this), m, b);
 	}
+	
+	public default boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		return isSubModuleMember(prepareAsSubModuleMember(module, m), b);
+	}
+	
+	public boolean isSubModuleMember(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> b);
 
 	public default Vector<T> asSubModuleMember(List<Vector<T>> generators, Vector<T> b) {
 		return asSubModuleMember(Matrix.fromColumns(generators), b);
@@ -775,6 +818,12 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 	public default Vector<T> asSubModuleMember(Matrix<T> m, Vector<T> b) {
 		return asSubModuleMember(m.getModule(this), m, b);
 	}
+	
+	public default Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
+		return asSubModuleMember(prepareAsSubModuleMember(module, m), b);
+	}
+	
+	public Vector<T> asSubModuleMember(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> b);
 
 	public default List<Vector<T>> syzygyProblem(List<Vector<T>> generators) {
 		return syzygyProblem(Matrix.fromColumns(generators));
@@ -784,6 +833,8 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		return syzygyProblem(m.getModule(this), m);
 	}
 
+	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m);
+
 	public default List<Vector<T>> simplifySubModuleGenerators(List<Vector<T>> generators) {
 		return simplifySubModuleGenerators(Matrix.fromColumns(generators));
 	}
@@ -792,13 +843,17 @@ public interface Ring<T extends Element<T>> extends MathSet<T> {
 		return simplifySubModuleGenerators(m.getModule(this), m);
 	}
 
-	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
-
-	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b);
-
-	public List<Vector<T>> syzygyProblem(MatrixModule<T> module, Matrix<T> m);
-
 	public List<Vector<T>> simplifySubModuleGenerators(MatrixModule<T> module, Matrix<T> m);
+
+	public default Vector<T> residueModuloSubmodule(Matrix<T> m, Vector<T> t) {
+		return residueModuloSubmodule(m.getModule(this), m, t);
+	}
+
+	public default Vector<T> residueModuloSubmodule(MatrixModule<T> module, Matrix<T> m, Vector<T> t) {
+		return residueModuloSubmodule(prepareAsSubModuleMember(module, m), t);
+	}
+	
+	public Vector<T> residueModuloSubmodule(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> t);
 
 	public List<T> adicDevelopment(T t, T base);
 }

@@ -11,6 +11,7 @@ import java.util.TreeSet;
 
 import org.junit.jupiter.api.Test;
 
+import fields.finitefields.PrimeField;
 import fields.integers.Integers.IntE;
 import fields.integers.Integers.SmallestIntegerSolutionPreparation;
 import fields.interfaces.Polynomial;
@@ -167,6 +168,15 @@ class IntegersTest {
 				System.out.println(target + " = " + solution.get(1) + "*" + a + " + " + solution.get(2) + "*" + b
 						+ " + " + solution.get(3) + "*" + c + " + " + solution.get(4) + "*" + d);
 			}
+		}
+	}
+	
+	@Test
+	void testRationalReconstruction() {
+		int p = 41;
+		PrimeField fp = PrimeField.getPrimeField(p);
+		for (int i = 0; i < p; i++) {
+			System.out.println(i + " = " + fp.rationalReconstruction(fp.getInteger(i)) + " mod " + p);
 		}
 	}
 

@@ -219,7 +219,7 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	public Ideal<T> annihilator() {
 		return base.getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<T>> getSyzygies() {
 		return Collections.emptyList();
@@ -367,6 +367,14 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	}
 
 	@Override
+	public Quaternion<T> zeroCodivisor(Quaternion<T> t) {
+		if (isZeroDivisor(t)) {
+			return conjugate(t);
+		}
+		return zero();
+	}
+
+	@Override
 	public abstract T discriminant();
 
 	@Override
@@ -374,12 +382,12 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 
 	@Override
 	public abstract boolean isIntegral();
-	
+
 	@Override
 	public boolean isReduced() {
 		return isIntegral();
 	}
-	
+
 	@Override
 	public boolean isIrreducible() {
 		return isIntegral();
@@ -454,7 +462,7 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 			} else {
 				Quaternion<T> splittingElement = splittingElement();
 				Quaternion<T> secondElement = negativeCommutor(splittingElement);
-				T sqrtSplittingElement = base.sqrt(asRealPart(multiply(splittingElement, splittingElement))).keySet()
+				T sqrtSplittingElement = base.sqrt(multiply(splittingElement, splittingElement).realPart()).keySet()
 						.iterator().next();
 				T secondElementSquare = asRealPart(multiply(secondElement, secondElement));
 				List<Quaternion<T>> basis = new ArrayList<>();
@@ -597,7 +605,7 @@ public abstract class AbstractQuaternions<T extends Element<T>> extends Abstract
 	public Field<T> getRing() {
 		return base;
 	}
-	
+
 	@Override
 	public Quaternion<T> getUnitVector(int index) {
 		return fromVector(asVectorSpace.getUnitVector(index));

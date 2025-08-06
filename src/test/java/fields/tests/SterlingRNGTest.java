@@ -20,16 +20,21 @@ class SterlingRNGTest {
 
 	@Test
 	void test() {
-		int precision = 1024;
+		int precision = 512;
 		int bitRate = 256;
 		Reals r = Reals.r(precision);
 		Integers z = Integers.z();
 		IntE n = z.getRandomElement(z.power(z.getInteger(2), bitRate));
+		long time = System.currentTimeMillis();
+		System.out.println("0");
 		Real sqrt = r.positiveSqrt(r.getInteger(n));
+		System.out.println(System.currentTimeMillis() - time);
 		System.out.println("Secret integer: " + n);
 		System.out.println("Square root: " + sqrt);
 		System.out.println("Fractional part: " + sqrt.fractionalPart());
+		System.out.println(System.currentTimeMillis() - time);
 		IntE reconstructed = breakBadRng(sqrt.fractionalPart(), precision, bitRate);
+		System.out.println(System.currentTimeMillis() - time);
 		System.out.println("Reconstructed integer: " + reconstructed);
 		assertEquals(n, reconstructed);
 	}

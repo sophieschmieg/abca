@@ -3,14 +3,22 @@ package varieties;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import fields.interfaces.Element;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.local.Value;
+import fields.local.ValueGroup;
 import fields.polynomials.CoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing;
+import fields.polynomials.LocalizedCoordinateRing.LocalizedElement;
+import fields.polynomials.PolynomialIdeal;
 import varieties.affine.AffinePoint;
 import varieties.affine.AffineScheme;
 import varieties.curves.ProjectiveLine;
+import varieties.curves.WeilDivisor;
 import varieties.projective.ProjectiveMorphism;
 import varieties.projective.ProjectivePoint;
 import varieties.projective.ProjectiveScheme;
@@ -112,21 +120,36 @@ public class RationalFunction<T extends Element<T>> extends AbstractMorphism<T, 
 		for (Polynomial<T> generator : domain.asGenericProjectiveScheme().generators()) {
 			infinityPoints.add(affinePolynomialRing.getEmbedding(homogenous.partiallyEvaluate(generator, eval)));
 		}
-		List<AffinePoint<T>> infinitySolutions = affinePolynomialRing.solve(infinityPoints);
-		for (AffinePoint<T> point : infinitySolutions) {
-			List<T> projective = new ArrayList<>();
-			boolean nonZero = false;
+		PolynomialIdeal<T> infinityIdeal = affinePolynomialRing.getIdeal(infinityPoints);
+		if (infinityIdeal.dimension() > 0) {
 			for (int i = 0; i < affinePolynomialRing.numberOfVariables(); i++) {
-				if (i == affineCoverIndex) {
-					projective.add(domain.getField().zero());
-				}
-				projective.add(point.getCoord(i + 1));
-				if (!nonZero && !point.getCoord(i + 1).equals(domain.getField().zero())) {
-					nonZero = true;
+				Polynomial<T> coord = affinePolynomialRing.subtract(affinePolynomialRing.getVar(i + 1),
+						affinePolynomialRing.one());
+				PolynomialIdeal<T> added = affinePolynomialRing.add(infinityIdeal,
+						affinePolynomialRing.getIdeal(Collections.singletonList(coord)));
+				if (!added.contains(affinePolynomialRing.one())) {
+					infinityIdeal = added;
 				}
 			}
-			if (nonZero) {
-				candidates.add(new ProjectivePoint<>(domain.getField(), projective));
+			List<AffinePoint<T>> infinitySolutions = affinePolynomialRing.solve(infinityIdeal);
+			for (AffinePoint<T> point : infinitySolutions) {
+				List<T> projective = new ArrayList<>();
+				boolean nonZero = false;
+				for (int i = 0; i < affinePolynomialRing.numberOfVariables(); i++) {
+					if (i == affineCoverIndex) {
+						projective.add(domain.getField().zero());
+					}
+					projective.add(point.getCoord(i + 1));
+					if (!nonZero && !point.getCoord(i + 1).equals(domain.getField().zero())) {
+						nonZero = true;
+					}
+				}
+				if (affinePolynomialRing.numberOfVariables() == affineCoverIndex) {
+					projective.add(domain.getField().zero());
+				}
+				if (nonZero) {
+					candidates.add(new ProjectivePoint<>(domain.getField(), projective));
+				}
 			}
 		}
 		List<ProjectivePoint<T>> result = new ArrayList<>();
@@ -146,6 +169,31 @@ public class RationalFunction<T extends Element<T>> extends AbstractMorphism<T, 
 	public List<ProjectivePoint<T>> getPoles() {
 		return findRoots(denominator, dehomogenizedDenominator,
 				new ProjectivePoint<>(domain.getField(), domain.getField().one(), domain.getField().zero()));
+	}
+
+	public Value order(ProjectivePoint<T> t) {
+		int coverIndex = domain.affineCoverIndex(t).get(0);
+		AffineScheme<T> affineDomain = domain.getAffineCover().getCover().get(coverIndex);
+		PolynomialRing<T> affineRing = affineDomain.getCoordinateRing().getPolynomialRing();
+		AffinePoint<T> affinePreimage = domain.asAffinePoint(t, coverIndex);
+		LocalizedCoordinateRing<T> localizedRing = affineDomain.localizedCoordinateRing(affinePreimage);
+		LocalizedElement<T> localizedNumerator = localizedRing.getEmbedding(affineRing.getEmbedding(
+				domain.asGenericProjectiveScheme().homogenousPolynomialRing().dehomogenize(numerator, coverIndex + 1)));
+		LocalizedElement<T> localizedDenominator = localizedRing.getEmbedding(affineRing.getEmbedding(domain
+				.asGenericProjectiveScheme().homogenousPolynomialRing().dehomogenize(denominator, coverIndex + 1)));
+		ValueGroup g = ValueGroup.g();
+		return g.subtract(localizedRing.valuation(localizedNumerator), localizedRing.valuation(localizedDenominator));
+	}
+
+	public WeilDivisor<T> divisor() {
+		List<ProjectivePoint<T>> points = new ArrayList<>();
+		points.addAll(getZeroes());
+		points.addAll(getPoles());
+		Map<ProjectivePoint<T>, Integer> divisor = new TreeMap<>();
+		for (ProjectivePoint<T> point : points) {
+			divisor.put(point, order(point).value());
+		}
+		return new WeilDivisor<>(divisor);
 	}
 
 	@Override
@@ -191,7 +239,7 @@ public class RationalFunction<T extends Element<T>> extends AbstractMorphism<T, 
 	public GeneralRationalFunction<T, ProjectivePoint<T>, ProjectivePoint<T>> restrict(ProjectivePoint<T> preimage) {
 		return asProjectiveMorphism.restrict(preimage);
 	}
-	
+
 	public ProjectiveMorphism<T> asProjectiveMorphism() {
 		return asProjectiveMorphism;
 	}

@@ -297,6 +297,23 @@ public class ModuloNumberFieldIdeal extends AbstractRing<ModNFE> implements Ring
 	}
 
 	@Override
+	public ModNFE zeroCodivisor(ModNFE t) {
+		if (primePower) {
+			Value value = complete.valuation(liftComplete(t));
+			if (value.isInfinite()) {
+				return one();
+			}
+			return reduceComplete(complete.power(complete.uniformizer(), multiplicity - value.value()));
+		}
+		NFE result = order.zero();
+		for (int i = 0; i < primePowerDecomposition().size(); i++) {
+			ModuloNumberFieldIdeal mod = primePowerDecomposition().get(i);
+			result = order.add(mod.lift(mod.zeroCodivisor(mod.reduce(lift(t)))), result);
+		}
+		return reduce(result);
+	}
+
+	@Override
 	public boolean isEuclidean() {
 		return isIntegral();
 	}

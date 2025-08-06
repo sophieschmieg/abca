@@ -275,9 +275,10 @@ public abstract class AbstractField<T extends Element<T>>
 		return result;
 	}
 
+	@Override
 	public BigInteger discreteLogarithm(T base, T t) {
 		if (!this.isFinite()) {
-			throw new UnsupportedOperationException("not implemented");
+			return getMultiplicativeGroup().discreteLogarithm(base, t);
 		}
 		throw new UnsupportedOperationException("not implemented");
 	}
@@ -290,20 +291,32 @@ public abstract class AbstractField<T extends Element<T>>
 			public Iterator<T> iterator() {
 				return new Iterator<T>() {
 					private Iterator<T> it = elements.iterator();
+					private T next = null;
+					private boolean nextCalculated = false;
 
 					@Override
 					public boolean hasNext() {
-						return it.hasNext();
+						if (nextCalculated) {
+							return next != null;
+						}
+						nextCalculated = true;
+						next = null;
+						do {
+							if (it.hasNext()) {
+								next = it.next();
+							} else {
+								next = null;
+								break;
+							}
+						} while (next.equals(AbstractField.this.zero()));
+						return hasNext();
 					}
 
 					@Override
 					public T next() {
-						T result = null;
-						do {
-							if (it.hasNext())
-								result = it.next();
-						} while (result.equals(AbstractField.this.zero()));
-						return result;
+						hasNext();
+						nextCalculated = false;
+						return next;
 					}
 				};
 			}
@@ -509,6 +522,14 @@ public abstract class AbstractField<T extends Element<T>>
 	@Override
 	public boolean isZeroDivisor(T t) {
 		return t.equals(zero());
+	}
+	
+	@Override
+	public T zeroCodivisor(T t) {
+		if (t.equals(zero())) {
+			return one();
+		}
+		return zero();
 	}
 
 	@Override
@@ -720,7 +741,7 @@ public abstract class AbstractField<T extends Element<T>>
 		if (characteristic().equals(BigInteger.ZERO)) {
 			return false;
 		}
-		throw new UnsupportedOperationException();
+		throw new UnsupportedOperationException("Not implemented for " + this.getClass().getCanonicalName());
 	}
 
 	@Override
@@ -733,9 +754,49 @@ public abstract class AbstractField<T extends Element<T>>
 		throw new UnsupportedOperationException();
 	}
 
+	public static class AsFieldSubModuleMemberPreperation<T extends Element<T>>
+			implements AsSubModuleMemberPreperation<T, AsFieldSubModuleMemberPreperation<T>> {
+		private Matrix<T> matrix;
+		private MatrixModule<T> module;
+		private MatrixModule<T>.LDUPResult ldup;
+		
+		public AsFieldSubModuleMemberPreperation(Matrix<T> matrix, MatrixModule<T> module,
+				MatrixModule<T>.LDUPResult ldup) {
+			this.matrix = matrix;
+			this.module = module;
+			this.ldup = ldup;
+		}
+
+		public Matrix<T> getMatrix() {
+			return matrix;
+		}
+
+		public MatrixModule<T> getModule() {
+			return module;
+		}
+
+		public MatrixModule<T>.LDUPResult getLdup() {
+			return ldup;
+		}
+
+		@Override
+		public AsFieldSubModuleMemberPreperation<T> asPreperation() {
+			return this;
+		}
+	}
+	
 	@Override
-	public boolean isSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
-		MatrixModule<T>.LDUPResult ldup = module.ldup(m);
+	public AsFieldSubModuleMemberPreperation<T> prepareAsSubModuleMember(MatrixModule<T> module, Matrix<T> m) {
+		return new AsFieldSubModuleMemberPreperation<>(m, module, module.ldup(m));
+	}
+
+	@Override
+	public boolean isSubModuleMember(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> b) {
+		@SuppressWarnings("unchecked")
+		AsFieldSubModuleMemberPreperation<T> prep = (AsFieldSubModuleMemberPreperation<T>)preperation;
+		MatrixModule<T> module = prep.getModule();
+		MatrixModule<T>.LDUPResult ldup = prep.getLdup();
+		Matrix<T> m = prep.getMatrix();
 		// LD^-1Ux=P^-1b
 		Vector<T> rhs = module.permuteVector(ldup.getInversePermutation(), b);
 		// D^-1Ux=L^-1P^-1b
@@ -757,8 +818,12 @@ public abstract class AbstractField<T extends Element<T>>
 	}
 
 	@Override
-	public Vector<T> asSubModuleMember(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
-		MatrixModule<T>.LDUPResult ldup = module.ldup(m);
+	public Vector<T> asSubModuleMember(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> b) {
+		@SuppressWarnings("unchecked")
+		AsFieldSubModuleMemberPreperation<T> prep = (AsFieldSubModuleMemberPreperation<T>)preperation;
+		MatrixModule<T> module = prep.getModule();
+		MatrixModule<T>.LDUPResult ldup = prep.getLdup();
+		Matrix<T> m = prep.getMatrix();
 		// PLD^-1Ux=Ax=b
 		// LD^-1Ux=P^-1b
 		Vector<T> rhs = module.permuteVector(ldup.getInversePermutation(), b);
@@ -857,6 +922,13 @@ public abstract class AbstractField<T extends Element<T>>
 			asVectors.add(m.column(j + 1));
 		}
 		return asVectors;
+	}
+
+	@Override
+	public Vector<T> residueModuloSubmodule(AsSubModuleMemberPreperation<T, ?> preperation, Vector<T> t) {
+		MatrixModule<T> module = preperation.getModule();
+		Matrix<T> m = preperation.getMatrix();
+		return module.codomain().subtract(t, module.multiply(m, asSubModuleMember(preperation, t)));
 	}
 
 	@Override

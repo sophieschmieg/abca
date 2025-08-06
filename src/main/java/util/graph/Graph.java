@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import fields.exceptions.InfinityException;
 import fields.helper.AbstractElement;
@@ -36,6 +37,8 @@ public class Graph<V extends Element<V>, E extends Element<E>> {
 	private boolean pathConnectionComputed;
 	private boolean multiple;
 	private boolean multipleComputed;
+	private int minDegree;
+	private int maxDegree;
 	private List<Graph<V, E>> connectedComponents;
 	private Matrix<E> adjacencyMatrix;
 	private Map<V, Map<V, Optional<Path>>> shortestPaths;
@@ -48,6 +51,22 @@ public class Graph<V extends Element<V>, E extends Element<E>> {
 		this.edgeSet = edgeSet;
 		this.adjacencyLists = adjacencyLists;
 		this.multipleComputed = false;
+		this.minDegree = -1;
+		this.maxDegree = -1;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder build = new StringBuilder();
+		for (V vertex : vertexSet()) {
+			build.append(vertex);
+			build.append(": ");
+			List<String> edges = edges(vertex).stream().map((Edge<V, E> e) -> e.toString())
+					.collect(Collectors.toList());
+			build.append(String.join(", ", edges));
+			build.append("\n");
+		}
+		return build.toString();
 	}
 
 	public boolean isDirected() {
@@ -76,6 +95,45 @@ public class Graph<V extends Element<V>, E extends Element<E>> {
 			asUndirectedGraph = builder.build();
 		}
 		return asUndirectedGraph;
+	}
+
+	private <T extends Element<T>> boolean tryColoring(Map<V, T> coloring, V vertex, T color) {
+		if (coloring.containsKey(vertex)) {
+			throw new ArithmeticException("Already colored!");
+		}
+		for (Edge<V, E> edge : edges(vertex)) {
+			V other = edge.otherVertex(vertex);
+			if (!coloring.containsKey(other) || !coloring.get(other).equals(color)) {
+				continue;
+			}
+			return false;
+		}
+		return true;
+	}
+
+	public <T extends Element<T>> Optional<Map<V, T>> findVertexColoring(Map<V, T> extend, Set<T> colors) {
+		V vertex = null;
+		for (V v : vertexSet()) {
+			if (!extend.containsKey(v)) {
+				vertex = v;
+				break;
+			}
+		}
+		if (vertex == null) {
+			return Optional.of(extend);
+		}
+		for (T color : colors) {
+			if (!tryColoring(extend, vertex, color)) {
+				continue;
+			}
+			extend.put(vertex, color);
+			Optional<Map<V, T>> solution = findVertexColoring(extend, colors);
+			if (solution.isPresent()) {
+				return solution;
+			}
+			extend.remove(vertex);
+		}
+		return Optional.empty();
 	}
 
 	private class UnionFindEntry {
@@ -173,8 +231,8 @@ public class Graph<V extends Element<V>, E extends Element<E>> {
 	public int cyclomaticNumber() {
 		return edgeSet().size() - vertexSet().size() + connectedComponents().size();
 	}
-	
-	private <T extends Element<T>>Path reconstructPath(Dijkstra<T> end) {
+
+	private <T extends Element<T>> Path reconstructPath(Dijkstra<T> end) {
 		Dijkstra<T> current = end;
 		List<Edge<V, E>> edges = new ArrayList<>();
 		List<Boolean> directions = new ArrayList<>();
@@ -529,6 +587,44 @@ public class Graph<V extends Element<V>, E extends Element<E>> {
 			multipleComputed = true;
 		}
 		return multiple;
+	}
+
+	public int degree(V vertex) {
+		return edges(vertex).size();
+	}
+
+	private void computeDegrees() {
+		for (V vertex : vertexSet()) {
+			int degree = degree(vertex);
+			if (minDegree == -1 || minDegree > degree) {
+				minDegree = degree;
+			}
+			if (maxDegree == -1 || maxDegree < degree) {
+				maxDegree = degree;
+			}
+		}
+		if (minDegree < 0) {
+			minDegree = 0;
+			maxDegree = 0;
+		}
+	}
+
+	public int minDegree() {
+		if (minDegree < 0) {
+			computeDegrees();
+		}
+		return minDegree;
+	}
+
+	public int maxDegree() {
+		if (maxDegree < 0) {
+			computeDegrees();
+		}
+		return maxDegree;
+	}
+
+	public boolean isRegular() {
+		return minDegree() == maxDegree();
 	}
 
 	public Matrix<E> adjacencyMatrix(E zero) {

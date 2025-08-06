@@ -178,7 +178,7 @@ public class Reals extends AbstractField<Real>
 
 		public int exponent() {
 			if (lowPrecision) {
-				Math.getExponent(lowPrecisionValue);
+				return Math.getExponent(lowPrecisionValue);
 			}
 			return scale + value.bitLength();
 		}
@@ -234,8 +234,8 @@ public class Reals extends AbstractField<Real>
 			this.lowPrecision = true;
 		}
 		this.precision = precision;
-		this.zero = new Real(BigInteger.ZERO, 0, true);
-		this.one = new Real(BigInteger.ONE, 0, true);
+		this.zero = lowPrecision ? new Real(0.0) : new Real(BigInteger.ZERO, 0, true);
+		this.one = lowPrecision ? new Real(1.0) :new Real(BigInteger.ONE, 0, true);
 	}
 
 	public static Reals r(int precision) {
@@ -713,7 +713,7 @@ public class Reals extends AbstractField<Real>
 		}
 		while (!atStart.equals(zero())) {
 			Real mid2 = add(start, end);
-			Real mid = new Real(mid2.value, mid2.scale - 1, mid2.positive);
+			Real mid = lowPrecision ? divide(mid2, new Real(2.0)) : new Real(mid2.value, mid2.scale - 1, mid2.positive);
 			Real atMid = map.evaluate(mid);
 			if (atStart.positive == atMid.positive) {
 				start = mid;

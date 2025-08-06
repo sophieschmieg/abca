@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -95,7 +96,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public TranscendentalFieldExtension(Field<T> baseField, PolynomialRing<T> polynomialRing) {
 		this.baseField = baseField;
 		this.polynomialRing = polynomialRing;
-		this.asFieldOfFractions = new FieldOfFractions<>(polynomialRing);
+		this.asFieldOfFractions = new FieldOfFractions<>(polynomialRing, 2);
 		this.zero = getElement(asFieldOfFractions.zero());
 		this.one = getElement(asFieldOfFractions.one());
 	}
@@ -294,7 +295,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 	public TExt<T> inverse(TExt<T> t) {
 		return getElement(asFieldOfFractions.inverse(t.asFraction));
 	}
-
+	
 	@Override
 	public TExt<T> getEmbedding(T t) {
 		return getElement(asFieldOfFractions.getEmbedding(polynomialRing.getEmbedding(t)));
@@ -331,6 +332,43 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 			return inverse(getVarPower(i, -power));
 		}
 		return getEmbedding(polynomialRing.getVarPower(i, power));
+	}
+
+	public Polynomial<TExt<T>> getPolynomial(PolynomialRing<TExt<T>> polynomials, Polynomial<T> t) {
+		if (t.numberOfVariables() != polynomials.numberOfVariables() + polynomialRing.numberOfVariables()) {
+			throw new ArithmeticException("Incompatible polynomialRing!");
+		}
+		int[] map = new int[t.numberOfVariables()];
+		for (int i = 0; i < t.numberOfVariables(); i++) {
+			map[i] = i;
+		}
+		return getPolynomial(polynomials, t, map);
+	}
+
+	public Polynomial<TExt<T>> getPolynomial(PolynomialRing<TExt<T>> polynomials, Polynomial<T> t, int[] map) {
+		if (t.numberOfVariables() != polynomials.numberOfVariables() + polynomialRing.numberOfVariables()) {
+			throw new ArithmeticException("Incompatible polynomialRing!");
+		}
+		Map<Monomial, TExt<T>> result = new TreeMap<>();
+		for (Monomial m : t.monomials()) {
+			T coeff = t.coefficient(m);
+			int[] texp = new int[polynomialRing.numberOfVariables()];
+			int[] exp = new int[polynomials.numberOfVariables()];
+			for (int i = 0; i < polynomialRing.numberOfVariables(); i++) {
+				texp[i] = m.exponents()[map[i]];
+			}
+			for (int i = 0; i < polynomials.numberOfVariables(); i++) {
+				exp[i] = m.exponents()[map[i + polynomialRing.numberOfVariables()]];
+			}
+			TExt<T> tCoeff = getEmbedding(polynomialRing.getEmbedding(coeff, texp));
+			Monomial tm = polynomialRing.getMonomial(exp);
+			if (!result.containsKey(tm)) {
+				result.put(tm, tCoeff);
+			} else {
+				result.put(tm, add(result.get(tm), tCoeff));
+			}
+		}
+		return polynomials.getPolynomial(result);
 	}
 
 	@Override
@@ -442,40 +480,40 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		}
 		return Matrix.fromColumns(result);
 	}
-	
+
 	@Override
 	public boolean isSubModuleMemberModule(List<TExt<T>> m, TExt<T> b) {
 		Matrix<T> matrix = asMatrix(m);
 		return isSubModuleMemberModule(matrix.getModule(getRing()), matrix, asVector(b));
 	}
-	
+
 	@Override
 	public boolean isSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
 		return getRing().isSubModuleMember(module, m, b);
 	}
-	
+
 	@Override
 	public TExt<T> asSubModuleMemberModule(List<TExt<T>> m, TExt<T> b) {
 		Matrix<T> matrix = asMatrix(m);
 		return fromVector(asSubModuleMemberModule(matrix.getModule(getRing()), matrix, asVector(b)));
 	}
-	
+
 	@Override
 	public Vector<T> asSubModuleMemberModule(MatrixModule<T> module, Matrix<T> m, Vector<T> b) {
 		return getRing().asSubModuleMember(module, m, b);
 	}
-	
+
 	@Override
 	public List<Vector<T>> syzygyProblemModule(List<TExt<T>> m) {
 		Matrix<T> matrix = asMatrix(m);
 		return syzygyProblemModule(matrix.getModule(getRing()), matrix);
 	}
-	
+
 	@Override
 	public List<Vector<T>> syzygyProblemModule(MatrixModule<T> module, Matrix<T> m) {
 		return getRing().syzygyProblem(module, m);
 	}
-	
+
 	@Override
 	public List<TExt<T>> simplifySubModuleGeneratorsModule(List<TExt<T>> m) {
 		Matrix<T> matrix = asMatrix(m);
@@ -486,7 +524,7 @@ public class TranscendentalFieldExtension<T extends Element<T>> extends Abstract
 		}
 		return result;
 	}
-	
+
 	@Override
 	public List<Vector<T>> simplifySubModuleGeneratorsModule(MatrixModule<T> module, Matrix<T> m) {
 		return getRing().simplifySubModuleGenerators(module, m);

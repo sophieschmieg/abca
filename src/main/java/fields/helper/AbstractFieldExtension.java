@@ -9,6 +9,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import fields.exceptions.InfinityException;
+import fields.helper.AbstractField.AsFieldSubModuleMemberPreperation;
 import fields.helper.GenericAlgebraicRingExtension.GenericAlgebraicExtensionElement;
 import fields.integers.Integers;
 import fields.integers.Integers.IntE;
@@ -30,6 +31,7 @@ import fields.interfaces.Polynomial;
 import fields.interfaces.Ring;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
+import fields.interfaces.Ring.AsSubModuleMemberPreperation;
 import fields.local.LocalRingImplementation;
 import fields.local.TrivialDiscreteValuationField;
 import fields.local.Value;
@@ -448,28 +450,35 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		}
 		UnivariatePolynomialRing<S> polynomialRing = getUnivariatePolynomialRing();
 		FactorizationResult<Polynomial<S>, S> factorization = factorization(minimalPolynomial);
-		UnivariatePolynomial<S> firstFactor = polynomialRing.toUnivariate(factorization.firstPrimeFactor());
-		FieldEmbedding<T, S, Ext> firstEmbedding;
-		S firstConjugate;
-		if (firstFactor.degree() == 1) {
-			firstEmbedding = new FieldEmbedding<>(asExtensionType());
-			firstConjugate = negative(firstFactor.univariateCoefficient(0));
-		} else {
-			firstEmbedding = getEmbeddedExtension(firstFactor);
-			firstConjugate = firstEmbedding.getGenerator();
-		}
-		polynomialRing = firstEmbedding.getField().getUnivariatePolynomialRing();
-		UnivariatePolynomial<S> firstLinear = polynomialRing.toUnivariate(
-				polynomialRing.subtract(polynomialRing.getVar(), polynomialRing.getEmbedding(firstConjugate)));
-		UnivariatePolynomial<S> remaining = polynomialRing
-				.toUnivariate(polynomialRing.divideChecked(polynomialRing.getEmbedding( minimalPolynomial, firstEmbedding.getEmbeddingMap()), firstLinear));
-		SplittingFieldResult<T, S, Ext> remainingSplittingField = firstEmbedding.getField().getSplittingField(remaining);
 		List<S> conjugates = new ArrayList<>();
-		conjugates.add(remainingSplittingField.getExtension().getEmbedding(firstConjugate));
-		conjugates.addAll(remainingSplittingField.getConjugates());
-		return new SplittingFieldResult<>(new FieldEmbedding<>(firstEmbedding, remainingSplittingField.getExtension()), conjugates, minimalPolynomial);
+		Polynomial<S> done = polynomialRing.one();
+		FieldEmbedding<T, S, Ext> firstEmbedding = null;
+		for (Polynomial<S> factor : factorization.primeFactors()) {
+			if (factor.degree() == 1) {
+				for (int i = 0; i < factorization.multiplicity(factor); i++) {
+					conjugates.add(negative(polynomialRing.toUnivariate(factor).univariateCoefficient(0)));
+					done = polynomialRing.multiply(factor, done);
+				}
+			} else if (firstEmbedding == null) {
+				firstEmbedding = getEmbeddedExtension(polynomialRing.toUnivariate(factor));
+			}
+		}
+		if (firstEmbedding == null) {
+			return new SplittingFieldResult<>(new FieldEmbedding<>(asExtensionType()), conjugates, minimalPolynomial);
+		}
+		UnivariatePolynomial<S> remaining = polynomialRing.getEmbedding(polynomialRing.toUnivariate(polynomialRing.divideChecked(
+				minimalPolynomial, done)), firstEmbedding.getEmbeddingMap());
+		SplittingFieldResult<T, S, Ext> remainingSplittingField = firstEmbedding.getField()
+				.getSplittingField(remaining);
+		List<S> embeddedConjugates = new ArrayList<>();
+		embeddedConjugates.addAll(remainingSplittingField.getConjugates());
+		for (S conjugate : conjugates) {
+			embeddedConjugates.add(remainingSplittingField.getExtension().getEmbedding( firstEmbedding.getEmbedding(conjugate)));
+		}
+		return new SplittingFieldResult<>(new FieldEmbedding<>(firstEmbedding, remainingSplittingField.getExtension()),
+				embeddedConjugates, minimalPolynomial);
 	}
-	
+
 	@Override
 	public SplittingFieldResult<T, S, Ext> getSplittingField() {
 		return getSplittingField(getUnivariatePolynomialRing().getEmbedding(minimalPolynomial(), getEmbeddingMap()));
@@ -479,10 +488,19 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public boolean isIrreducible(UnivariatePolynomial<S> t) {
 		return factorization(t).isIrreducible();
 	}
+	
+	@Override
+	public AsFieldSubModuleMemberPreperation<S> prepareAsSubModuleMember(MatrixModule<S> module, Matrix<S> m) {
+		return new AsFieldSubModuleMemberPreperation<>(m, module, module.ldup(m));
+	}
 
 	@Override
-	public boolean isSubModuleMember(MatrixModule<S> module, Matrix<S> m, Vector<S> b) {
-		MatrixModule<S>.LDUPResult ldup = module.ldup(m);
+	public boolean isSubModuleMember(AsSubModuleMemberPreperation<S, ?> preperation, Vector<S> b) {
+		@SuppressWarnings("unchecked")
+		AsFieldSubModuleMemberPreperation<S> prep = (AsFieldSubModuleMemberPreperation<S>)preperation;
+		MatrixModule<S> module = prep.getModule();
+		MatrixModule<S>.LDUPResult ldup = prep.getLdup();
+		Matrix<S> m = prep.getMatrix();
 		// LD^-1Ux=P^-1b
 		Vector<S> rhs = module.permuteVector(ldup.getInversePermutation(), b);
 		// D^-1Ux=L^-1P^-1b
@@ -504,8 +522,12 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	}
 
 	@Override
-	public Vector<S> asSubModuleMember(MatrixModule<S> module, Matrix<S> m, Vector<S> b) {
-		MatrixModule<S>.LDUPResult ldup = module.ldup(m);
+	public Vector<S> asSubModuleMember(AsSubModuleMemberPreperation<S, ?> preperation, Vector<S> b) {
+		@SuppressWarnings("unchecked")
+		AsFieldSubModuleMemberPreperation<S> prep = (AsFieldSubModuleMemberPreperation<S>)preperation;
+		MatrixModule<S> module = prep.getModule();
+		MatrixModule<S>.LDUPResult ldup = prep.getLdup();
+		Matrix<S> m = prep.getMatrix();
 		// PLD^-1Ux=Ax=b
 		// LD^-1Ux=P^-1b
 		Vector<S> rhs = module.permuteVector(ldup.getInversePermutation(), b);
@@ -879,7 +901,7 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public S asInteger(S t) {
 		return t;
 	}
-	
+
 	@Override
 	public S getDenominator(S t) {
 		return t;
@@ -918,6 +940,14 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	@Override
 	public boolean isZeroDivisor(S t) {
 		return t.equals(zero());
+	}
+	
+	@Override
+	public S zeroCodivisor(S t) {
+		if (t.equals(zero())) {
+			return one();
+		}
+		return zero();
 	}
 
 	@Override
@@ -1044,14 +1074,14 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 	public Iterable<S> getUnits() {
 		return getNonZeroElements();
 	}
-	
-	/*@Override
-	public FieldExtensionUnivariatePolynomialRing<T, S, Ext> getUnivariatePolynomialRing() {
-		if (univariatePolynomialRing == null) {
-			univariatePolynomialRing = new FieldExtensionUnivariatePolynomialRing<>(asExtensionType());
-		}
-		return univariatePolynomialRing;
-	}*/
+
+	/*
+	 * @Override public FieldExtensionUnivariatePolynomialRing<T, S, Ext>
+	 * getUnivariatePolynomialRing() { if (univariatePolynomialRing == null) {
+	 * univariatePolynomialRing = new
+	 * FieldExtensionUnivariatePolynomialRing<>(asExtensionType()); } return
+	 * univariatePolynomialRing; }
+	 */
 
 	@Override
 	public FactorizationResult<Polynomial<S>, S> factorization(UnivariatePolynomial<S> t) {
@@ -1165,4 +1195,11 @@ public abstract class AbstractFieldExtension<T extends Element<T>, S extends Alg
 		return new Vector<>(asList);
 	}
 
+	@Override
+	public BigInteger discreteLogarithm(S base, S t) {
+		if (!this.isFinite()) {
+			return getMultiplicativeGroup().discreteLogarithm(base, t);
+		}
+		throw new UnsupportedOperationException("not implemented");
+	}
 }

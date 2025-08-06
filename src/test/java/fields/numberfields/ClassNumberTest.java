@@ -109,7 +109,7 @@ class ClassNumberTest {
 
 	@Test
 	void testHilbertClassField23Unity3() {
-		fail();
+		//fail();
 		Rationals q = Rationals.q();
 		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
 		NumberField nf = NumberField.getNumberField(polynomials.getPolynomial(q.getInteger(23), q.zero(), q.one()));

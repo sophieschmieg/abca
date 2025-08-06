@@ -410,7 +410,20 @@ public class MatrixAlgebra<T extends Element<T>> extends AbstractAlgebra<T, Matr
 
 	@Override
 	public boolean isZeroDivisor(Matrix<T> t) {
-		return kernelBasis(t).size() == 0;
+		return kernelBasis(t).isEmpty();
+	}
+	
+	@Override
+	public Matrix<T> zeroCodivisor(Matrix<T> t) {
+		List<Vector<T>> basis = kernelBasis(t);
+		if (basis.isEmpty()) {
+			return zero();
+		}
+		List<Vector<T>> result = new ArrayList<>();
+		for (int i = 0; i < dimension; i++) {
+			result.add(basis.get(0));
+		}
+		return Matrix.fromColumns(result);
 	}
 
 	@Override

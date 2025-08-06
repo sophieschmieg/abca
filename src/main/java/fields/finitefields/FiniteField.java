@@ -50,9 +50,16 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 
 	public static class FFE extends AbstractElement<FFE> implements AlgebraicExtensionElement<PFE, FFE> {
 		private UnivariatePolynomial<PFE> e;
+		private int index;
 
 		private FFE(FiniteField field, UnivariatePolynomial<PFE> e) {
 			this.e = e;
+			this.index = -1;
+		}
+
+		private FFE(FiniteField field, UnivariatePolynomial<PFE> e, int index) {
+			this.e = e;
+			this.index = index;
 		}
 
 		@Override
@@ -67,7 +74,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 
 		@Override
 		public String toString() {
-			return this.e.toString(/*"α",*/ true);
+			return this.e.toString(/* "α", */ true);
 		}
 
 	}
@@ -154,6 +161,16 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		return (FiniteField) base.getExtension(minimalPolynomial).extension();
 	}
 
+	private boolean verySmallOrder;
+	private FFE[] elements;
+	private int zeroIndex;
+	private int oneIndex;
+	private FFE[][] additionTable;
+	private FFE[][] subtractionTable;
+	private FFE[][] multiplicationTable;
+	private FFE[][] divisionTable;
+	private Map<UnivariatePolynomial<PFE>, FFE> elementMap;
+
 	private FiniteField(PrimeField base) {
 		super(base);
 		init();
@@ -168,6 +185,19 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		this.distinctDegreeFactorizatonCache = new TreeMap<>();
 		this.distinctDegreeFactorizationMaxDegree = new TreeMap<>();
 		this.irreducibleFactorizatonCache = new TreeMap<>();
+		if (getNumberOfElements().compareTo(BigInteger.valueOf(257)) > 0) {
+			return;
+		}
+		int order = getNumberOfElements().intValueExact();
+		this.elementMap = new TreeMap<>();
+		this.elements = new FFE[order];
+		this.additionTable = new FFE[order][order];
+		this.subtractionTable = new FFE[order][order];
+		this.multiplicationTable = new FFE[order][order];
+		this.divisionTable = new FFE[order][order];
+		this.verySmallOrder = true;
+		this.zeroIndex = fromSmallDegreePolynomial(super.zero().asPolynomial()).index;
+		this.oneIndex = fromSmallDegreePolynomial(super.one().asPolynomial()).index;
 	}
 
 	@Override
@@ -457,18 +487,18 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 		return primitiveRoot;
 	}
 
-	public IntE discreteLogarithm(FFE base, FFE power) {
+	public BigInteger discreteLogarithm(FFE base, FFE power) {
 		Integers z = Integers.z();
 		IntE numberOfUnits = z.getInteger(getNumberOfUnits());
 		FFE primitiveRoot = primitiveRoot();
 		if (!base.equals(primitiveRoot)) {
 			ModuloIntegerRing mod = new ModuloIntegerRing(numberOfUnits.getValue());
-			IntE powerLog = discreteLogarithm(primitiveRoot, power);
-			IntE baseLog = discreteLogarithm(primitiveRoot, base);
+			IntE powerLog = z.getInteger(discreteLogarithm(primitiveRoot, power));
+			IntE baseLog = z.getInteger(discreteLogarithm(primitiveRoot, base));
 			IntE gcd = z.gcd(powerLog, baseLog);
 			powerLog = z.divideChecked(powerLog, gcd);
 			baseLog = z.divideChecked(baseLog, gcd);
-			return z.multiply(powerLog, mod.lift(mod.inverse(mod.reduce(baseLog))));
+			return z.multiply(powerLog, mod.lift(mod.inverse(mod.reduce(baseLog)))).getValue();
 		}
 		NumberFieldIntegers nf = NumberField.getNumberFieldFromIntegerPolynomial(
 				z.centeredLiftUnivariatePolynomial(minimalPolynomial(), characteristic())).maximalOrder();
@@ -502,7 +532,8 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = nf.idealFactorization(principal.get());
 			exponents.add(exponent);
 			List<IntE> relation = new ArrayList<>();
-			relation.addAll(nf.asUnitGeneratorVector(nf.projectToUnit(lifted)).asList());
+		Vector<IntE> unitVector=	nf.asUnitGeneratorVector(nf.projectToUnit(lifted));
+			relation.addAll(unitVector.asList().subList(1, unitVector.dimension()));
 			for (NumberFieldIdeal primeIdeal : primeIdeals) {
 				relation.add(z.getInteger(factorization.multiplicity(primeIdeal)));
 			}
@@ -526,6 +557,7 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 			FactorizationResult<Ideal<NFE>, Ideal<NFE>> factorization = nf.idealFactorization(principal.get());
 			IntE result = exponent;
 			Vector<IntE> asUnitVector = nf.asUnitGeneratorVector(nf.projectToUnit(lifted));
+			asUnitVector = new Vector<>(asUnitVector.asList().subList(1, asUnitVector.dimension()));
 			for (int i = 0; i < asUnitVector.dimension(); i++) {
 				result = z.add(z.multiply(logarithms.get(i + 1), asUnitVector.get(i + 1)), result);
 				result = z.remainder(result, numberOfUnits);
@@ -536,7 +568,14 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 				result = z.add(z.multiply(logarithms.get(asUnitVector.dimension() + i + 1), multiplicity), result);
 				result = z.remainder(result, numberOfUnits);
 			}
-			return result;
+			IntE rootOfUnity = z.gcd(numberOfUnits, nf.primitiveRootsOfUnity().lastKey());
+			IntE rootOfUnityExponent = z.divideChecked(numberOfUnits, rootOfUnity);
+			for (int i = 0; i < rootOfUnity.intValueExact(); i++) {
+				IntE candidate = z.remainder(z.add(result, z.multiply(i, rootOfUnityExponent)), numberOfUnits);
+				if (power(base, candidate).equals(power)) {
+					return candidate.getValue();
+				}
+			}
 		}
 //		System.out.println(logarithms);
 //
@@ -652,8 +691,125 @@ public class FiniteField extends AbstractFieldExtension<PFE, FFE, FiniteField>
 	}
 
 	@Override
+	public FFE zero() {
+		if (verySmallOrder) {
+			return elements[zeroIndex];
+		}
+		return super.zero();
+	}
+
+	@Override
+	public FFE one() {
+		if (verySmallOrder) {
+			return elements[oneIndex];
+		}
+		return super.one();
+	}
+
+	@Override
 	public FFE fromSmallDegreePolynomial(UnivariatePolynomial<PFE> t) {
+		if (verySmallOrder) {
+			FFE result = elementMap.get(t);
+			if (result == null) {
+				result = new FFE(this, t, elementMap.size());
+				elementMap.put(t, result);
+				elements[result.index] = result;
+			}
+			return result;
+		}
 		return new FFE(this, t);
+	}
+
+	@Override
+	public FFE add(FFE t1, FFE t2) {
+		if (verySmallOrder) {
+			if (t1.index < 0) {
+				t1 = fromSmallDegreePolynomial(t1.asPolynomial());
+			}
+			if (t2.index < 0) {
+				t2 = fromSmallDegreePolynomial(t2.asPolynomial());
+			}
+			if (additionTable[t1.index][t2.index] != null) {
+				return additionTable[t1.index][t2.index];
+			}
+			FFE sum = super.add(t1, t2);
+			additionTable[t1.index][t2.index] = sum;
+			return sum;
+		}
+		return super.add(t1, t2);
+	}
+
+	@Override
+	public FFE negative(FFE t) {
+		if (verySmallOrder) {
+			return subtract(zero(), t);
+		}
+		return super.negative(t);
+	}
+
+	@Override
+	public FFE subtract(FFE t1, FFE t2) {
+		if (verySmallOrder) {
+			if (t1.index < 0) {
+				t1 = fromSmallDegreePolynomial(t1.asPolynomial());
+			}
+			if (t2.index < 0) {
+				t2 = fromSmallDegreePolynomial(t2.asPolynomial());
+			}
+			if (subtractionTable[t1.index][t2.index] != null) {
+				return subtractionTable[t1.index][t2.index];
+			}
+			FFE difference = super.add(t1, super.negative(t2));
+			subtractionTable[t1.index][t2.index] = difference;
+			return difference;
+		}
+		return super.subtract(t1, t2);
+	}
+
+	@Override
+	public FFE multiply(FFE t1, FFE t2) {
+		if (verySmallOrder) {
+			if (t1.index < 0) {
+				t1 = fromSmallDegreePolynomial(t1.asPolynomial());
+			}
+			if (t2.index < 0) {
+				t2 = fromSmallDegreePolynomial(t2.asPolynomial());
+			}
+			if (multiplicationTable[t1.index][t2.index] != null) {
+				return multiplicationTable[t1.index][t2.index];
+			}
+			FFE product = super.multiply(t1, t2);
+			multiplicationTable[t1.index][t2.index] = product;
+			return product;
+		}
+		return super.multiply(t1, t2);
+	}
+
+	@Override
+	public FFE divide(FFE t1, FFE t2) {
+		if (verySmallOrder) {
+			if (t1.index < 0) {
+				t1 = fromSmallDegreePolynomial(t1.asPolynomial());
+			}
+			if (t2.index < 0) {
+				t2 = fromSmallDegreePolynomial(t2.asPolynomial());
+			}
+			if (divisionTable[t1.index][t2.index] != null) {
+				return divisionTable[t1.index][t2.index];
+			}
+			FFE quotient = super.multiply(t1, super.inverse(t2));
+			divisionTable[t1.index][t2.index] = quotient;
+			return quotient;
+		}
+		return super.divide(t1, t2);
+	}
+
+	@Override
+	public FFE inverse(FFE t) {
+		if (verySmallOrder) {
+			return divide(one(), t);
+		}
+		return super.inverse(t);
 	}
 
 	@Override

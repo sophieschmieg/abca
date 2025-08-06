@@ -49,7 +49,9 @@ import fields.interfaces.Ideal;
 import fields.interfaces.MathMap;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
+import fields.interfaces.Ring.ChineseRemainderPreparation;
 import fields.interfaces.Ring.FactorizationResult;
+import fields.interfaces.Ring.IdealResult;
 import fields.interfaces.Ring.QuotientAndRemainderResult;
 import fields.interfaces.UnivariatePolynomial;
 import fields.interfaces.UnivariatePolynomialRing;
@@ -63,12 +65,12 @@ import fields.numberfields.EmbeddedNumberField;
 import fields.numberfields.LocalizedNumberField;
 import fields.numberfields.NumberField;
 import fields.numberfields.NumberField.NFE;
-import fields.numberfields.NumberFieldIntegers;
 import fields.numberfields.NumberFieldIntegers.NumberFieldIdeal;
 import fields.numberfields.NumberFieldOrder;
 import fields.numberfields.PicardGroup.OrderIdealClass;
 import fields.polynomials.AbstractPolynomialRing;
 import fields.polynomials.CoordinateRing;
+import fields.polynomials.CoordinateRing.CoordinateIdeal;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
@@ -207,6 +209,27 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			return new ProjectivePoint<>(field, xPrime, yPrime, field.one());
 		}
 
+		public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+				ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+			FE field = extension.extension();
+			if (point.getCoord(3).equals(field.zero())) {
+				return point;
+			}
+			E x = point.getDehomogenisedCoord(1, 3);
+			E y = point.getDehomogenisedCoord(2, 3);
+			E xPrime = field.divide(field.subtract(x, extension.embeddingMap().evaluate(xOffset)),
+					field.power(extension.embeddingMap().evaluate(scale), 2));
+			E yPrime = field.divide(
+					field.subtract(y,
+							field.add(
+									field.multiply(extension.embeddingMap().evaluate(xyOffset),
+											field.power(extension.embeddingMap().evaluate(scale), 2), xPrime),
+									extension.embeddingMap().evaluate(yOffset))),
+					field.power(extension.embeddingMap().evaluate(scale), 3));
+			return new ProjectivePoint<>(field, xPrime, yPrime, field.one());
+
+		}
+
 		@Override
 		public ProjectiveMorphism<T> asMorphism() {
 			Isomorphism<T> dual = getDual();
@@ -291,6 +314,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	private GenericProjectiveScheme<T> asGenericProjectiveScheme;
 	private ProjectiveMorphism<T> xCover;
 	private int minimalDefinedDegree = -1;
+	private EndomorphismRing<T> endomorphismRing;
 
 	public static <T extends Element<T>> EllipticCurve<T> fromScaledPolynomial(Polynomial<T> polynomial) {
 		if (polynomial.degree() != 3) {
@@ -917,6 +941,13 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			}
 
 			@Override
+			public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+					ProjectivePoint<E> point, Extension<NFE, B, E, FE> extension) {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
 			public ProjectiveMorphism<NFE> asMorphism() {
 				// TODO Auto-generated method stub
 				return null;
@@ -1183,11 +1214,11 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		PolynomialRing<T> r = AbstractPolynomialRing.getPolynomialRing(field, Monomial.REVLEX,
 				new String[] { "u", "r", "s", "t" });
 		List<Polynomial<T>> equations = linearTransforms(r);
-		equations.set(0, r.subtract(equations.get(0), r.getEmbedding(a1)));
-		equations.set(1, r.subtract(equations.get(1), r.getEmbedding(a2)));
-		equations.set(2, r.subtract(equations.get(2), r.getEmbedding(a3)));
-		equations.set(3, r.subtract(equations.get(3), r.getEmbedding(a4)));
-		equations.set(4, r.subtract(equations.get(4), r.getEmbedding(a6)));
+		equations.set(0, r.subtract(equations.get(0), r.getEmbedding(range.getA1())));
+		equations.set(1, r.subtract(equations.get(1), r.getEmbedding(range.getA2())));
+		equations.set(2, r.subtract(equations.get(2), r.getEmbedding(range.getA3())));
+		equations.set(3, r.subtract(equations.get(3), r.getEmbedding(range.getA4())));
+		equations.set(4, r.subtract(equations.get(4), r.getEmbedding(range.getA6())));
 		List<AffinePoint<T>> solved = r.solve(equations);
 		List<Isomorphism<T>> isomorphisms = new ArrayList<>();
 		for (AffinePoint<T> root : solved) {
@@ -1271,6 +1302,13 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 	}
 
+	public EndomorphismRing<T> getEndomorphismRing() {
+		if (endomorphismRing == null) {
+			endomorphismRing = new EndomorphismRing<>(this);
+		}
+		return endomorphismRing;
+	}
+
 	public BigInteger trace() {
 		return field.getNumberOfElements().add(BigInteger.ONE).subtract(getNumberOfElements());
 	}
@@ -1279,42 +1317,59 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		Integers z = Integers.z();
 		BigInteger numberOfPoints = getNumberOfElements();
 		FactorizationResult<IntE, IntE> factorization = z.uniqueFactorization(z.getInteger(numberOfPoints));
-		List<IntE> primePowers = new ArrayList<>();
-		List<IntE> residues = new ArrayList<>();
+		ProjectivePoint<T> preimage = neutral();
+		IntE order = z.one();
 		for (IntE prime : factorization.primeFactors()) {
-			int exp = MiscAlgorithms.DivRoundUp(factorization.multiplicity(prime), 2);
-			IntE power = z.power(prime, exp);
-			IntE subPower = z.divideChecked(power, prime);
-			IntE cofactor = z.divideChecked(z.getInteger(numberOfPoints),
-					z.power(prime, factorization.multiplicity(prime)));
-			ProjectivePoint<T> torsionPoint;
+			IntE primePower = z.power(prime, factorization.multiplicity(prime) + 1);
+			List<ProjectivePoint<T>> basis;
 			do {
-				torsionPoint = multiply(cofactor, getRandomElement());
-			} while (multiply(subPower, torsionPoint).equals(neutral()));
-			while (!multiply(power, torsionPoint).equals(neutral())) {
-				power = z.multiply(prime, power);
-				exp++;
-			}
-			primePowers.add(power);
-			IntE currentPower = power;
-			IntE currentReconstructed = z.zero();
-			IntE currentDigit = z.one();
-			do {
-				currentPower = z.divideChecked(power, prime);
-				currentDigit = z.multiply(currentDigit, prime);
-				ProjectivePoint<T> point = multiply(currentPower, torsionPoint);
-				ProjectivePoint<T> image = isogeny.evaluate(point);
-				for (int i = 0; i < prime.intValueExact(); i++) {
-					ProjectivePoint<T> multiplied = multiply(i, point);
-					if (multiplied.equals(image)) {
-						currentReconstructed = z.add(z.multiply(z.getInteger(i), currentDigit), currentReconstructed);
-						break;
-					}
-				}
-			} while (!currentPower.equals(z.one()));
-			residues.add(currentReconstructed);
+				primePower = z.divideChecked(primePower, prime);
+				basis = getTorsionPointBasis(primePower);
+			} while (basis.isEmpty());
+			preimage = add(basis.get(0), preimage);
+			order = z.multiply(primePower, order);
 		}
-		return z.chineseRemainderTheoremModuli(residues, primePowers).getValue();
+		IntE log = z.getInteger(discreteLogarithm(preimage, isogeny.evaluate(preimage)));
+		if (z.subtract(order, log).compareTo(log) < 0) {
+			return z.subtract(log, order).getValue();
+		}
+		return log.getValue();
+//		List<IntE> primePowers = new ArrayList<>();
+//		List<IntE> residues = new ArrayList<>();
+//		for (IntE prime : factorization.primeFactors()) {
+//			int exp = MiscAlgorithms.DivRoundUp(factorization.multiplicity(prime), 2);
+//			IntE power = z.power(prime, exp);
+//			IntE subPower = z.divideChecked(power, prime);
+//			IntE cofactor = z.divideChecked(z.getInteger(numberOfPoints),
+//					z.power(prime, factorization.multiplicity(prime)));
+//			ProjectivePoint<T> torsionPoint;
+//			do {
+//				torsionPoint = multiply(cofactor, getRandomElement());
+//			} while (multiply(subPower, torsionPoint).equals(neutral()));
+//			while (!multiply(power, torsionPoint).equals(neutral())) {
+//				power = z.multiply(prime, power);
+//				exp++;
+//			}
+//			primePowers.add(power);
+//			IntE currentPower = power;
+//			IntE currentReconstructed = z.zero();
+//			IntE currentDigit = z.one();
+//			do {
+//				currentPower = z.divideChecked(currentPower, prime);
+//				ProjectivePoint<T> point = multiply(currentPower, torsionPoint);
+//				ProjectivePoint<T> image = isogeny.evaluate(point);
+//				for (int i = 0; i < prime.intValueExact(); i++) {
+//					ProjectivePoint<T> multiplied = multiply(i, point);
+//					if (multiplied.equals(image)) {
+//						currentReconstructed = z.add(z.multiply(z.getInteger(i), currentDigit), currentReconstructed);
+//						break;
+//					}
+//				}
+//				currentDigit = z.multiply(currentDigit, prime);
+//			} while (!currentPower.equals(z.one()));
+//			residues.add(currentReconstructed);
+//		}
+//		return z.chineseRemainderTheoremModuli(residues, primePowers).getValue();
 	}
 
 	public boolean isSupersingular() {
@@ -3447,11 +3502,13 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 	public static class EllipticCurveExtensionResult<T extends Element<T>, B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> {
 		private EllipticCurve<E> curve;
 		private MathMap<ProjectivePoint<T>, ProjectivePoint<E>> embedding;
+		private Extension<T, B, E, FE> extension;
 
 		private EllipticCurveExtensionResult(EllipticCurve<E> curve,
-				MathMap<ProjectivePoint<T>, ProjectivePoint<E>> embedding) {
+				MathMap<ProjectivePoint<T>, ProjectivePoint<E>> embedding, Extension<T, B, E, FE> extension) {
 			this.curve = curve;
 			this.embedding = embedding;
+			this.extension = extension;
 		}
 
 		public EllipticCurve<E> getCurve() {
@@ -3460,6 +3517,10 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 		public MathMap<ProjectivePoint<T>, ProjectivePoint<E>> getEmbedding() {
 			return embedding;
+		}
+
+		public Extension<T, B, E, FE> getExtension() {
+			return extension;
 		}
 	}
 
@@ -3477,7 +3538,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 				return new ProjectivePoint<>(extension.extension(), embedding.evaluate(t.getCoord(1)),
 						embedding.evaluate(t.getCoord(2)), embedding.evaluate(t.getCoord(3)));
 			}
-		});
+		}, extension);
 	}
 
 	public IntE embeddingDegree() {
@@ -3526,6 +3587,82 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 		return z.multiply(multiplier, order);
 	}
 
+	public class MultiplicativeEmbedding<B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> {
+		private Extension<T, B, E, FE> extension;
+		private EllipticCurveExtensionResult<T, B, E, FE> curveExtension;
+		private ProjectivePoint<E> other;
+		private MathMap<ProjectivePoint<T>, E> embeddingMap;
+
+		private MultiplicativeEmbedding(Extension<T, B, E, FE> extension,
+				EllipticCurveExtensionResult<T, B, E, FE> curveExtension, ProjectivePoint<E> other) {
+			this.extension = extension;
+			this.curveExtension = curveExtension;
+			this.other = other;
+			this.embeddingMap = new FunctionMathMap<>((ProjectivePoint<T> t) -> {
+				return this.curveExtension.curve.weilPairing(this.curveExtension.getEmbedding().evaluate(t),
+						this.other);
+			});
+		}
+
+		public Extension<T, B, E, FE> getExtension() {
+			return extension;
+		}
+
+		public MathMap<ProjectivePoint<T>, E> getEmbeddingMap() {
+			return embeddingMap;
+		}
+
+		public E getEmbedding(ProjectivePoint<T> t) {
+			return embeddingMap.evaluate(t);
+		}
+	}
+
+	private UnivariatePolynomial<T> findIrreduciblePolynomial(int degree) {
+		UnivariatePolynomialRing<T> r = field.getUnivariatePolynomialRing();
+		for (UnivariatePolynomial<T> result : r.monicPolynomialSet(degree)) {
+			if (field.isIrreducible(result)) {
+				return result;
+			}
+		}
+		throw new ArithmeticException("No irreducible polynomials of degree " + degree + " over " + field);
+	}
+
+	public MultiplicativeEmbedding<?, ?, ?> getMultiplicativeEmbedding(ProjectivePoint<T> basis) {
+		Integers z = Integers.z();
+		IntE order = z.getInteger(getOrder(basis));
+		IntE embeddingDegree = embeddingDegree(order);
+		return getMultiplicativeEmbedding(basis,
+				field.getExtension(findIrreduciblePolynomial(embeddingDegree.intValueExact())));
+	}
+
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> MultiplicativeEmbedding<B, E, FE> getMultiplicativeEmbedding(
+			ProjectivePoint<T> basis, Extension<T, B, E, FE> extension) {
+		Integers z = Integers.z();
+		IntE order = z.getInteger(getOrder(basis));
+		IntE embeddingDegree = embeddingDegree(order);
+		if (extension.degree() != embeddingDegree.intValueExact()) {
+			throw new ArithmeticException("Not the correcte extension!");
+		}
+		EllipticCurveExtensionResult<T, B, E, FE> extendedCurve = extendBaseField(extension);
+		FactorizationResult<IntE, IntE> orderFactorization = z.uniqueFactorization(order);
+		ProjectivePoint<E> other = extendedCurve.curve.neutral();
+		for (IntE prime : orderFactorization.primeFactors()) {
+			IntE primePower = z.power(prime, orderFactorization.multiplicity(prime));
+			IntE subPrimePower = z.divideChecked(primePower, prime);
+			IntE multiplier = z.divideChecked(order, primePower);
+			ProjectivePoint<E> multipliedBasePoint = extendedCurve.embedding.evaluate(multiply(multiplier, basis));
+			List<ProjectivePoint<E>> primeTorsionBasis = extendedCurve.curve.getTorsionPointBasis(primePower);
+			for (ProjectivePoint<E> candidate : primeTorsionBasis) {
+				E pairing = extendedCurve.curve.weilPairing(primePower.getValue(), multipliedBasePoint, candidate);
+				if (!extension.extension().power(pairing, subPrimePower).equals(extension.extension().one())) {
+					other = extendedCurve.curve.add(candidate, other);
+					break;
+				}
+			}
+		}
+		return new MultiplicativeEmbedding<>(extension, extendedCurve, other);
+	}
+
 	@Override
 	public boolean isFinite() {
 		return this.field.isFinite();
@@ -3563,7 +3700,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 //		this.numberOfPoints = field.getNumberOfElements().add(BigInteger.ONE).subtract(b);
 	}
 
-	private int minimalDefinedExtension() {
+	int minimalDefinedExtension() {
 		if (minimalDefinedDegree < 0) {
 			Integers z = Integers.z();
 			BigInteger p = field.characteristic();
@@ -3770,15 +3907,23 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			idealGen.add(r.getEmbedding(this.definingPolynomial, new int[] { 0, 1 }));
 			PolynomialIdeal<T> ideal = r.getIdeal(idealGen);
 			psiL = this.univariateRing.getEmbedding(psiL, new int[] { 0 });
-			if (!field.roots(psiL).isEmpty()) {
-				T root = field.roots(psiL).keySet().iterator().next();
-				if (!getPossibleY(root).isEmpty()) {
-					// P -t*P + qbar*P = 0
-					// t = qbar + 1
-					t.add(BigInteger.valueOf(qbar + 1));
-					continue;
-				}
-			}
+//			ProjectivePoint<T> point = null;
+//			if (!field.roots(psiL).isEmpty()) {
+//				T root = field.roots(psiL).keySet().iterator().next();
+//				if (!getPossibleY(root).isEmpty()) {
+//					point = new ProjectivePoint<>(field, root, getPossibleY(root).iterator().next(), field.one());
+//				}
+//					// P -t*P + qbar*P = 0
+//					// t = qbar + 1
+//					t.add(BigInteger.valueOf(qbar + 1));
+//					continue;
+//				} else {
+//					// P + t*P + qbar*P = 0
+//					// t = -qbar - 1
+//					t.add(BigInteger.valueOf(-qbar - 1));
+//					continue;
+//				}
+//			}
 			CoordinateRing<T> cr = ideal.divideOut();
 			// Calculating x^q, y^q, x^(q^2), y^(q^2)
 			CoordinateRingElement<T> xq = cr.power(cr.getEmbedding(x), q);
@@ -3791,10 +3936,21 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			List<CoordinateRingElement<T>> qxy = multiplyGeneric(qbar, cr);
 			CoordinateRingElement<T> qx = qxy.get(0);
 			CoordinateRingElement<T> qy = qxy.get(1);
+//			if (point != null) {
+//				System.err.println(point);
+//				System.err.println(r.evaluate(xqq.getElement(), point.getDehomogenous(3)));
+//				System.err.println(r.evaluate(qx.getElement(), point.getDehomogenous(3)));
+//				System.err.println(multiply(qbar, point));
+//			}
 			if (!xqq.equals(qx)) {
 				List<CoordinateRingElement<T>> lhs = this.addGeneric(xqq, yqq, qx, qy, cr);
 				CoordinateRingElement<T> lhsX = lhs.get(0);
 				CoordinateRingElement<T> lhsY = lhs.get(1);
+//				if (point != null) {
+//					System.err.println(r.evaluate(lhsX.getElement(), point.getDehomogenous(3)));
+//					System.err.println(r.evaluate(lhsY.getElement(), point.getDehomogenous(3)));
+//					System.err.println(add(point, multiply(qbar, point)));
+//				}
 				boolean found = false;
 				for (int tc = 1; tc <= (l.intValue() - 1) / 2; tc++) {
 					List<CoordinateRingElement<T>> candidate = this.multiplyGeneric(tc, cr);
@@ -3814,7 +3970,7 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 					}
 				}
 				if (!found) {
-					throw new ArithmeticException("No x coordinate found.");
+					throw new ArithmeticException("No x coordinate found. " + lhsX);
 				}
 			} else {
 				PrimeField lField = PrimeField.getPrimeField(l);
@@ -3858,7 +4014,25 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 			CoordinateRingElement<T> x2, CoordinateRingElement<T> y2, CoordinateRing<T> cr) {
 		CoordinateRingElement<T> ydiff = cr.subtract(y2, y1);
 		CoordinateRingElement<T> xdiff = cr.subtract(x2, x1);
-		CoordinateRingElement<T> s = cr.divideChecked(ydiff, xdiff);
+		Polynomial<T> gcd = cr.getPolynomialRing().gcd(xdiff.getElement(), ydiff.getElement());
+		IdealResult<CoordinateRingElement<T>, CoordinateIdeal<T>> divisorIdealResult = cr
+				.getIdealWithTransforms(Collections.singletonList(xdiff));
+		List<CoordinateRingElement<T>> syzygies = new ArrayList<>();
+		for (Vector<CoordinateRingElement<T>> syzygy : divisorIdealResult.getSyzygies()) {
+			syzygies.add(syzygy.get(1));
+		}
+		List<CoordinateIdeal<T>> crtIdeals = new ArrayList<>();
+		crtIdeals.add(cr.getIdeal(syzygies));
+		crtIdeals.add(cr.getIdeal(Collections.singletonList(cr.getEmbedding(gcd))));
+
+		ChineseRemainderPreparation<CoordinateRingElement<T>> crt = cr.prepareChineseRemainderTheorem(crtIdeals);
+		List<CoordinateRingElement<T>> crtValues = new ArrayList<>();
+		crtValues.add(divisorIdealResult.generate(ydiff).get(0));
+		crtValues.add(cr.divideChecked(
+				cr.add(cr.multiply(3, x1, x1), cr.multiply(2, cr.getEmbedding(a2), x1),
+						cr.multiply(-1, cr.getEmbedding(a1), y1), cr.getEmbedding(a4)),
+				cr.add(cr.multiply(2, y1), cr.multiply(a1, x1), cr.getEmbedding(a3))));
+		CoordinateRingElement<T> s = cr.chineseRemainderTheorem(crtValues, crt);
 		CoordinateRingElement<T> xr = cr.add(cr.multiply(s, s), cr.multiply(a1, s),
 				cr.getEmbedding(field.multiply(-1, a2)));
 		xr = cr.subtract(xr, cr.add(x1, x2));
@@ -4493,6 +4667,30 @@ public class EllipticCurve<T extends Element<T>> extends AbstractProjectiveSchem
 
 	public ProjectivePoint<T> multiply(IntE n, ProjectivePoint<T> t) {
 		return this.multiply(n.getValue(), t);
+	}
+
+	@Override
+	public BigInteger discreteLogarithm(ProjectivePoint<T> basis, ProjectivePoint<T> power) {
+//		if (!weilPairing(basis, power).equals(field.one())) {
+//			throw new ArithmeticException("No discrete logarithm exists");
+//		}
+//		BigInteger basisOrder = getOrder(basis);
+//		BigInteger powerOrder = getOrder(power);
+//		if (!basisOrder.mod(powerOrder).equals(BigInteger.ZERO)) {
+//			throw new ArithmeticException("No discrete logarithm exists");
+//		}
+//		Integers z = Integers.z();
+//		IntE embeddingDegree = embeddingDegree(z.getInteger(basisOrder));
+//		if (embeddingDegree.compareTo(z.getInteger(12)) < 0) {
+//			return discreteLogarithm(basis, power, getMultiplicativeEmbedding(basis));
+//		}
+		return Group.super.discreteLogarithm(basis, power);
+	}
+
+	private <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> BigInteger discreteLogarithm(
+			ProjectivePoint<T> basis, ProjectivePoint<T> power, MultiplicativeEmbedding<B, E, FE> embedding) {
+		return embedding.extension.extension().discreteLogarithm(embedding.getEmbedding(basis),
+				embedding.getEmbedding(power));
 	}
 
 	@Override

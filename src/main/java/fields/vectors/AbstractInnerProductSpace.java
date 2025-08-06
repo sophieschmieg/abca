@@ -580,6 +580,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 				if (f.value(it.entry(limit, limit - 1)).compareTo(eps) < 0) {
 					it = forceZero(it);
 					limit--;
+					counter = 0;
 				}
 				if (isUpperTriangular(it)) {
 					break;

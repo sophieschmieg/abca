@@ -111,10 +111,13 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 
 	@Override
 	public Matrix<T> add(Matrix<T> s1, Matrix<T> s2) {
+		if (s1.rows() != s2.rows() || s1.columns() != s2.columns()) {
+			throw new ArithmeticException("Mismatched matrices");
+		}
 		List<List<T>> result = new ArrayList<>();
-		for (int i = 0; i < rows; i++) {
+		for (int i = 0; i < s1.rows(); i++) {
 			List<T> row = new ArrayList<>();
-			for (int j = 0; j < columns; j++) {
+			for (int j = 0; j < s1.columns(); j++) {
 				row.add(ring.add(s1.entry(i + 1, j + 1), s2.entry(i + 1, j + 1)));
 			}
 			result.add(row);
@@ -125,9 +128,9 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	@Override
 	public Matrix<T> negative(Matrix<T> s) {
 		List<List<T>> result = new ArrayList<>();
-		for (int i = 0; i < rows; i++) {
+		for (int i = 0; i < s.rows(); i++) {
 			List<T> row = new ArrayList<>();
-			for (int j = 0; j < columns; j++) {
+			for (int j = 0; j < s.columns(); j++) {
 				row.add(ring.negative(s.entry(i + 1, j + 1)));
 			}
 			result.add(row);
@@ -138,9 +141,9 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	@Override
 	public Matrix<T> scalarMultiply(T t, Matrix<T> s) {
 		List<List<T>> result = new ArrayList<>();
-		for (int i = 0; i < rows; i++) {
+		for (int i = 0; i < s.rows(); i++) {
 			List<T> row = new ArrayList<>();
-			for (int j = 0; j < columns; j++) {
+			for (int j = 0; j < s.columns(); j++) {
 				row.add(ring.multiply(t, s.entry(i + 1, j + 1)));
 			}
 			result.add(row);
@@ -157,7 +160,7 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 	public Ideal<T> annihilator() {
 		return ring.getZeroIdeal();
 	}
-	
+
 	@Override
 	public List<Vector<T>> getSyzygies() {
 		return Collections.emptyList();
@@ -256,8 +259,8 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 
 	public Matrix<T> multiply(Matrix<T> t1, Matrix<T> t2) {
 		if (t1.columns() != t2.rows()) {
-			System.err.println(t1);
-			System.err.println(t2);
+			System.err.println(t1.columns());
+			System.err.println(t2.rows());
 			throw new ArithmeticException("Matricies have wrong dimension");
 		}
 		List<List<T>> result = new ArrayList<>();
@@ -409,7 +412,7 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 
 	public LDUPResult ldup(Matrix<T> t) {
 		if (t.rows() != rows || t.columns() != columns) {
-			System.err.println(t);
+			System.err.println(t.rows() + "x" + t.columns());
 			System.err.println(this);
 			throw new RuntimeException("Wrong Algebra");
 		}
@@ -481,15 +484,16 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 			T pivot = matrix[pivotRow][pivotColumn];
 			lower[pivotRow][pivotRow] = pivot;
 			inverseDiagonal[pivotRow][pivotRow] = ring.multiply(prevPivot, pivot);
-			r.determinant = ring.divideChecked(ring.multiply(r.determinant, pivot), prevPivot);
+			T inversePrevPivot = ring.inverse(prevPivot);
+			r.determinant = ring.multiply(r.determinant, pivot, inversePrevPivot);
 			for (int i = pivotRow + 1; i < rows; i++) {
 				T negativeShear = matrix[i][pivotColumn];
 				T shear = ring.negative(negativeShear);
 				lower[i][pivotRow] = negativeShear;
 				for (int j = pivotColumn; j < columns; j++) {
-					matrix[i][j] = ring.divideChecked(
+					matrix[i][j] = ring.multiply(
 							ring.add(ring.multiply(pivot, matrix[i][j]), ring.multiply(shear, matrix[pivotRow][j])),
-							prevPivot);
+							inversePrevPivot);
 				}
 			}
 			prevPivot = pivot;
@@ -1294,7 +1298,7 @@ public class MatrixModule<T extends Element<T>> extends AbstractModule<T, Matrix
 
 	public Matrix<T> transpose(Matrix<T> t) {
 		@SuppressWarnings("unchecked")
-		T[][] matrix = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), t.rows(), t.columns());
+		T[][] matrix = (T[][]) Array.newInstance(t.entry(1, 1).getClass(), t.columns(), t.rows());
 		for (int i = 0; i < t.rows(); i++) {
 			for (int j = 0; j < t.columns(); j++) {
 				matrix[j][i] = t.entry(i + 1, j + 1);

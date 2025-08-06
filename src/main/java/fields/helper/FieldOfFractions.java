@@ -19,9 +19,14 @@ import util.PeekableReader;
 
 public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fraction<T>> implements Field<Fraction<T>> {
 	private Ring<T> ring;
+	private int canonicalizationLimit;
 
 	public FieldOfFractions(Ring<T> ring) {
+		this(ring, 1000);
+	}
+	public FieldOfFractions(Ring<T> ring, int canonicalizationLimit) {
 		this.ring = ring;
+		this.canonicalizationLimit = canonicalizationLimit;
 		if (!this.ring.isIntegral())
 			throw new RuntimeException("Object does not exist");
 	}
@@ -76,10 +81,10 @@ public class FieldOfFractions<T extends Element<T>> extends AbstractField<Fracti
 		if (t1.denominator.equals(t2.denominator)) {
 			return new Fraction<>(this.ring, this.ring.add(t1.numerator, t2.numerator), t1.denominator, t1.counter + t2.counter + 1);
 		}
-		if (t1.counter > 1000) {
+		if (t1.counter > canonicalizationLimit) {
 			t1.canonicalize();
 		}
-		if (t2.counter > 1000) {
+		if (t2.counter > canonicalizationLimit) {
 			t2.canonicalize();
 		}
 		T denominator;

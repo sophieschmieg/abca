@@ -21,6 +21,7 @@ import fields.polynomials.CoordinateRing.CoordinateIdeal;
 import fields.polynomials.CoordinateRing.CoordinateRingElement;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
+import fields.polynomials.RelativeDifferentialForms;
 import varieties.AbstractMorphism;
 import varieties.GeneralRationalFunction;
 import varieties.SpectrumOfField;
@@ -492,6 +493,18 @@ public class AffineMorphism<T extends Element<T>> extends AbstractMorphism<T, Af
 		return indeces.isEmpty();
 	}
 
+	public boolean isSmooth() {
+		throw new UnsupportedOperationException("Not implemented");
+	}
+	
+	public int smoothDimension() {
+		throw new UnsupportedOperationException("Not implemented");
+	}
+	
+	public RelativeDifferentialForms<T> getRelativeDifferentialForms() {
+		return new RelativeDifferentialForms<>(domain.getCoordinateRing(), range.getCoordinateRing(), polynomials);
+	}
+	
 	public boolean isImmersion() {
 		return immersionClassification().isImmersion();
 	}
@@ -502,9 +515,6 @@ public class AffineMorphism<T extends Element<T>> extends AbstractMorphism<T, Af
 
 	public boolean isSeparated() {
 		return true;
-//		AffineFiberedProduct<T> product = fiberedProduct(this, this);
-//		AffineMorphism<T> diagonal = product.universalProperty(domain.identityMorphism(), domain.identityMorphism());
-//		return diagonal.isClosedImmersion();
 	}
 
 	public boolean hasDenseImage() {
@@ -924,9 +934,9 @@ public class AffineMorphism<T extends Element<T>> extends AbstractMorphism<T, Af
 
 	public List<AffinePoint<T>> preimageList(AffineMorphism<T> image) {
 		AffineMorphism<T> preimage = preimage(image);
-		if (preimage.getDomain().dimension() > 0) {
-			throw new ArithmeticException("Not a finite morphism!");
-		}
+//		if (preimage.getDomain().dimension() > 0) {
+//			throw new ArithmeticException("Not a finite morphism!");
+//		}
 		List<AffinePoint<T>> result = new ArrayList<>();
 		for (AffinePoint<T> preimagePoint : preimage.getDomain()) {
 			result.add(preimage.evaluate(preimagePoint));

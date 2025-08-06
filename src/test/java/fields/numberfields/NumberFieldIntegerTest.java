@@ -23,5 +23,13 @@ class NumberFieldIntegerTest {
 			System.out.println(nf.maximalOrder().projectToUnit(onetwothreefour));
 		System.out.println(nf.maximalOrder().upToUnit(onetwothreefour));
 	}
+	
+	@Test
+	void dedekindTest() throws IOException {
+		Rationals q = Rationals.q();
+		UnivariatePolynomialRing<Fraction> polynomials = q.getUnivariatePolynomialRing();
+		NumberField nf = NumberField.getNumberField(polynomials.parse("X^3 + -1*X^2 + -2*X + -8"));
+		System.out.println(nf.maximalOrder().getModuleGenerators());
+	}
 
 }

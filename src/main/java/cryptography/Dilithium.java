@@ -177,7 +177,7 @@ public class Dilithium
 	private ExtendedOutputFunction hash;
 	private ExtendedOutputFunction crh;
 
-	private final static int PRIME = (1 << 23) - (1 << 13) + 1;
+	public final static int PRIME = (1 << 23) - (1 << 13) + 1;
 
 	public final static Dilithium DILITHIUM2 = new Dilithium(4, 4, 2, 13, 39, 17, (PRIME - 1) / 88, 80, 4);
 	public final static Dilithium DILITHIUM3 = new Dilithium(6, 5, 4, 13, 49, 19, (PRIME - 1) / 32, 55, 6);
@@ -217,6 +217,34 @@ public class Dilithium
 		this.xof = xof;
 		this.hash = hash;
 		this.crh = crh;
+	}
+	
+	public int getDegree() {
+		return degree;
+	}
+	
+	public int getRows() {
+		return rows;
+	}
+	
+	public int getCols() {
+		return cols;
+	}
+	
+	public int getEta() {
+		return eta;
+	}
+	
+	public NTTRing<PFE, PrimeField> getNTTRing() {
+		return cylcotomic;
+	}
+	
+	public MatrixModule<NTT<PFE>> getMatrixModule() {
+		return matrixModule;
+	}
+	
+	public FreeModule<NTT<PFE>> getFreeModule() {
+		return freeModule;
 	}
 
 	private Pair<Vector<IntE>, Vector<NTT<PFE>>> power2Round(Vector<NTT<PFE>> t, int exp) {
@@ -533,7 +561,7 @@ public class Dilithium
 		return cylcotomic.fromList(coeffs);
 	}
 
-	private Matrix<NTT<PFE>> expandMatrix(byte[] seed) {
+	public Matrix<NTT<PFE>> expandMatrix(byte[] seed) {
 		List<List<NTT<PFE>>> result = new ArrayList<>();
 		for (int i = 0; i < rows; i++) {
 			List<NTT<PFE>> row = new ArrayList<>();
@@ -614,14 +642,19 @@ public class Dilithium
 		byte[] rho = Arrays.copyOf(expanded, 32);
 		byte[] sigma = Arrays.copyOfRange(expanded, 32, 2 * 32);
 		byte[] k = Arrays.copyOfRange(expanded, 2 * 32, 3 * 32);
-		Matrix<NTT<PFE>> matrix = expandMatrix(rho);
 		Vector<NTT<PFE>> s = sampleUniformVector(z.getInteger(eta), cols, sigma, 0);
 		Vector<NTT<PFE>> e = sampleUniformVector(z.getInteger(eta), rows, sigma, cols);
+		return createPrivateKeyFromParameters(rho, k, s, e);
+	}
+	
+	public DilithiumPrivateKey createPrivateKeyFromParameters(byte[] rho, byte[] k, Vector<NTT<PFE>> s, Vector<NTT<PFE>> e) {
+		Matrix<NTT<PFE>> matrix = expandMatrix(rho);
 		Vector<NTT<PFE>> t = freeModule.add(matrixModule.multiply(matrix, s), e);
 		Pair<Vector<IntE>, Vector<NTT<PFE>>> power2Round = power2Round(t, d);
 		byte[] tr = crh.evaluate(crhInput(rho, power2Round.getFirst()), 48);
 		return new DilithiumPrivateKey(new DilithiumPublicKey(rho, power2Round.getFirst()), k, tr, s, e,
 				power2Round.getSecond());
+	
 	}
 
 	@Override

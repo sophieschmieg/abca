@@ -70,9 +70,40 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 	}
 
 	private List<R> rings;
+	private boolean power;
 
 	public ProductRing(List<R> rings) {
 		this.rings = rings;
+		this.power = true;
+		R ring = null;
+		for (R r : rings) {
+			if (ring == null) {
+				ring = r;
+			} else if (!ring.equals(r)) {
+				power = false;
+				break;
+			}
+		}
+	}
+	
+	public String toString() {
+		if (rings.isEmpty()) {
+			return "0";
+		}
+		if (power) {
+			return rings.get(0).toString() + "^" + rings.size();
+		}
+		StringBuilder build = new StringBuilder();
+		boolean first = true;
+		for (R r : rings) {
+			if (first) {
+				first = false;
+			} else {
+				build.append("x");
+			}
+			build.append(r.toString());
+		}
+		return build.toString();
 	}
 
 	public List<R> getRings() {
@@ -433,6 +464,15 @@ public class ProductRing<T extends Element<T>, R extends Ring<T>> extends Abstra
 			}
 		}
 		return false;
+	}
+	
+	@Override
+	public ProductElement<T> zeroCodivisor(ProductElement<T> t) {
+		List<T> result = new ArrayList<>();
+		for (int i = 0; i < numberOfFactors(); i++) {
+			result.add(rings.get(i).zeroCodivisor(t.get(i)));
+		}
+		return getElement(result);
 	}
 
 	@Override

@@ -10,6 +10,7 @@ import fields.polynomials.DifferentialForms.DifferentialForm;
 import fields.polynomials.Monomial;
 import fields.polynomials.PolynomialIdeal;
 import fields.vectors.Matrix;
+import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
 import varieties.affine.AffinePoint;
 
@@ -38,6 +39,7 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Polynomial<Polynomial<T>> unflattenPolynomial(Polynomial<T> t, PolynomialRing<Polynomial<T>> polynomialRing, PolynomialRing<T> baseRing);
     public PolynomialRing<T> addVariableWithElimination(int shift);
 	public Polynomial<T> getEmbeddingWithElimination(Polynomial<T> t, int shift);
+	public PolynomialIdeal<T> getEmbeddingWithElimination(PolynomialIdeal<T> t, int shift);
 	public Polynomial<T> getEmbedding(Polynomial<T> t, int[] map);
 	public Polynomial<T> getEmbedding(Polynomial<T> t);
 
@@ -88,8 +90,12 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public GroebnerBasis<T> buchberger(List<Polynomial<T>> generators, boolean computeExpressionsAndSyzygies);
 	public GroebnerBasis<T> reduceBasis(GroebnerBasis<T> basis, boolean computeExpressionsAndSyzygies);
 	
+	public List<Vector<T>> solve(Vector<Polynomial<T>> polynomials, Vector<T> rhs);
 	public List<AffinePoint<T>> solve(List<Polynomial<T>> polynomials);
 	public List<AffinePoint<T>> solve(PolynomialIdeal<T> ideal);
+	public List<Vector<T>> solve(Vector<Polynomial<T>> polynomials, Vector<T> rhs, int maxNumberOfSolutions);
+	public List<AffinePoint<T>> solve(List<Polynomial<T>> polynomials, int maxNumberOfSolutions);
+	public List<AffinePoint<T>> solve(PolynomialIdeal<T> ideal, int maxNumberOfSolutions);
 	
 	public IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransforms(List<Polynomial<T>> generators);
 	public IdealResult<Polynomial<T>, PolynomialIdeal<T>> getIdealWithTransforms(@SuppressWarnings("unchecked") Polynomial<T>... generators);
@@ -146,4 +152,49 @@ public interface PolynomialRing<T extends Element<T>> extends Algebra<T, Polynom
 	public Vector<T> asVector(Polynomial<T> t);
 	public Vector<T> asVector(Polynomial<T> t, int[] degrees);
 	public Polynomial<T> fromVector(Vector<T> t, int[] degrees);
+
+//	public static class AsSubModuleMemberPreparation<T extends Element<T>> {
+//		private Matrix<Polynomial<T>> matrix;
+//		private List<Matrix<Polynomial<T>>> syzygiesMatrices;
+//		private List<IdealResult<Polynomial<T>, PolynomialIdeal<T>>> rowIdeals;
+//		private List<Vector<Polynomial<T>>> rows;
+//		private MatrixModule<Polynomial<T>> module;
+//
+//		public AsSubModuleMemberPreparation(Matrix<Polynomial<T>> matrix, List<Matrix<Polynomial<T>>> syzygiesMatrices,
+//				List<IdealResult<Polynomial<T>, PolynomialIdeal<T>>> rowIdeals, List<Vector<Polynomial<T>>> rows,
+//				MatrixModule<Polynomial<T>> module) {
+//			this.matrix = matrix;
+//			this.syzygiesMatrices = syzygiesMatrices;
+//			this.rowIdeals = rowIdeals;
+//			this.rows = rows;
+//			this.module = module;
+//		}
+//
+//		public Matrix<Polynomial<T>> getMatrix() {
+//			return matrix;
+//		}
+//		
+//		public List<Matrix<Polynomial<T>>> getSyzygiesMatrices() {
+//			return syzygiesMatrices;
+//		}
+//
+//		public List<IdealResult<Polynomial<T>, PolynomialIdeal<T>>> getRowIdeals() {
+//			return rowIdeals;
+//		}
+//
+//		public List<Vector<Polynomial<T>>> getRows() {
+//			return rows;
+//		}
+//
+//		public MatrixModule<Polynomial<T>> getModule() {
+//			return module;
+//		}
+//
+//	}
+//	
+//	public AsSubModuleMemberPreparation<T>	prepareSubModuleMember(Matrix<Polynomial<T>> m);
+//	public AsSubModuleMemberPreparation<T>	prepareSubModuleMember(MatrixModule<Polynomial<T>> module, Matrix<Polynomial<T>> m);
+//	public boolean isSubModuleMember(AsSubModuleMemberPreparation<T> preparation, Vector<Polynomial<T>> b);
+//	public Vector<Polynomial<T>> asSubModuleMember(AsSubModuleMemberPreparation<T> preparation, Vector<Polynomial<T>> b);
+//	public Vector<Polynomial<T>> residueModuloSubmodule(AsSubModuleMemberPreparation<T> preparation, Vector<Polynomial<T>> t);
 }

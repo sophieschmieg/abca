@@ -5,7 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import fields.helper.AbstractElement;
+import fields.interfaces.AlgebraicExtensionElement;
 import fields.interfaces.Element;
+import fields.interfaces.Field.Extension;
+import fields.interfaces.FieldExtension;
 import fields.interfaces.Polynomial;
 import fields.interfaces.PolynomialRing;
 import varieties.projective.ProjectiveMorphism;
@@ -23,12 +26,12 @@ public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Is
 		this.firstIsogeny = firstIsogeny;
 		this.secondIsogeny = secondIsogeny;
 	}
-	
+
 	@Override
 	public String toString() {
 		return secondIsogeny.toString() + " o " + firstIsogeny.toString();
 	}
-	
+
 	@Override
 	public int compareTo(Isogeny<T> o) {
 		if (o instanceof CompositionIsogeny<?>) {
@@ -58,6 +61,13 @@ public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Is
 	}
 
 	@Override
+	public <B extends Element<B>, E extends AlgebraicExtensionElement<B, E>, FE extends FieldExtension<B, E, FE>> ProjectivePoint<E> evaluateOverExtension(
+			ProjectivePoint<E> point, Extension<T, B, E, FE> extension) {
+		ProjectivePoint<E> intermediate = firstIsogeny.evaluateOverExtension(point, extension);
+		return secondIsogeny.evaluateOverExtension(intermediate, extension);
+	}
+
+	@Override
 	public BigInteger getDegree() {
 		return firstIsogeny.getDegree().multiply(secondIsogeny.getDegree());
 	}
@@ -75,7 +85,8 @@ public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Is
 			for (Polynomial<T> second : secondIsogeny.asMorphism().asPolynomials()) {
 				asPolynomials.add(domainRing.substitute(second, firstIsogeny.asMorphism().asPolynomials()));
 			}
-			this.asMorphism = new ProjectiveMorphism<>(getDomain().asGenericProjectiveScheme(), getRange().asGenericProjectiveScheme(), asPolynomials);
+			this.asMorphism = new ProjectiveMorphism<>(getDomain().asGenericProjectiveScheme(),
+					getRange().asGenericProjectiveScheme(), asPolynomials);
 		}
 		return asMorphism;
 	}
@@ -84,7 +95,7 @@ public class CompositionIsogeny<T extends Element<T>> extends AbstractElement<Is
 	public List<ProjectivePoint<T>> kernelGenerators() {
 		List<ProjectivePoint<T>> firstKernel = firstIsogeny.kernelGenerators();
 		List<ProjectivePoint<T>> secondKernel = secondIsogeny.kernelGenerators();
-			// TODO Auto-generated method stub
+		// TODO Auto-generated method stub
 		return null;
 	}
 }

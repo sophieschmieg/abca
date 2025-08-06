@@ -68,8 +68,8 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		return latticeReduction(sublatticeBasis, lattice, 0.75, 10, isBasis);
 	}
 
-	// @Override
-	private <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
+	@Override
+	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
 			double deltaAsDouble, boolean isBasis) {
 		if (!lattice.getVectorSpace().equals(this)) {
 			throw new ArithmeticException(lattice + " not in " + this + ", but in " + lattice.getVectorSpace());
@@ -85,8 +85,8 @@ public abstract class AbstractRealInnerProductSpace<T extends Element<T>, S exte
 		return currentResult;
 	}
 
-	// @Override
-	private <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
+	@Override
+	public <R extends Element<R>> List<R> latticeReduction(List<R> sublatticeBasis, Lattice<R, T, S> lattice,
 			double deltaAsDouble, int blockSize, boolean isBasis) {
 		List<R> basis = latticeReduction(sublatticeBasis, lattice, deltaAsDouble, isBasis);
 		ValueField<T> f = getValueField();
