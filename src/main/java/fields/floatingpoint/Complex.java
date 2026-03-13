@@ -148,6 +148,10 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 	public ComplexNumber getDouble(double realPart, double complexPart) {
 		return new ComplexNumber(r.getDouble(realPart), r.getDouble(complexPart));
 	}
+	
+	public ComplexNumber getPolar(Real value, Real arg) {
+		return getNumber(r.multiply(value, r.cos(arg)), r.multiply(value, r.sin(arg)));
+	}
 
 	public ComplexNumber getEmbedding(ComplexNumber t) {
 		return getNumber(r.getEmbedding(t.realPart), r.getEmbedding(t.complexPart));
@@ -338,6 +342,20 @@ public class Complex extends AbstractFieldExtension<Real, ComplexNumber, Complex
 				}
 			}
 		}
+	}
+	
+	@Override
+	public Map<ComplexNumber, Integer> sqrt(ComplexNumber t) {
+		if (t.equals(zero())) {
+			return Collections.singletonMap(zero(), 2);
+		}
+		Real realSquareRoot = r.positiveSqrt(value(t));
+		Real argRoot = r.divide(arg(t), r.getInteger(2));
+		ComplexNumber sqrt = getPolar(realSquareRoot, argRoot);
+		Map<ComplexNumber, Integer> result = new TreeMap<>();
+		result.put(sqrt, 1);
+		result.put(negative(sqrt), 1);
+		return result;
 	}
 
 	@Override

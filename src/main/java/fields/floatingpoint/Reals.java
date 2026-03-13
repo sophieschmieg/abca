@@ -344,6 +344,9 @@ public class Reals extends AbstractField<Real>
 		if (lowPrecision) {
 			return new Real(t.doubleValue());
 		}
+		if (t.value == null) {
+			return getDouble(t.doubleValue());
+		}
 		return new Real(t.value, t.scale, t.positive);
 	}
 
@@ -393,6 +396,12 @@ public class Reals extends AbstractField<Real>
 		if (lowPrecision) {
 			return new Real(t1.lowPrecisionValue + t2.lowPrecisionValue);
 		}
+		if (t1.value == null) {
+			t1 = getEmbedding(t1);
+		}
+		if (t2.value == null) {
+			t2 = getEmbedding(t2);
+		}
 		int minScale = Math.min(t1.scale, t2.scale);
 		BigInteger value1Adjusted = t1.value.shiftLeft(t1.scale - minScale);
 		BigInteger value2Adjusted = t2.value.shiftLeft(t2.scale - minScale);
@@ -410,6 +419,9 @@ public class Reals extends AbstractField<Real>
 		if (lowPrecision) {
 			return new Real(-t.lowPrecisionValue);
 		}
+		if (t.value == null) {
+			t = getEmbedding(t);
+		}
 		return new Real(t.value, t.scale, !t.positive);
 	}
 
@@ -417,6 +429,12 @@ public class Reals extends AbstractField<Real>
 	public Real multiply(Real t1, Real t2) {
 		if (lowPrecision) {
 			return new Real(t1.lowPrecisionValue * t2.lowPrecisionValue);
+		}
+		if (t1.value == null) {
+			t1 = getEmbedding(t1);
+		}
+		if (t2.value == null) {
+			t2 = getEmbedding(t2);
 		}
 		return new Real(t1.value.multiply(t2.value), t1.scale + t2.scale, !(t1.positive ^ t2.positive));
 	}
@@ -432,6 +450,9 @@ public class Reals extends AbstractField<Real>
 	public Real inverse(Real t) {
 		if (lowPrecision) {
 			return new Real(1.0 / t.lowPrecisionValue);
+		}
+		if (t.value == null) {
+			t = getEmbedding(t);
 		}
 		if (t.equals(zero())) {
 			throw new ArithmeticException("Division by 0");
@@ -456,6 +477,9 @@ public class Reals extends AbstractField<Real>
 	public Real abs(Real t) {
 		if (lowPrecision) {
 			return new Real(Math.abs(t.lowPrecisionValue));
+		}
+		if (t.value == null) {
+			t = getEmbedding(t);
 		}
 		return new Real(t.value, t.scale, true);
 	}

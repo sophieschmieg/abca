@@ -3,6 +3,7 @@ package fields.interfaces;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import fields.floatingpoint.Complex.ComplexNumber;
 import fields.floatingpoint.Reals.Real;
@@ -175,5 +176,9 @@ public interface InnerProductSpace<T extends Element<T>, S extends Element<S>> e
 	public Matrix<T> pseudoInverse(Matrix<T> t);
 
 	public Optional<Real> conditionNumber(Matrix<T> t);
+
+	public T determinant(Matrix<T> m);
+	
+	public Set<T> eigenValues(Matrix<T> m);
 
 }

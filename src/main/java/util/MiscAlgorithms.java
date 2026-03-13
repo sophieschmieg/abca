@@ -361,6 +361,18 @@ public class MiscAlgorithms {
 	public static IntE roundUpToPowerOfTwo(IntE n) {
 		return Integers.z().getInteger(roundUpToPowerOfTwo(n.getValue()));
 	}
+	
+	public static int bitLength(int n) {
+		return bitLength(BigInteger.valueOf(n));
+	}
+	
+	public static int bitLength(BigInteger n) {
+		return n.bitLength();
+	}
+	
+	public static int bitLength(IntE n) {
+		return bitLength(n.getValue());
+	}
 
 	public static <T> List<List<T>> crossProduct(List<List<T>> setOfSets) {
 		if (setOfSets.isEmpty()) {

@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 import fields.exceptions.InfinityException;
 import fields.floatingpoint.Complex;
@@ -434,6 +436,33 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 	}
 
 	@Override
+	public T determinant(Matrix<T> m) {
+		if (m.columns() != dimension() || m.rows() != m.columns()) {
+			throw new ArithmeticException("dimension mismatch!");
+		}
+
+		QRDecompositionResult<T> qr = qrDecomposition(m);
+		T result = getField().one();
+		for (int i = 0; i < dimension(); i++) {
+			result = getField().multiply(qr.getUpperTriangularMatrix().entry(i + 1, i + 1), result);
+		}
+		return result;
+	}
+
+	@Override
+	public Set<T> eigenValues(Matrix<T> m) {
+		if (m.columns() != dimension() || m.rows() != m.columns()) {
+			throw new ArithmeticException("dimension mismatch!");
+		}
+		Set<T> result = new TreeSet<>();
+		QRDecompositionResult<T> qr = qrDecomposition(m);
+		for (int i = 0; i < dimension(); i++) {
+			result.add(qr.getUpperTriangularMatrix().entry(i + 1, i + 1));
+		}
+		return result;
+	}
+
+	@Override
 	public OrthogonalSimilarResult<T> hessenbergForm(Matrix<T> t) {
 		if (t.columns() != dimension() || t.rows() != t.columns()) {
 			throw new ArithmeticException("dimension mismatch!");
@@ -557,7 +586,7 @@ public abstract class AbstractInnerProductSpace<T extends Element<T>, S extends 
 				ComplexNumber discriminant = c.add(c.multiply(diagonalDiff, diagonalDiff), counterDiagonalProduct);
 				ComplexNumber root;
 				if (!c.isReal(discriminant) || discriminant.realPart().compareTo(r.zero()) < 0) {
-					root = c.roots(discriminant, 2).keySet().iterator().next();
+					root = c.sqrt(discriminant).keySet().iterator().next();
 				} else {
 					root = c.getEmbedding(r.positiveSqrt(discriminant.realPart()));
 				}

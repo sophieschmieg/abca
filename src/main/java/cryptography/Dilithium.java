@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 import cryptography.Dilithium.DilithiumPrivateKey;
 import cryptography.Dilithium.DilithiumPublicKey;
@@ -26,6 +27,7 @@ import fields.vectors.FreeModule;
 import fields.vectors.Matrix;
 import fields.vectors.MatrixModule;
 import fields.vectors.Vector;
+import util.MiscAlgorithms;
 import util.Pair;
 
 public class Dilithium
@@ -170,27 +172,26 @@ public class Dilithium
 	private int gamma2;
 	private int omega;
 	private int w1bits;
+	private int lambda;
 	private NTTRing<PFE, PrimeField> cylcotomic;
 	private FreeModule<NTT<PFE>> freeModule;
 	private MatrixModule<NTT<PFE>> matrixModule;
-	private ExtendedOutputFunction xof;
-	private ExtendedOutputFunction hash;
-	private ExtendedOutputFunction crh;
+	private ExtendedOutputFunction hashG;
+	private ExtendedOutputFunction hashH;
+	// private ExtendedOutputFunction crh;
 
 	public final static int PRIME = (1 << 23) - (1 << 13) + 1;
 
-	public final static Dilithium DILITHIUM2 = new Dilithium(4, 4, 2, 13, 39, 17, (PRIME - 1) / 88, 80, 4);
-	public final static Dilithium DILITHIUM3 = new Dilithium(6, 5, 4, 13, 49, 19, (PRIME - 1) / 32, 55, 6);
-	public final static Dilithium DILITHIUM5 = new Dilithium(8, 7, 2, 13, 60, 19, (PRIME - 1) / 32, 75, 6);
+	public final static Dilithium DILITHIUM2 = new Dilithium(4, 4, 2, 13, 39, 17, (PRIME - 1) / 88, 80, 128);
+	public final static Dilithium DILITHIUM3 = new Dilithium(6, 5, 4, 13, 49, 19, (PRIME - 1) / 32, 55, 192);
+	public final static Dilithium DILITHIUM5 = new Dilithium(8, 7, 2, 13, 60, 19, (PRIME - 1) / 32, 75, 256);
 
-	public Dilithium(int k, int l, int eta, int d, int tau, int log2Gamma1, int gamma2, int omega, int w1bits) {
-		this(PRIME, 256, 1753, k, l, eta, d, tau, log2Gamma1, gamma2, omega, w1bits, Sha3.SHAKE_128, Sha3.SHAKE_256,
-				Sha3.SHAKE_256);
+	public Dilithium(int k, int l, int eta, int d, int tau, int log2Gamma1, int gamma2, int omega, int lambda) {
+		this(PRIME, 256, 1753, k, l, eta, d, tau, log2Gamma1, gamma2, omega, lambda, Sha3.SHAKE_256, Sha3.SHAKE_128);
 	}
 
 	public Dilithium(int q, int degree, int r, int k, int l, int eta, int d, int tau, int log2Gamma1, int gamma2,
-			int omega, int w1bits, ExtendedOutputFunction xof, ExtendedOutputFunction hash,
-			ExtendedOutputFunction crh) {
+			int omega, int lambda, ExtendedOutputFunction hashH, ExtendedOutputFunction hashG) {
 		Integers z = Integers.z();
 		this.q = z.getInteger(q);
 		this.degree = degree;
@@ -213,36 +214,36 @@ public class Dilithium
 		this.gamma1 = 1 << log2Gamma1;
 		this.gamma2 = gamma2;
 		this.omega = omega;
-		this.w1bits = w1bits;
-		this.xof = xof;
-		this.hash = hash;
-		this.crh = crh;
+		this.w1bits = MiscAlgorithms.bitLength((q - 1) / (2 * gamma2) - 1);
+		this.lambda = lambda;
+		this.hashH = hashH;
+		this.hashG = hashG;
 	}
-	
+
 	public int getDegree() {
 		return degree;
 	}
-	
+
 	public int getRows() {
 		return rows;
 	}
-	
+
 	public int getCols() {
 		return cols;
 	}
-	
+
 	public int getEta() {
 		return eta;
 	}
-	
+
 	public NTTRing<PFE, PrimeField> getNTTRing() {
 		return cylcotomic;
 	}
-	
+
 	public MatrixModule<NTT<PFE>> getMatrixModule() {
 		return matrixModule;
 	}
-	
+
 	public FreeModule<NTT<PFE>> getFreeModule() {
 		return freeModule;
 	}
@@ -350,6 +351,12 @@ public class Dilithium
 			if (closed) {
 				throw new RuntimeException("IntPacker closed!");
 			}
+			if (t < 0) {
+				throw new RuntimeException("can only write non-negative integers");
+			}
+			if (t >= (1 << log)) {
+				throw new RuntimeException("can only write integers with " + log + " bits");
+			}
 			int logToWrite = log;
 			while (logToWrite > 0) {
 				int bits = Math.min(logToWrite, 8 - currentOffset);
@@ -357,6 +364,7 @@ public class Dilithium
 				current |= mod << currentOffset;
 				currentOffset += bits;
 				logToWrite -= bits;
+				t >>= bits;
 				if (currentOffset == 8) {
 					result.write(current);
 					currentOffset = 0;
@@ -461,41 +469,31 @@ public class Dilithium
 		return new Vector<>(result);
 	}
 
-	private Iterator<IntE> reinterpretStream(int log, InputStream stream) {
+	private Iterator<IntE> reinterpretStreamUnbounded(InputStream stream) {
 		return new Iterator<>() {
-			private Integers z = Integers.z();
-			private int bits = 0;
-			private int leftOver = 0;
 			private IntE next = null;
-
-			private boolean getBit() throws IOException {
-				if (bits == 0) {
-					leftOver = stream.read();
-					if (leftOver < 0) {
-						throw new IOException("End of stream reached");
-					}
-					bits = 8;
-				}
-				boolean result = (leftOver & 0x01) != 0;
-				bits--;
-				leftOver >>= 1;
-				return result;
-			}
+			private Integers z = Integers.z();
 
 			@Override
 			public boolean hasNext() {
 				if (next != null) {
 					return true;
 				}
-				next = z.zero();
-				IntE power = z.one();
 				try {
-					for (int i = 0; i < log; i++) {
-						if (getBit()) {
-							next = z.add(next, power);
+					int result;
+					do {
+						int b0 = stream.read();
+						int b1 = stream.read();
+						int b2 = stream.read();
+						if (b0 < 0 || b1 < 0 || b2 < 0) {
+							return false;
 						}
-						power = z.multiply(2, power);
-					}
+						if (b2 > 127) {
+							b2 -= 128;
+						}
+						result = b0 + 256 * b1 + 65536 * b2;
+					} while (result >= q.intValueExact());
+					next = z.getInteger(result);
 				} catch (IOException e) {
 					return false;
 				}
@@ -511,52 +509,112 @@ public class Dilithium
 				next = null;
 				return result;
 			}
+
 		};
 	}
 
-	private NTT<PFE> sampleUniform(IntE min, IntE max, InputStream stream) {
-		Integers z = Integers.z();
-		IntE range = z.add(z.subtract(max, min), z.one());
-		int log = 0;
-		IntE powerOfTwo = z.one();
-		while (powerOfTwo.compareTo(range) < 0) {
-			log++;
-			powerOfTwo = z.multiply(2, powerOfTwo);
-		}
-		List<PFE> coeffs = new ArrayList<>();
-		Iterator<IntE> it = reinterpretStream(log, stream);
-		while (coeffs.size() < degree) {
-			IntE candidate = it.next();
-			if (candidate.compareTo(range) < 0) {
-				coeffs.add(field.getInteger(z.add(candidate, min)));
+	private Iterator<IntE> reinterpretStreamBounded(InputStream stream) {
+		return new Iterator<>() {
+			private IntE[] next = new IntE[2];
+			private Integers z = Integers.z();
+
+			private Optional<Integer> sample(int input) {
+				if (eta == 2 && input < 15) {
+					return Optional.of(2 - (input % 5));
+				}
+				if (eta == 4 && input < 9) {
+					return Optional.of(4 - input);
+				}
+				return Optional.empty();
 			}
+
+			@Override
+			public boolean hasNext() {
+				if (next[0] != null) {
+					return true;
+				}
+				try {
+					do {
+						int b = stream.read();
+						if (b < 0) {
+							return false;
+						}
+						int index = 0;
+						Optional<Integer> low = sample(b % 16);
+						if (low.isPresent()) {
+							next[index] = z.getInteger(low.get());
+							index++;
+						}
+						Optional<Integer> high = sample(b / 16);
+						if (high.isPresent()) {
+							next[index] = z.getInteger(high.get());
+							index++;
+						}
+
+					} while (next[0] == null);
+				} catch (IOException e) {
+					return false;
+				}
+				return true;
+			}
+
+			@Override
+			public IntE next() {
+				if (!hasNext()) {
+					throw new ArithmeticException("Stream ended unexpectedly!");
+				}
+				IntE result = next[0];
+				next[0] = next[1];
+				next[1] = null;
+				return result;
+			}
+
+		};
+	}
+	/*
+	 * private Iterator<IntE> reinterpretStream(int log, InputStream stream) {
+	 * return new Iterator<>() { private Integers z = Integers.z(); private int bits
+	 * = 0; private int leftOver = 0; private IntE next = null;
+	 * 
+	 * private boolean getBit() throws IOException { if (bits == 0) { leftOver =
+	 * stream.read(); if (leftOver < 0) { throw new
+	 * IOException("End of stream reached"); } bits = 8; } boolean result =
+	 * (leftOver & 0x01) != 0; bits--; leftOver >>= 1; return result; }
+	 * 
+	 * @Override public boolean hasNext() { if (next != null) { return true; } next
+	 * = z.zero(); IntE power = z.one(); try { for (int i = 0; i < log; i++) { if
+	 * (getBit()) { next = z.add(next, power); } power = z.multiply(2, power); } }
+	 * catch (IOException e) { return false; } return true; }
+	 * 
+	 * @Override public IntE next() { if (!hasNext()) { throw new
+	 * ArithmeticException("Stream ended unexpectedly!"); } IntE result = next; next
+	 * = null; return result; } }; }
+	 */
+
+	private NTT<PFE> sampleBounded(InputStream stream) {
+		List<PFE> coeffs = new ArrayList<>();
+		Iterator<IntE> it = reinterpretStreamBounded(stream);
+		while (coeffs.size() < degree) {
+			coeffs.add(field.getInteger(it.next()));
 		}
 		return cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(coeffs));
 	}
 
-	private NTT<PFE> sampleUniform(IntE max, InputStream stream) {
-		Integers z = Integers.z();
-		return sampleUniform(z.negative(max), max, stream);
-	}
-
-	private Vector<NTT<PFE>> sampleUniformVector(IntE max, int dimension, byte[] seed, int nonce) {
+	private Vector<NTT<PFE>> sampleBoundedVector(int dimension, byte[] seed, int nonce) {
 		List<NTT<PFE>> result = new ArrayList<>();
 		for (int i = 0; i < dimension; i++) {
-			byte[] input = Arrays.copyOf(seed, seed.length + 1);
+			byte[] input = Arrays.copyOf(seed, seed.length + 2);
 			input[seed.length] = (byte) (nonce + i);
-			result.add(sampleUniform(max, hash.stream(input)));
+			result.add(sampleBounded(hashH.stream(input)));
 		}
 		return new Vector<>(result);
 	}
 
-	private NTT<PFE> sampleUniform(InputStream stream) {
+	private NTT<PFE> sampleUnbounded(InputStream stream) {
 		List<PFE> coeffs = new ArrayList<>();
-		Iterator<IntE> it = reinterpretStream(logQ, stream);
+		Iterator<IntE> it = reinterpretStreamUnbounded(stream);
 		while (coeffs.size() < degree) {
-			IntE candidate = it.next();
-			if (candidate.compareTo(q) < 0) {
-				coeffs.add(field.getInteger(candidate));
-			}
+			coeffs.add(field.getInteger(it.next()));
 		}
 		return cylcotomic.fromList(coeffs);
 	}
@@ -569,7 +627,7 @@ public class Dilithium
 				byte[] input = Arrays.copyOf(seed, seed.length + 2);
 				input[seed.length] = (byte) j;
 				input[seed.length + 1] = (byte) i;
-				row.add(sampleUniform(xof.stream(input)));
+				row.add(sampleUnbounded(hashG.stream(input)));
 			}
 			result.add(row);
 		}
@@ -582,10 +640,21 @@ public class Dilithium
 			byte[] input = Arrays.copyOf(seed, seed.length + 2);
 			input[seed.length] = (byte) ((kappa + i) % 256);
 			input[seed.length + 1] = (byte) ((kappa + i) / 256);
-			Iterator<IntE> mask = reinterpretStream(log2Gamma1, crh.stream(input));
+			byte[] byteMask = hashH.evaluate(input, (log2Gamma1 + 1) * degree / 8);
 			List<PFE> coeffs = new ArrayList<>();
 			for (int j = 0; j < degree; j++) {
-				coeffs.add(field.getInteger(mask.next()));
+				int index = (log2Gamma1 + 1) * j;
+				int endBitIndex = (log2Gamma1 + 1) * (j + 1);
+				int value = 0;
+				int power = 1;
+				while (index < endBitIndex) {
+					int mask = (1 << Math.min(8 - (index % 8), endBitIndex - index)) - 1;
+					int bits = mask & (byteMask[index / 8] >> (index % 8));
+					value += power * bits;
+					power <<= 8 - (index % 8);
+					index += 8 - (index % 8);
+				}
+				coeffs.add(field.getInteger(gamma1 - value));
 			}
 			result.add(cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(coeffs)));
 		}
@@ -593,7 +662,7 @@ public class Dilithium
 	}
 
 	private NTT<PFE> sampleInBall(byte[] seed) {
-		InputStream stream = crh.stream(seed);
+		InputStream stream = hashH.stream(seed);
 		byte[] signs = new byte[8];
 		try {
 			stream.read(signs);
@@ -633,28 +702,39 @@ public class Dilithium
 		return ByteArray.concatenate(prefix, packer.close()).array();
 	}
 
+	public byte[] serializePublicKey(DilithiumPublicKey publicKey) {
+		return crhInput(publicKey.rho, publicKey.t1);
+	}
+
 	@Override
 	public DilithiumPrivateKey createPrivateKey() {
-		Integers z = Integers.z();
 		byte[] zeta = new byte[32];
 		new SecureRandom().nextBytes(zeta);
-		byte[] expanded = hash.evaluate(zeta, 3 * 32);
+		return createPrivateKeyFromSeed(zeta);
+	}
+
+	public DilithiumPrivateKey createPrivateKeyFromSeed(byte[] zeta) {
+		byte[] input = Arrays.copyOf(zeta, zeta.length + 2);
+		input[zeta.length] = (byte) rows;
+		input[zeta.length + 1] = (byte) cols;
+		byte[] expanded = hashH.evaluate(input, 128);
 		byte[] rho = Arrays.copyOf(expanded, 32);
-		byte[] sigma = Arrays.copyOfRange(expanded, 32, 2 * 32);
-		byte[] k = Arrays.copyOfRange(expanded, 2 * 32, 3 * 32);
-		Vector<NTT<PFE>> s = sampleUniformVector(z.getInteger(eta), cols, sigma, 0);
-		Vector<NTT<PFE>> e = sampleUniformVector(z.getInteger(eta), rows, sigma, cols);
+		byte[] sigma = Arrays.copyOfRange(expanded, 32, 3 * 32);
+		byte[] k = Arrays.copyOfRange(expanded, 3 * 32, 4 * 32);
+		Vector<NTT<PFE>> s = sampleBoundedVector(cols, sigma, 0);
+		Vector<NTT<PFE>> e = sampleBoundedVector(rows, sigma, cols);
 		return createPrivateKeyFromParameters(rho, k, s, e);
 	}
-	
-	public DilithiumPrivateKey createPrivateKeyFromParameters(byte[] rho, byte[] k, Vector<NTT<PFE>> s, Vector<NTT<PFE>> e) {
+
+	public DilithiumPrivateKey createPrivateKeyFromParameters(byte[] rho, byte[] k, Vector<NTT<PFE>> s,
+			Vector<NTT<PFE>> e) {
 		Matrix<NTT<PFE>> matrix = expandMatrix(rho);
 		Vector<NTT<PFE>> t = freeModule.add(matrixModule.multiply(matrix, s), e);
 		Pair<Vector<IntE>, Vector<NTT<PFE>>> power2Round = power2Round(t, d);
-		byte[] tr = crh.evaluate(crhInput(rho, power2Round.getFirst()), 48);
+		byte[] tr = hashH.evaluate(crhInput(rho, power2Round.getFirst()), 64);
 		return new DilithiumPrivateKey(new DilithiumPublicKey(rho, power2Round.getFirst()), k, tr, s, e,
 				power2Round.getSecond());
-	
+
 	}
 
 	@Override
@@ -665,20 +745,21 @@ public class Dilithium
 	@Override
 	public DilithiumSignature sign(byte[] message, DilithiumPrivateKey privateKey) {
 		Matrix<NTT<PFE>> matrix = expandMatrix(privateKey.getRho());
-		byte[] input = ByteArray.concatenate(privateKey.getTr(), message).array();
-		byte[] mu = crh.evaluate(input, 48);
+		byte[] input = ByteArray.concatenate(ByteArray.concatenate(privateKey.getTr(), new byte[2]).array(), message)
+				.array();
+		byte[] mu = hashH.evaluate(input, 64);
 		int kappa = 0;
 		Vector<NTT<PFE>> z = null;
 		List<Boolean> hints = null;
 		byte[] cSeed = null;
-		byte[] rhoPrime = new byte[48];
-		new SecureRandom().nextBytes(rhoPrime);
+		ByteArray rhoPrimeInput = ByteArray.concatenate(ByteArray.concatenate(privateKey.k, new byte[32]).array(), mu);
+		byte[] rhoPrime = hashH.evaluate(rhoPrimeInput.array(), 64);
 		while (z == null) {
 			Vector<NTT<PFE>> y = expandMask(rhoPrime, kappa);
 			Vector<NTT<PFE>> w = matrixModule.multiply(matrix, y);
 			Vector<IntE> w1 = highBits(w, 2 * gamma2);
 			byte[] w1Packed = packVector(w1, w1bits);
-			cSeed = hash.evaluate(ByteArray.concatenate(mu, w1Packed).array(), 32);
+			cSeed = hashH.evaluate(ByteArray.concatenate(mu, w1Packed).array(), lambda / 4);
 			NTT<PFE> c = sampleInBall(cSeed);
 			z = matrixModule.domain().add(y, matrixModule.domain().scalarMultiply(c, privateKey.getS()));
 			Vector<NTT<PFE>> wcs2 = freeModule.subtract(w, freeModule.scalarMultiply(c, privateKey.getE()));
@@ -700,20 +781,154 @@ public class Dilithium
 		return new DilithiumSignature(z, hints, cSeed);
 	}
 
+	// A method to create invalid signatures, that have a z value that is bigger
+	// than the limit at the indicated index, but otherwise verify just fine
+	// We do this by messing with the generation of y, to heavily put our thumb on the scale to make such a signature more likely, and then rejection sample
+	public DilithiumSignature signViolateZ(byte[] message, DilithiumPrivateKey privateKey, int zIndexToViolate,
+			boolean positive) {
+		Matrix<NTT<PFE>> matrix = expandMatrix(privateKey.getRho());
+		byte[] input = ByteArray.concatenate(ByteArray.concatenate(privateKey.getTr(), new byte[2]).array(), message)
+				.array();
+		byte[] mu = hashH.evaluate(input, 64);
+		int kappa = 0;
+		Vector<NTT<PFE>> z = null;
+		List<Boolean> hints = null;
+		byte[] cSeed = null;
+		ByteArray rhoPrimeInput = ByteArray.concatenate(ByteArray.concatenate(privateKey.k, new byte[32]).array(), mu);
+		byte[] rhoPrime = hashH.evaluate(rhoPrimeInput.array(), 64);
+		int indexToViolate = zIndexToViolate / degree;
+		PFE violationCoeff = field.getElement((positive ? 1 : -1) * (gamma1 - tau * eta / 2));
+		while (z == null) {
+			Vector<NTT<PFE>> y = expandMask(rhoPrime, kappa);
+			UnivariatePolynomial<PFE> yInvNTT = cylcotomic.asPolynomial(y.get(indexToViolate + 1));
+			List<PFE> coeffs = new ArrayList<>();
+			for (int i = 0; i < degree; i++) {
+				if (i == zIndexToViolate % degree) {
+					coeffs.add(violationCoeff);
+				} else {
+					coeffs.add(yInvNTT.univariateCoefficient(i));
+				}
+			}
+			NTT<PFE> violationYCoeff = cylcotomic.fromPolynomial(field.getUnivariatePolynomialRing().getPolynomial(coeffs));
+			List<NTT<PFE>> modifiedYCoeffs = new ArrayList<>();
+			for (int i = 0; i < cols; i++) {
+				if (i == indexToViolate) {
+					modifiedYCoeffs.add(violationYCoeff);
+				} else {
+					modifiedYCoeffs.add(y.get(i+1));
+				}
+			}
+			y = new Vector<>(modifiedYCoeffs);
+			Vector<NTT<PFE>> w = matrixModule.multiply(matrix, y);
+			Vector<IntE> w1 = highBits(w, 2 * gamma2);
+			byte[] w1Packed = packVector(w1, w1bits);
+			cSeed = hashH.evaluate(ByteArray.concatenate(mu, w1Packed).array(), lambda / 4);
+			NTT<PFE> c = sampleInBall(cSeed);
+			z = matrixModule.domain().add(y, matrixModule.domain().scalarMultiply(c, privateKey.getS()));
+			Vector<NTT<PFE>> wcs2 = freeModule.subtract(w, freeModule.scalarMultiply(c, privateKey.getE()));
+			Vector<NTT<PFE>> r0 = lowBits(wcs2, 2 * gamma2);
+			boolean reject = false;
+			for (int i = 0; i < cols; i++) {
+				UnivariatePolynomial<PFE> poly = cylcotomic.asPolynomial(z.get(i+1));
+				if (reject) {
+					break;
+				}
+				for (int j = 0; j < degree; j++) {
+					if (i * degree + j == zIndexToViolate) {
+						int value = Integers.z().centeredLift( poly.univariateCoefficient(j), q).intValueExact();
+						if (value >= gamma1 || value < -gamma1) {
+							reject = true;
+							break;
+						}
+						if (positive && value < gamma1 - tau*eta) {
+							reject = true;
+							break;
+						}
+						if (!positive && value > -gamma1 + tau*eta) {
+							reject = true;
+							break;
+						}
+					} else {
+						if (Integers.z().centeredLift( poly.univariateCoefficient(j), q).getValue().abs().intValueExact() >= gamma1 - tau*eta) {
+							reject = true;
+							break;
+						}
+					}
+				}
+			}
+			if (reject || infinityNorm(r0) >= gamma2 - tau * eta) {
+				z = null;
+				cSeed = null;
+			} else {
+				Vector<NTT<PFE>> ct0 = freeModule.scalarMultiply(c, privateKey.getT0());
+				hints = makeHints(freeModule.negative(ct0), freeModule.add(wcs2, ct0), 2 * gamma2);
+				if (infinityNorm(ct0) >= gamma2 || oneNorm(hints) > omega) {
+					z = null;
+					hints = null;
+					cSeed = null;
+				}
+			}
+			kappa += cols;
+		}
+		return new DilithiumSignature(z, hints, cSeed);
+	}
+
+	public byte[] serializeSignature(DilithiumSignature signature) {
+		Integers z = Integers.z();
+		int size = 2 * gamma1 - 1;
+		ByteArray result = new ByteArray(signature.cSeed);
+		for (int i = 0; i < signature.z.dimension(); i++) {
+			IntPacker packer = new IntPacker(MiscAlgorithms.bitLength(size));
+			UnivariatePolynomial<PFE> coeff = cylcotomic.asPolynomial(signature.z.get(i + 1));
+			for (int j = 0; j < degree; j++) {
+				packer.write(gamma1 - z.centeredLift(coeff.univariateCoefficient(j), q).intValueExact());
+			}
+			result = ByteArray.concatenate(result.array(), packer.close());
+		}
+		byte[] hint = new byte[omega + rows];
+		int index = 0;
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < degree; j++) {
+				if (signature.hints.get(i * degree + j)) {
+					hint[index] = (byte) j;
+					index++;
+				}
+			}
+			hint[i + omega] = (byte) index;
+		}
+		result = ByteArray.concatenate(result.array(), hint);
+		return result.array();
+	}
+
 	@Override
 	public boolean verify(byte[] message, DilithiumSignature signature, DilithiumPublicKey publicKey) {
 		Matrix<NTT<PFE>> matrix = expandMatrix(publicKey.getRho());
-		byte[] tr = crh.evaluate(crhInput(publicKey.getRho(), publicKey.getT1()), 48);
-		byte[] input = ByteArray.concatenate(tr, message).array();
-		byte[] mu = crh.evaluate(input, 48);
+		byte[] tr = hashH.evaluate(crhInput(publicKey.getRho(), publicKey.getT1()), 64);
+		byte[] input = ByteArray.concatenate(ByteArray.concatenate(tr, new byte[2]).array(), message).array();
+		byte[] mu = hashH.evaluate(input, 64);
 		NTT<PFE> c = sampleInBall(signature.getCSeed());
 		Vector<IntE> w1 = useHints(signature.getHints(),
 				freeModule.subtract(matrixModule.multiply(matrix, signature.getZ()),
 						freeModule.scalarMultiply(c, power2Inflate(publicKey.getT1(), d))),
 				2 * gamma2);
 		byte[] w1Packed = packVector(w1, w1bits);
-		byte[] recoveredCSeed = hash.evaluate(ByteArray.concatenate(mu, w1Packed).array(), 32);
+		byte[] recoveredCSeed = hashH.evaluate(ByteArray.concatenate(mu, w1Packed).array(), lambda / 4);
 		return infinityNorm(signature.getZ()) < gamma1 - tau * eta && Arrays.equals(recoveredCSeed, signature.cSeed)
 				&& oneNorm(signature.getHints()) <= omega;
+	}
+
+	public boolean verifyNoCheck(byte[] message, DilithiumSignature signature, DilithiumPublicKey publicKey) {
+		Matrix<NTT<PFE>> matrix = expandMatrix(publicKey.getRho());
+		byte[] tr = hashH.evaluate(crhInput(publicKey.getRho(), publicKey.getT1()), 64);
+		byte[] input = ByteArray.concatenate(ByteArray.concatenate(tr, new byte[2]).array(), message).array();
+		byte[] mu = hashH.evaluate(input, 64);
+		NTT<PFE> c = sampleInBall(signature.getCSeed());
+		Vector<IntE> w1 = useHints(signature.getHints(),
+				freeModule.subtract(matrixModule.multiply(matrix, signature.getZ()),
+						freeModule.scalarMultiply(c, power2Inflate(publicKey.getT1(), d))),
+				2 * gamma2);
+		byte[] w1Packed = packVector(w1, w1bits);
+		byte[] recoveredCSeed = hashH.evaluate(ByteArray.concatenate(mu, w1Packed).array(), lambda / 4);
+		return Arrays.equals(recoveredCSeed, signature.cSeed) && oneNorm(signature.getHints()) <= omega;
 	}
 }
